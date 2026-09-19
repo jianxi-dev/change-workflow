@@ -3,13 +3,13 @@
 # change-workflow 更新向导
 #
 # 用法:
-#   ./update.sh [--target <项目目录>] [--check] [--dry-run] [--force] [--yes]
+#   ./update.sh [--target <项目目录>] [--check] [--dry-run] [--force] [--adopt]
 #
 # 行为:
 #   --check     仅比对版本，不落盘（进度用）
 #   --dry-run   打印将执行的动作，不落盘
 #   --force     忽略本地改动强制覆盖（覆盖前一律备份 .bak）
-#   --yes       非交互（当前无需交互，保留以对齐 setup.sh）
+#   --adopt     强制进入接管模式（用于 1.0.0 时代无基线记录的既有安装）
 #
 # 冲突保护:
 #   以 .change-workflow.manifest 记录的**基线哈希**判定目标文件是否被本地修改。
@@ -30,7 +30,6 @@ CHECK_ONLY=0
 DRY_RUN=0
 FORCE=0
 ADOPT=0
-ASSUME_YES=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,7 +38,6 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --force)   FORCE=1; shift ;;
     --adopt)   ADOPT=1; shift ;;
-    --yes|-y)  ASSUME_YES=1; shift ;;
     --help|-h) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "未知参数: $1" >&2; exit 1 ;;
   esac

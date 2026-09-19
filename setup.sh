@@ -37,6 +37,7 @@ act() { if [[ "$DRY_RUN" == "1" ]]; then echo "    [dry-run] $*"; else "$@"; fi;
 ask() {
   local __var="$1" prompt="$2" default="$3" ans=""
   if [[ "$ASSUME_YES" == "1" ]]; then eval "$__var=\"\$default\""; return; fi
+  # shellcheck disable=SC2034  # ans 经下方 eval 间接赋给调用方指定变量，shellcheck 无法穿透
   read -r -p "$prompt [$default]: " ans || true
   eval "$__var=\"\${ans:-\$default}\""
 }
