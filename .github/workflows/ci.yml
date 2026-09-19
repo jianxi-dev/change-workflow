@@ -1,0 +1,64 @@
+name: CI
+
+# 工具包自身的质量门禁。搬家前先有 CI —— 本仓库此前靠人工端到端测试，
+# 两个真实缺陷（manifest 基线被重写、$VAR 紧邻全角字符致 --force 不可用）都是那样才发现的。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash 语法检查
+        run: |
+          fail=0
+          for s in setup.sh update.sh lib/render.sh scripts/pr-automation.sh test/*.sh; do
+            [ -f "$s" ] || continue
+            if bash -n "$s"; then echo "✅ $s"; else echo "❌ $s"; fail=1; fi
+          done
+          exit $fail
+
+      - name: shellcheck
+        run: |
+          if ! command -v shellcheck >/dev/null; then
+            echo "shellcheck 不可用，跳过"; exit 0
+          fi
+          # 仅报 error/warning；info/style 不阻断
+          shellcheck --severity=warning -x \
+            setup.sh update.sh lib/render.sh scripts/pr-automation.sh test/*.sh
+
+      - name: 占位符与替换表一致性
+        run: |
+          used="$(grep -rho '{{[A-Z_]*}}' docs/agents skills | sort -u)"
+          known="$(grep -o 's|{{[A-Z_]*}}' lib/render.sh | sed 's/s|//' | sort -u)"
+          missing="$(comm -23 <(echo "$used") <(echo "$known"))"
+          if [ -n "$missing" ]; then
+            echo "❌ 模板使用了未在 lib/render.sh 登记的占位符:"; echo "$missing"; exit 1
+          fi
+          echo "✅ 占位符全部有替换表覆盖"
+
+      - name: 模板头一致性
+        run: |
+          fail=0
+          for f in docs/agents/*.md skills/change-workflow/SKILL.md; do
+            head -1 "$f" | grep -q "工具包模板" || { echo "❌ 缺模板头: $f"; fail=1; }
+          done
+          [ "$fail" -eq 0 ] && echo "✅ 模板头齐全"
+          exit $fail
+
+      - name: 无仓库特有值残留
+        run: |
+          if grep -rl 'jianxi-dev\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
+               docs/agents skills scripts workflows 2>/dev/null; then
+            echo "❌ 模板含仓库特有值（安装到其它仓库会指向错误目标）"; exit 1
+          fi
+          echo "✅ 无仓库特有值残留"
+
+      - name: 安装/升级 端到端测试
+        run: ./test/install-update-e2e.sh
