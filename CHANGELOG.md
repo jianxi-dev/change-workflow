@@ -1,3 +1,28 @@
+## 1.1.2 — 2026-09-20
+
+### 修复
+
+- **`scripts/pr-automation.sh`：`--refs-only` 时 commit message 使用 `refs #N`**
+  此前 commit message 恒为 `fixes #$ISSUE`，**无视 `--refs-only`**。
+  该 flag 用于 parent/spec issue 的 PR（防止合并时提前关闭其生命周期），
+  PR body 已正确使用 `Refs #N`，但 **commit message 仍写 `fixes #N`** ——
+  而 GitHub 对两者**都会**触发自动关闭，故 `--refs-only` 实际被**部分破坏**。
+  来源：clairis 的修复（其 HEAD commit），此前**从未回灌上游**。
+
+### 说明
+
+这是升级 mdpkg / clairis 时通过 `.new` 旁路暴露的**第三个上游缺口**：
+
+| # | 缺口 | 来源仓库 | 版本 |
+|---|---|---|---|
+| 1 | `git add -f` 回退（.gitignore 匹配路径） | mdpkg PR #24 | 1.1.1 |
+| 2 | 看板常量改为从 conf 读取（+ option ID 泄漏） | mdpkg 升级暴露 | 1.1.1 |
+| 3 | `--refs-only` 的 commit message | clairis HEAD commit | 1.1.2 |
+
+**三个都印证了接管模式「不静默覆盖」的价值** —— 若直接 `--force`，这些下游改进会被静默丢弃。
+
+---
+
 ## 1.1.1 — 2026-09-20
 
 ### 修复
