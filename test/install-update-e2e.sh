@@ -157,12 +157,24 @@ write_conf "1.0.0"
 sed -i.cw 's|^TOOLKIT_VERSION=.*||' .change-workflow.conf && rm -f .change-workflow.conf.cw
 rc8=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc8=$?
 ok "退出码（有差异→1）" "$rc8" "1"
-ok "manifest 已生成" "$([[ -f .change-workflow.manifest ]] && wc -l < .change-workflow.manifest | tr -d ' ')" "12"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 12 - 3 = 9
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "9"
+ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
 ok "旁路文件为新版本" "$(grep -c '## 本地定制' docs/agents/triage-labels.md.new)" "0"
+# 修复后的语义：未写基线的「不同」文件**持续被标记**，直到人工解决 —— 不会再被静默覆盖
 set_version "0.9.0"
-"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1; ok "接管后归一" "$?" "0"
+rc8b=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc8b=$?
+ok "未解决前持续报冲突" "$rc8b" "1"
+ok "定制仍未被覆盖" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
+# 用户采纳后应能归一（须解决**全部** 3 个不同文件，只解一个仍会报冲突）
+mv docs/agents/triage-labels.md.new docs/agents/triage-labels.md
+mv docs/agents/defect-workflow.md.new docs/agents/defect-workflow.md
+mv .opencode/skills/change-workflow/SKILL.md.new .opencode/skills/change-workflow/SKILL.md
+set_version "0.9.0"
+rc8c=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc8c=$?
+ok "全部采纳后归一" "$rc8c" "0"
 sanitize "$B3"
 
 # ── 用例 9：一致性（模板头 / 仓库特有值残留 / 语法）──────────────────────────
@@ -193,6 +205,32 @@ for f in ['update.sh','setup.sh','lib/render.sh','scripts/pr-automation.sh']:
 print(n)
 PY
 )" "0"
+
+# ── 用例 10：接管后再更新，本地定制不得被覆盖（回归：曾静默覆盖）─────────────
+echo ""
+echo "[10] 接管 → 再次更新，定制不得被覆盖"
+B4="$(mktemp -d)"; new_repo "$B4/repo" || exit 1
+mkdir -p docs/agents
+cp "$CW_ROOT/docs/agents/domain.md" docs/agents/
+echo "## 本仓库专属定制" >> docs/agents/domain.md
+write_conf "1.0.0"
+sed -i.cw 's|^TOOLKIT_VERSION=.*||' .change-workflow.conf && rm -f .change-workflow.conf.cw
+rc10a=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc10a=$?
+ok "接管退出码" "$rc10a" "1"
+ok "定制保留" "$(grep -c '## 本仓库专属定制' docs/agents/domain.md)" "1"
+ok "定制文件不写基线" "$(grep -c 'domain.md' .change-workflow.manifest)" "0"
+# 原缺陷：接管把当前内容记为基线 → 下次更新判为「未修改」→ 静默覆盖
+set_version "0.9.0"
+rc10b=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc10b=$?
+ok "再次更新仍报冲突" "$rc10b" "1"
+ok "定制未被覆盖" "$(grep -c '## 本仓库专属定制' docs/agents/domain.md)" "1"
+# 用户采纳新版后应能归一
+mv docs/agents/domain.md.new docs/agents/domain.md
+set_version "0.9.0"
+rc10c=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc10c=$?
+ok "采纳后归一" "$rc10c" "0"
+ok "基线已记录" "$(grep -c 'domain.md' .change-workflow.manifest)" "1"
+sanitize "$B4"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""

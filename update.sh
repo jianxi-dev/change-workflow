@@ -78,6 +78,16 @@ fi
 # 那时的 setup.sh 不写 manifest，因此无法区分「文件未改」与「被本地改过」。
 # 此时不静默覆盖：逐个比对当前文件与新版模板，一致则接管，不同则写 .new 供人工核对，
 # 并把**当前内容**记为新基线（接管），使后续升级恢复正常语义。
+# 通用：判断值是否在给定列表中。**不用 nameref（local -n）** ——
+# macOS 自带 /bin/bash 是 3.2，不支持 nameref（4.3+ 才有），会导致函数静默失效。
+# 定义须在首次调用之前（接管块会用到）。
+is_in_list() {
+  local needle="$1"; shift
+  local item
+  for item in "$@"; do [[ "$item" == "$needle" ]] && return 0; done
+  return 1
+}
+
 needs_bootstrap() {
   [[ "$ADOPT" == "1" ]] && return 0
   [[ -s "$MANIFEST" ]] && return 1
@@ -132,7 +142,12 @@ if needs_bootstrap; then
       [[ -n "$tpl_rel" ]] || continue
       dst="${dst_rel/__SKILLS_DIR__/$SKILLS_DIR}"
       dst="${dst/__DOCS_DIR__/$DOCS_DIR}"
-      [[ -f "${dst}" ]] && printf '%s  %s\n' "$(cw_sha "${dst}")" "${dst}" >> "$MANIFEST"
+      [[ -f "${dst}" ]] || continue
+      # 「不同」的文件**不写基线**：它们可能是本地定制。若把当前内容记为基线，
+      # 下次更新会因 current==baseline 判为「未修改」而**静默覆盖**它 ——
+      # 用户的 .new 尚未处理就被冲掉。不写基线 → 持续标记为冲突，直到人工解决。
+      if is_in_list "$dst" "${B_LIST[@]:-}"; then continue; fi
+      printf '%s  %s\n' "$(cw_sha "${dst}")" "${dst}" >> "$MANIFEST"
     done < <(cw_list_files)
     if grep -q '^TOOLKIT_VERSION=' "$CONF"; then
       sed -i.cw-tmp "s|^TOOLKIT_VERSION=.*|TOOLKIT_VERSION=\"$NEW_VERSION\"|" "$CONF" && rm -f "$CONF.cw-tmp"

@@ -33,6 +33,23 @@ jobs:
           shellcheck --severity=warning -x \
             setup.sh update.sh lib/render.sh scripts/pr-automation.sh test/*.sh
 
+      - name: bash 3.2 兼容性（静态）
+        run: |
+          # CI runner 是 bash 5，macOS 自带 /bin/bash 是 3.2。
+          # bash 4+ 特性在 CI 上永远绿，到 macOS 才炸 —— 必须静态拦截。
+          fail=0
+          for f in setup.sh update.sh lib/render.sh scripts/pr-automation.sh test/*.sh; do
+            [ -f "$f" ] || continue
+            hits="$(grep -vE '^[[:space:]]*#' "$f" | grep -nE 'local -n |declare -A|mapfile|readarray' || true)"
+            if [ -n "$hits" ]; then
+              echo "❌ $f 使用 bash 4+ 特性（macOS /bin/bash 3.2 不支持）:"
+              echo "$hits"
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] && echo "✅ 无 bash 4+ 特性（脚本可在 bash 3.2 运行）"
+          exit $fail
+
       - name: 占位符与替换表一致性
         run: |
           used="$(grep -rho '{{[A-Z_]*}}' docs/agents skills | sort -u)"
