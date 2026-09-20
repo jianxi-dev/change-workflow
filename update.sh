@@ -10,6 +10,8 @@
 #   --dry-run   打印将执行的动作，不落盘
 #   --force     忽略本地改动强制覆盖（覆盖前一律备份 .bak）
 #   --adopt     强制进入接管模式（用于 1.0.0 时代无基线记录的既有安装）
+#   --accept-local <path>  接受某文件的本地版本（记为新基线，此后不再报告冲突）；
+#                          可重复传入多个路径
 #
 # 冲突保护:
 #   以 .change-workflow.manifest 记录的**基线哈希**判定目标文件是否被本地修改。
@@ -30,6 +32,7 @@ CHECK_ONLY=0
 DRY_RUN=0
 FORCE=0
 ADOPT=0
+ACCEPT_LOCAL=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -38,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --force)   FORCE=1; shift ;;
     --adopt)   ADOPT=1; shift ;;
+    --accept-local) ACCEPT_LOCAL+=("$2"); shift 2 ;;
     --help|-h) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "未知参数: $1" >&2; exit 1 ;;
   esac
@@ -71,6 +75,34 @@ fi
 
 if [[ "$CHECK_ONLY" == "1" ]]; then
   [[ "$OLD_VERSION" == "$NEW_VERSION" ]] || log "有新版本可用：运行 ./update.sh 进行更新"
+  exit 0
+fi
+
+# --- 解决冲突：接受本地版本 ---------------------------------------------------
+# 用于「已人工审阅、确认保留本地」的文件：把其**当前内容**记为基线，此后不再报告冲突。
+# 没有这个动作时，有意保留本地的文件会被永久标记 → update.sh 永远 exit 1，
+# 退出码作为 CI 信号的价值归零。
+if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "[dry-run] 将接受本地版本："
+    printf '    %s\n' "${ACCEPT_LOCAL[@]}"
+    exit 0
+  fi
+  accepted=0
+  for p in "${ACCEPT_LOCAL[@]}"; do
+    if [[ ! -f "$p" ]]; then warn "跳过（文件不存在）：${p}"; continue; fi
+    if [[ -f "${p}.new" ]]; then
+      warn "注意：${p} 仍有未处理的 ${p}.new —— 接受本地后将不再提示"
+    fi
+    tmp_manifest="$(mktemp)"
+    # 保留其它条目，替换/追加本路径
+    if [[ -f "$MANIFEST" ]]; then awk -v p="$p" '$2 != p' "$MANIFEST" > "$tmp_manifest"; fi
+    printf '%s  %s\n' "$(cw_sha "$p")" "$p" >> "$tmp_manifest"
+    mv "$tmp_manifest" "$MANIFEST"
+    log "已接受本地版本：${p}"
+    accepted=$((accepted + 1))
+  done
+  log "完成：接受 ${accepted} 个文件；再次运行 ./update.sh 应归一（退出码 0）"
   exit 0
 fi
 
@@ -170,8 +202,8 @@ if needs_bootstrap; then
 $(printf '  - %s.new\n' "${B_LIST[@]}")
 
 处理方式（每个文件任选其一）：
-  1. 保留本地：rm <file>.new        （基线仍未写；确认无需再跟踪该文件时可直接删）
-  2. 采用新版：mv <file>.new <file> （下次升级会自动写入基线）
+  1. 保留本地：./update.sh --accept-local <file>   （记为新基线，此后不再报告）
+  2. 采用新版：mv <file>.new <file>                （下次升级自动写基线）
   3. 人工合并：diff <file> <file>.new → 合并 → rm <file>.new
   4. 全部采用新版：./update.sh --force
 
