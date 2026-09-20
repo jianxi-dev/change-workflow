@@ -128,7 +128,7 @@ if needs_bootstrap; then
       log "  一致：${dst}"
       B_SAME=$((B_SAME + 1))
     else
-      warn "  不同：${dst}（新版本写入 ${dst}.new，当前内容被接管为基线）"
+      warn "  不同：${dst}（新版本写入 ${dst}.new；**不写基线**，将持续标记直到你解决）"
       [[ "$DRY_RUN" != "1" ]] && cp "$TMP" "${dst}.new"
       B_DIFF=$((B_DIFF + 1)); B_LIST+=("${dst}")
     fi
@@ -163,14 +163,19 @@ if needs_bootstrap; then
     cat >&2 <<EOF
 
 以下文件与 ${NEW_VERSION} 模板不同（可能是本地定制，也可能是 1.0.0→${NEW_VERSION} 的正常演进）。
-新版本已写入同名 .new 旁路文件；**当前内容已被接管为新基线**，后续升级将正常工作。
+新版本已写入同名 .new 旁路文件。
+
+**这些文件未写基线** —— 在你解决之前，每次升级都会继续报告它们（不会被静默覆盖）。
 
 $(printf '  - %s.new\n' "${B_LIST[@]}")
 
-处理方式（任选）：
-  1. 逐个人工核对：diff <file> <file>.new → 合并需要的部分 → 删除 .new
-  2. 全部采用新版本：./update.sh --force
-  3. 全部保留现状：直接删除 .new 文件（基线已接管，无需其它操作）
+处理方式（每个文件任选其一）：
+  1. 保留本地：rm <file>.new        （基线仍未写；确认无需再跟踪该文件时可直接删）
+  2. 采用新版：mv <file>.new <file> （下次升级会自动写入基线）
+  3. 人工合并：diff <file> <file>.new → 合并 → rm <file>.new
+  4. 全部采用新版：./update.sh --force
+
+全部解决后再次运行 ./update.sh 即归一（退出码 0）。
 EOF
     exit 1
   fi
