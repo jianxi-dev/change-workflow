@@ -79,12 +79,14 @@ if [[ "$CHECK_ONLY" == "1" ]]; then
 fi
 
 # --- 解决冲突：接受本地版本 ---------------------------------------------------
-# 用于「已人工审阅、确认保留本地」的文件：把其**当前内容**记为基线，此后不再报告冲突。
-# 没有这个动作时，有意保留本地的文件会被永久标记 → update.sh 永远 exit 1，
-# 退出码作为 CI 信号的价值归零。
+# 用于「已人工审阅、确认保留本地」的文件：记为**哨兵基线 LOCAL**，此后该文件
+# 被永久跳过（不更新、不报冲突）。
+#
+# 注意：**不能**把当前内容哈希记为基线 —— 那表示「自基线以来未改动，可安全更新」，
+# 下次更新会据此覆盖它，与「保留本地」的意图正好相反（这是真实踩过的坑）。
 if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
   if [[ "$DRY_RUN" == "1" ]]; then
-    log "[dry-run] 将接受本地版本："
+    log "[dry-run] 将接受本地版本（记为 LOCAL，此后永久跳过）："
     printf '    %s\n' "${ACCEPT_LOCAL[@]}"
     exit 0
   fi
@@ -92,14 +94,13 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
   for p in "${ACCEPT_LOCAL[@]}"; do
     if [[ ! -f "$p" ]]; then warn "跳过（文件不存在）：${p}"; continue; fi
     if [[ -f "${p}.new" ]]; then
-      warn "注意：${p} 仍有未处理的 ${p}.new —— 接受本地后将不再提示"
+      warn "注意：${p} 仍有未处理的 ${p}.new —— 接受本地后将不再提示，请确认不再需要它"
     fi
     tmp_manifest="$(mktemp)"
-    # 保留其它条目，替换/追加本路径
     if [[ -f "$MANIFEST" ]]; then awk -v p="$p" '$2 != p' "$MANIFEST" > "$tmp_manifest"; fi
-    printf '%s  %s\n' "$(cw_sha "$p")" "$p" >> "$tmp_manifest"
+    printf 'LOCAL  %s\n' "$p" >> "$tmp_manifest"
     mv "$tmp_manifest" "$MANIFEST"
-    log "已接受本地版本：${p}"
+    log "已接受本地版本（此后永久跳过）：${p}"
     accepted=$((accepted + 1))
   done
   log "完成：接受 ${accepted} 个文件；再次运行 ./update.sh 应归一（退出码 0）"
@@ -231,7 +232,7 @@ baseline_of() {
   awk -v p="$1" '$2 == p { print $1; exit }' "$MANIFEST"
 }
 
-UPDATED=0; ADDED=0; CURRENT=0; CONFLICTED=0
+UPDATED=0; ADDED=0; CURRENT=0; CONFLICTED=0; LOCAL_KEPT=0
 CONFLICT_LIST=()
 
 while IFS='|' read -r tpl_rel dst_rel; do
@@ -258,6 +259,11 @@ while IFS='|' read -r tpl_rel dst_rel; do
   current_sha="$(cw_sha "${dst}")"
   new_sha="$(cw_sha "$TMP")"
   baseline="$(baseline_of "${dst}")"
+
+  # 哨兵基线 LOCAL：用户显式选择「保留本地」（--accept-local）→ 永久跳过，不更新也不报冲突
+  if [[ "$baseline" == "LOCAL" ]]; then
+    LOCAL_KEPT=$((LOCAL_KEPT + 1)); rm -f "$TMP"; continue
+  fi
 
   if [[ "$current_sha" == "$new_sha" ]]; then
     CURRENT=$((CURRENT + 1)); rm -f "$TMP"; continue
@@ -309,6 +315,12 @@ if [[ "$DRY_RUN" != "1" ]]; then
       [[ -n "$prev" ]] && printf '%s  %s\n' "$prev" "${dst}" >> "$MANIFEST"
       continue
     fi
+    # 保留 LOCAL 哨兵（--accept-local 的选择），勿覆盖回真实哈希
+    prev="$(awk -v p="${dst}" '$2 == p { print $1; exit }' "$OLD_BASELINES")"
+    if [[ "$prev" == "LOCAL" ]]; then
+      printf 'LOCAL  %s\n' "${dst}" >> "$MANIFEST"
+      continue
+    fi
     printf '%s  %s\n' "$(cw_sha "${dst}")" "${dst}" >> "$MANIFEST"
   done < <(cw_list_files)
   rm -f "$OLD_BASELINES"
@@ -322,7 +334,7 @@ if [[ "$DRY_RUN" != "1" ]]; then
 fi
 
 echo
-log "更新完成：更新 ${UPDATED} · 新增 ${ADDED} · 已最新 ${CURRENT} · 冲突 ${CONFLICTED}"
+log "更新完成：更新 ${UPDATED} · 新增 ${ADDED} · 已最新 ${CURRENT} · 冲突 ${CONFLICTED} · 本地保留 ${LOCAL_KEPT}"
 if [[ "$CONFLICTED" -gt 0 ]]; then
   cat >&2 <<EOF
 

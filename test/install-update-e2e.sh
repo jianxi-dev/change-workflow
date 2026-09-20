@@ -245,12 +245,17 @@ rc11a=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc11a=$?
 ok "接管报冲突" "$rc11a" "1"
 rc11b=0; "$CW_ROOT/update.sh" --target "$PWD" --accept-local docs/agents/domain.md >/dev/null 2>&1 || rc11b=$?
 ok "accept-local 退出码" "$rc11b" "0"
-ok "已写入基线" "$(grep -c 'domain.md' .change-workflow.manifest)" "1"
+ok "记为 LOCAL 哨兵" "$(awk '$2=="docs/agents/domain.md"{print $1}' .change-workflow.manifest)" "LOCAL"
 ok "本地内容保留" "$(grep -c '## 有意保留的本地文档' docs/agents/domain.md)" "1"
-# 此后应归一
+# 此后应归一，且**再多次更新都不得覆盖它**（这是 --accept-local 的核心保证）
 set_version "0.9.0"
 rc11c=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc11c=$?
 ok "此后归一（不再报冲突）" "$rc11c" "0"
+ok "内容仍未被覆盖" "$(grep -c '## 有意保留的本地文档' docs/agents/domain.md)" "1"
+ok "LOCAL 哨兵未被重写" "$(awk '$2=="docs/agents/domain.md"{print $1}' .change-workflow.manifest)" "LOCAL"
+set_version "0.9.0"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+ok "多次更新后仍保留" "$(grep -c '## 有意保留的本地文档' docs/agents/domain.md)" "1"
 sanitize "$B5"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
