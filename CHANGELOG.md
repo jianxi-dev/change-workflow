@@ -1,3 +1,25 @@
+## 1.1.1 — 2026-09-20
+
+### 修复
+
+- **`scripts/pr-automation.sh`：补 `git add -f` 回退**
+  白名单路径若被 `.gitignore` 匹配（如 force-tracked 的 `.omo/notepads/**`），`git add` 会失败。
+  现在自动 fallback 到 `git add -f`（路径已由 `--files` 显式限定，故安全）。
+  来源：mdpkg PR #24 的成果，此前**从未回灌上游**。
+
+- **`skills/change-workflow/SKILL.md`：看板常量改为从 conf 读取**
+  模板原本**烘焙字面量 option ID**（`a50766ca` / `4cbd348f` / `8c7f2979` / `a7011ca0`），
+  把安装源仓库的值泄漏给所有消费者；且与 `DESIGN.md` 矛盾 ——
+  DESIGN 明确「脚本 `source` 该文件；**skill 读取它取看板常量**」。
+  改为读取 `.change-workflow.conf`，与设计一致、无漂移、无泄漏。
+
+### 说明
+
+两项均通过 **mdpkg 升级时的 `.new` 旁路**暴露 —— 这正是接管模式「不静默覆盖、交回人工核对」的价值：
+若当初直接 `--force` 覆盖，mdpkg 的 `git add -f` 修复会被**静默丢弃**。
+
+---
+
 # CHANGELOG
 
 本工具包遵循语义化版本。安装后可用 `./update.sh --check` 查看是否有新版本。
