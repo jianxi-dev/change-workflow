@@ -33,7 +33,10 @@ new_repo() {
   mkdir -p "$dir" || return 1
   cd "$dir" || return 1
   git init -q
-  git commit -q --allow-empty -m init
+  # 用 -c 传身份而非依赖全局配置：CI runner 无 git identity，
+  # 裸 `git commit` 会以 "empty ident name" 失败（本机有全局配置时不会暴露）。
+  git -c user.name="change-workflow-test" -c user.email="test@example.invalid" \
+      commit -q --allow-empty -m init
 }
 
 write_conf() {
