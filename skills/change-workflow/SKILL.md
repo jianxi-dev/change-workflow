@@ -143,7 +143,7 @@ flowchart TB
   ITEM=$(gh project item-add <N> --owner <owner> --url <issue-url> --format json --jq .id)
   gh project item-edit --project-id <PROJECT_ID> --id "$ITEM" --field-id <STATUS_FIELD_ID> --single-select-option-id <READY_OPTION_ID>
   ```
-  本仓常量：project=`{{PROJECT_ID}}`；Status 字段=`{{STATUS_FIELD_ID}}`；选项 Ready=`a50766ca` / Done=`4cbd348f`（Backlog=`8c7f2979` / In Progress=`a7011ca0`）
+  **看板常量从项目根 `.change-workflow.conf` 读取**（由 setup.sh 生成）：`PROJECT_ID` / `STATUS_FIELD_ID` / `OPT_READY` / `OPT_DONE` / `OPT_BACKLOG` / `OPT_IN_PROGRESS`
 - **对账自证**：`gh issue list --label ready-for-agent --state open --json number,title --jq '.[] | select(.title | startswith("[change=<change 名>/"))'` 数量 == tasks.md task 数（spec issue 标题不含该前缀天然排除）；逐条核对 task 编号 ↔ issue 标题；**禁止占位符原样传入命令**
 
 ### G1 实施 gate｜执行：implement skill（总编排，task-tracking §7.1 ✅ 必用）
