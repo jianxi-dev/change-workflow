@@ -73,11 +73,11 @@ echo "[1] 首装"
 B1="$(mktemp -d)"; new_repo "$B1/repo" || { echo "无法建立测试仓库"; exit 1; }
 write_conf "1.0.0"; touch .change-workflow.manifest
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1; ok "退出码" "$?" "0"
-ok "docs/agents 文件数" "$(ls docs/agents/*.md 2>/dev/null | wc -l | tr -d ' ')" "9"
+ok "docs/agents 文件数" "$(ls docs/agents/*.md 2>/dev/null | wc -l | tr -d ' ')" "12"
 ok "SKILL 已安装" "$([[ -f .opencode/skills/change-workflow/SKILL.md ]] && echo y)" "y"
 ok "pr-automation 可执行" "$([[ -x scripts/pr-automation.sh ]] && echo y)" "y"
 ok "cw-update 可执行" "$([[ -x scripts/cw-update.sh ]] && echo y)" "y"
-ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "13"
+ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "18"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
 
@@ -87,7 +87,7 @@ echo "[2] 幂等（版本回退后重跑）"
 set_version "1.0.0"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out2" in *"已最新 13"*) r2=0 ;; *) r2=1 ;; esac
+case "$out2" in *"已最新 18"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
 # ── 用例 3：本地修改 → 冲突 ──────────────────────────────────────────────────
@@ -158,8 +158,8 @@ write_conf "1.0.0"
 sed -i.cw 's|^TOOLKIT_VERSION=.*||' .change-workflow.conf && rm -f .change-workflow.conf.cw
 rc8=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc8=$?
 ok "退出码（有差异→1）" "$rc8" "1"
-# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 13 - 3 = 10
-ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "10"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 18 - 3 = 15
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "15"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
@@ -185,20 +185,20 @@ hdr=0
 for f in "$CW_ROOT"/docs/agents/*.md "$CW_ROOT"/skills/change-workflow/SKILL.md; do
   if head -1 "$f" | grep -q "工具包模板"; then hdr=$((hdr + 1)); fi
 done
-ok "模板头覆盖" "$hdr" "10"
+ok "模板头覆盖" "$hdr" "13"
 # 排除 AGENTS.md：目录级知识库本就需要指名这些禁串（它是规则文本，不会被安装到消费仓）
 ok "仓库特有值残留" "$(grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
   "$CW_ROOT/docs/agents" "$CW_ROOT/skills" "$CW_ROOT/scripts" "$CW_ROOT/workflows" 2>/dev/null \
   | grep -v 'AGENTS\.md$' | wc -l | tr -d ' ')" "0"
 syntax_fail=0
-for s in "$CW_ROOT"/setup.sh "$CW_ROOT"/update.sh "$CW_ROOT"/lib/render.sh "$CW_ROOT"/scripts/pr-automation.sh "$CW_ROOT"/scripts/cw-update.sh "$CW_ROOT"/test/rollout-check.sh; do
+for s in "$CW_ROOT"/setup.sh "$CW_ROOT"/update.sh "$CW_ROOT"/lib/render.sh "$CW_ROOT"/scripts/*.sh "$CW_ROOT"/test/rollout-check.sh; do
   bash -n "$s" 2>/dev/null || syntax_fail=$((syntax_fail + 1))
 done
 ok "脚本语法错误数" "$syntax_fail" "0"
 ok "裸 \$VAR 紧邻非 ASCII" "$(python3 - "$CW_ROOT" <<'PY'
 import re, sys, pathlib
 root = pathlib.Path(sys.argv[1]); n = 0
-for f in ['update.sh','setup.sh','lib/render.sh','scripts/pr-automation.sh','scripts/cw-update.sh','test/rollout-check.sh']:
+for f in ['update.sh','setup.sh','lib/render.sh','test/rollout-check.sh'] + [str(p.relative_to(root)) for p in sorted(root.glob('scripts/*.sh'))]:
     p = root / f
     if not p.is_file(): continue
     for i, line in enumerate(p.read_text(encoding='utf-8').splitlines(), 1):
@@ -332,7 +332,7 @@ hdr13=0
 for f in "$TK"/docs/agents/*.md "$TK"/skills/change-workflow/SKILL.md; do
   head -1 "$f" | grep -q "工具包模板" && hdr13=$((hdr13 + 1))
 done
-ok "副本模板头未被清掉" "$hdr13" "10"
+ok "副本模板头未被清掉" "$hdr13" "13"
 ok "副本脚本非空" "$([[ -s "$TK/scripts/pr-automation.sh" ]] && echo y)" "y"
 sanitize "$B7"
 
@@ -343,7 +343,7 @@ B8="$(mktemp -d)"
 CLEAN="$B8/clean"; new_repo "$CLEAN" || exit 1
 write_conf "1.0.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
-ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "13"
+ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "18"
 
 rc14a=0; out14a="$("$CW_ROOT/test/rollout-check.sh" "$CLEAN" 2>&1)" || rc14a=$?
 ok "干净仓退出码" "$rc14a" "0"
