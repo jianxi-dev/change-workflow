@@ -18,7 +18,7 @@ jobs:
       - name: bash 语法检查
         run: |
           fail=0
-          for s in setup.sh update.sh lib/render.sh scripts/pr-automation.sh test/*.sh; do
+          for s in setup.sh update.sh lib/render.sh scripts/*.sh test/*.sh; do
             [ -f "$s" ] || continue
             if bash -n "$s"; then echo "✅ $s"; else echo "❌ $s"; fail=1; fi
           done
@@ -30,15 +30,17 @@ jobs:
             echo "shellcheck 不可用，跳过"; exit 0
           fi
           # 仅报 error/warning；info/style 不阻断
+          # 用 scripts/*.sh glob 而非显式清单：新增脚本（cw-update/cw-evidence/cw-greploop）
+          # 自动纳入检查，避免再次遗漏；[ -f ] 守卫由 shellcheck 自身对缺失文件报错兜底
           shellcheck --severity=warning -x \
-            setup.sh update.sh lib/render.sh scripts/pr-automation.sh test/*.sh
+            setup.sh update.sh lib/render.sh scripts/*.sh test/*.sh
 
       - name: bash 3.2 兼容性（静态）
         run: |
           # CI runner 是 bash 5，macOS 自带 /bin/bash 是 3.2。
           # bash 4+ 特性在 CI 上永远绿，到 macOS 才炸 —— 必须静态拦截。
           fail=0
-          for f in setup.sh update.sh lib/render.sh scripts/pr-automation.sh test/*.sh; do
+          for f in setup.sh update.sh lib/render.sh scripts/*.sh test/*.sh; do
             [ -f "$f" ] || continue
             hits="$(grep -vE '^[[:space:]]*#' "$f" | grep -nE 'local -n |declare -A|mapfile|readarray' || true)"
             if [ -n "$hits" ]; then
