@@ -62,11 +62,15 @@ jobs:
 
       - name: 模板头一致性
         run: |
+          # 以受管清单（render.sh 的 cw_list_files）为准，不用目录 glob：
+          # docs/agents/AGENTS.md 是目录级知识库，不是受管模板，不该要求模板头。
           fail=0
-          for f in docs/agents/*.md skills/change-workflow/SKILL.md; do
-            head -1 "$f" | grep -q "工具包模板" || { echo "❌ 缺模板头: $f"; fail=1; }
-          done
-          [ "$fail" -eq 0 ] && echo "✅ 模板头齐全"
+          while IFS='|' read -r tpl _dst; do
+            case "$tpl" in *.md) ;; *) continue ;; esac
+            [ -f "$tpl" ] || continue
+            head -1 "$tpl" | grep -q "工具包模板" || { echo "❌ 缺模板头: $tpl"; fail=1; }
+          done < <(bash -c 'source lib/render.sh; cw_list_files')
+          [ "$fail" -eq 0 ] && echo "✅ 受管模板头齐全"
           exit $fail
 
       - name: 受管模板以换行结尾
@@ -83,9 +87,11 @@ jobs:
 
       - name: 无仓库特有值残留
         run: |
-          if grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
-               docs/agents skills scripts workflows 2>/dev/null; then
-            echo "❌ 模板含仓库特有值（安装到其它仓库会指向错误目标）"; exit 1
+          # 排除 AGENTS.md：目录级知识库本就需要指名下列禁串（它是规则文本，不会被安装到消费仓）
+          hits="$(grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
+               docs/agents skills scripts workflows 2>/dev/null | grep -v 'AGENTS\.md$' || true)"
+          if [ -n "$hits" ]; then
+            echo "❌ 模板含仓库特有值（安装到其它仓库会指向错误目标）:"; echo "$hits"; exit 1
           fi
           echo "✅ 无仓库特有值残留"
 

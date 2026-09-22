@@ -186,8 +186,10 @@ for f in "$CW_ROOT"/docs/agents/*.md "$CW_ROOT"/skills/change-workflow/SKILL.md;
   if head -1 "$f" | grep -q "工具包模板"; then hdr=$((hdr + 1)); fi
 done
 ok "模板头覆盖" "$hdr" "10"
+# 排除 AGENTS.md：目录级知识库本就需要指名这些禁串（它是规则文本，不会被安装到消费仓）
 ok "仓库特有值残留" "$(grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
-  "$CW_ROOT/docs/agents" "$CW_ROOT/skills" "$CW_ROOT/scripts" "$CW_ROOT/workflows" 2>/dev/null | wc -l | tr -d ' ')" "0"
+  "$CW_ROOT/docs/agents" "$CW_ROOT/skills" "$CW_ROOT/scripts" "$CW_ROOT/workflows" 2>/dev/null \
+  | grep -v 'AGENTS\.md$' | wc -l | tr -d ' ')" "0"
 syntax_fail=0
 for s in "$CW_ROOT"/setup.sh "$CW_ROOT"/update.sh "$CW_ROOT"/lib/render.sh "$CW_ROOT"/scripts/pr-automation.sh "$CW_ROOT"/scripts/cw-update.sh; do
   bash -n "$s" 2>/dev/null || syntax_fail=$((syntax_fail + 1))

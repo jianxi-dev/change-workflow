@@ -77,6 +77,8 @@ cw_list_files() {
   for f in "$CW_ROOT"/docs/agents/*.md; do
     [[ -e "$f" ]] || continue
     base="$(basename "$f")"
+    # AGENTS.md 是目录级知识库（给 agent 读的规则文本），不是规范模板 → 不装进消费仓
+    [[ "$base" == "AGENTS.md" ]] && continue
     echo "docs/agents/$base|__DOCS_DIR__/$base"
   done
 }
