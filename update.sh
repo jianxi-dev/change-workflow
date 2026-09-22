@@ -121,6 +121,27 @@ is_in_list() {
   return 1
 }
 
+# 工具包自身来源：优先取 clone 的 origin remote；无则用默认仓库。
+# 写入项目 conf 的 TOOLKIT_SOURCE，供 scripts/cw-update.sh 自升级时定位工具包。
+toolkit_source() {
+  local url
+  url="$(git -C "$SCRIPT_DIR" config --get remote.origin.url 2>/dev/null || true)"
+  echo "${url:-https://github.com/jianxi-dev/change-workflow.git}"
+}
+
+# 向 .change-workflow.conf upsert 一个键值：存在则替换，不存在则追加。
+upsert_conf() {
+  local key="$1" val="$2" tmp
+  tmp="$(mktemp)"
+  if grep -q "^${key}=" "$CONF" 2>/dev/null; then
+    sed "s|^${key}=.*|${key}=\"${val}\"|" "$CONF" > "$tmp"
+    mv "$tmp" "$CONF"
+  else
+    printf '\n%s="%s"\n' "$key" "$val" >> "$CONF"
+    rm -f "$tmp"
+  fi
+}
+
 needs_bootstrap() {
   [[ "$ADOPT" == "1" ]] && return 0
   [[ -s "$MANIFEST" ]] && return 1
@@ -169,7 +190,10 @@ if needs_bootstrap; then
   done < <(cw_list_files)
 
   if [[ "$DRY_RUN" != "1" ]]; then
-    [[ -f scripts/pr-automation.sh ]] && chmod +x scripts/pr-automation.sh 2>/dev/null || true
+    # 受管脚本必须可执行：cw_render 用重定向写文件，不保留执行位
+    for _s in scripts/pr-automation.sh scripts/cw-update.sh; do
+      [[ -f "$_s" ]] && chmod +x "$_s" 2>/dev/null || true
+    done
     : > "$MANIFEST"
     while IFS='|' read -r tpl_rel dst_rel; do
       [[ -n "$tpl_rel" ]] || continue
@@ -188,6 +212,7 @@ if needs_bootstrap; then
       printf '\nTOOLKIT_VERSION="%s"\nEFFECTIVE_DATE="%s"\nREPO_ROOT="%s"\n' \
         "$NEW_VERSION" "$EFFECTIVE_DATE" "$REPO_ROOT" >> "$CONF"
     fi
+    upsert_conf TOOLKIT_SOURCE "$(toolkit_source)"
   fi
 
   echo
@@ -301,7 +326,10 @@ is_conflicted() {
 }
 
 if [[ "$DRY_RUN" != "1" ]]; then
-  [[ -f scripts/pr-automation.sh ]] && chmod +x scripts/pr-automation.sh 2>/dev/null || true
+  # 受管脚本必须可执行：cw_render 用重定向写文件，不保留执行位
+  for _s in scripts/pr-automation.sh scripts/cw-update.sh; do
+    [[ -f "$_s" ]] && chmod +x "$_s" 2>/dev/null || true
+  done
   OLD_BASELINES="$(mktemp)"
   [[ -f "$MANIFEST" ]] && cp "$MANIFEST" "$OLD_BASELINES"
   : > "$MANIFEST"
@@ -331,6 +359,7 @@ if [[ "$DRY_RUN" != "1" ]]; then
     printf '\nTOOLKIT_VERSION="%s"\nEFFECTIVE_DATE="%s"\nREPO_ROOT="%s"\n' \
       "$NEW_VERSION" "$EFFECTIVE_DATE" "$REPO_ROOT" >> "$CONF"
   fi
+  upsert_conf TOOLKIT_SOURCE "$(toolkit_source)"
 fi
 
 echo

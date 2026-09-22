@@ -69,9 +69,21 @@ jobs:
           [ "$fail" -eq 0 ] && echo "✅ 模板头齐全"
           exit $fail
 
+      - name: 受管模板以换行结尾
+        run: |
+          # cw_render 用 awk print，必然给输出补一个结尾换行。模板自身缺结尾换行时，
+          # 渲染产物比直接 cp 的模板多 1 字节 → 接管模式永远无法归一（v1.2.0 抓到的真实缺陷）。
+          fail=0
+          while IFS='|' read -r tpl _dst; do
+            [ -f "$tpl" ] || continue
+            if [ -n "$(tail -c 1 "$tpl")" ]; then echo "❌ 缺结尾换行: $tpl"; fail=1; fi
+          done < <(bash -c 'source lib/render.sh; cw_list_files')
+          [ "$fail" -eq 0 ] && echo "✅ 受管模板均以换行结尾"
+          exit $fail
+
       - name: 无仓库特有值残留
         run: |
-          if grep -rl 'jianxi-dev\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
+          if grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
                docs/agents skills scripts workflows 2>/dev/null; then
             echo "❌ 模板含仓库特有值（安装到其它仓库会指向错误目标）"; exit 1
           fi

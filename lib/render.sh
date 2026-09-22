@@ -71,6 +71,7 @@ cw_sha() {
 cw_list_files() {
   echo "skills/change-workflow/SKILL.md|__SKILLS_DIR__/change-workflow/SKILL.md"
   echo "scripts/pr-automation.sh|scripts/pr-automation.sh"
+  echo "scripts/cw-update.sh|scripts/cw-update.sh"
   echo "workflows/change-closure-signal.yml|.github/workflows/change-closure-signal.yml"
   local f base
   for f in "$CW_ROOT"/docs/agents/*.md; do

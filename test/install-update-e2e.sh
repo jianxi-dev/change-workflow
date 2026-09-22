@@ -76,7 +76,8 @@ write_conf "1.0.0"; touch .change-workflow.manifest
 ok "docs/agents 文件数" "$(ls docs/agents/*.md 2>/dev/null | wc -l | tr -d ' ')" "9"
 ok "SKILL 已安装" "$([[ -f .opencode/skills/change-workflow/SKILL.md ]] && echo y)" "y"
 ok "pr-automation 可执行" "$([[ -x scripts/pr-automation.sh ]] && echo y)" "y"
-ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "12"
+ok "cw-update 可执行" "$([[ -x scripts/cw-update.sh ]] && echo y)" "y"
+ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "13"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
 
@@ -86,7 +87,7 @@ echo "[2] 幂等（版本回退后重跑）"
 set_version "1.0.0"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out2" in *"已最新 12"*) r2=0 ;; *) r2=1 ;; esac
+case "$out2" in *"已最新 13"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
 # ── 用例 3：本地修改 → 冲突 ──────────────────────────────────────────────────
@@ -157,8 +158,8 @@ write_conf "1.0.0"
 sed -i.cw 's|^TOOLKIT_VERSION=.*||' .change-workflow.conf && rm -f .change-workflow.conf.cw
 rc8=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc8=$?
 ok "退出码（有差异→1）" "$rc8" "1"
-# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 12 - 3 = 9
-ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "9"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 13 - 3 = 10
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "10"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
@@ -185,17 +186,17 @@ for f in "$CW_ROOT"/docs/agents/*.md "$CW_ROOT"/skills/change-workflow/SKILL.md;
   if head -1 "$f" | grep -q "工具包模板"; then hdr=$((hdr + 1)); fi
 done
 ok "模板头覆盖" "$hdr" "10"
-ok "仓库特有值残留" "$(grep -rl 'jianxi-dev\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
+ok "仓库特有值残留" "$(grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
   "$CW_ROOT/docs/agents" "$CW_ROOT/skills" "$CW_ROOT/scripts" "$CW_ROOT/workflows" 2>/dev/null | wc -l | tr -d ' ')" "0"
 syntax_fail=0
-for s in "$CW_ROOT"/setup.sh "$CW_ROOT"/update.sh "$CW_ROOT"/lib/render.sh "$CW_ROOT"/scripts/pr-automation.sh; do
+for s in "$CW_ROOT"/setup.sh "$CW_ROOT"/update.sh "$CW_ROOT"/lib/render.sh "$CW_ROOT"/scripts/pr-automation.sh "$CW_ROOT"/scripts/cw-update.sh; do
   bash -n "$s" 2>/dev/null || syntax_fail=$((syntax_fail + 1))
 done
 ok "脚本语法错误数" "$syntax_fail" "0"
 ok "裸 \$VAR 紧邻非 ASCII" "$(python3 - "$CW_ROOT" <<'PY'
 import re, sys, pathlib
 root = pathlib.Path(sys.argv[1]); n = 0
-for f in ['update.sh','setup.sh','lib/render.sh','scripts/pr-automation.sh']:
+for f in ['update.sh','setup.sh','lib/render.sh','scripts/pr-automation.sh','scripts/cw-update.sh']:
     p = root / f
     if not p.is_file(): continue
     for i, line in enumerate(p.read_text(encoding='utf-8').splitlines(), 1):
@@ -257,6 +258,48 @@ set_version "0.9.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
 ok "多次更新后仍保留" "$(grep -c '## 有意保留的本地文档' docs/agents/domain.md)" "1"
 sanitize "$B5"
+
+# ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
+echo ""
+echo "[12] 项目自升级（cw-update.sh）"
+B6="$(mktemp -d)"
+# 源仓库：一份工具包副本（本地 git repo），模拟 TOOLKIT_SOURCE
+SRC="$B6/source"; mkdir -p "$SRC"
+cp -R "$CW_ROOT/." "$SRC/"
+rm -rf "$SRC/.git"
+cd "$SRC" || exit 1
+git init -q
+git -c user.name=t -c user.email=t@t.invalid add -A
+git -c user.name=t -c user.email=t@t.invalid commit -q -m "toolkit"
+# 项目：conf 指向本地源；一份文档带本地定制
+P="$B6/proj"; mkdir -p "$P/docs/agents" "$P/scripts"; cd "$P" || exit 1
+git init -q && git -c user.name=t -c user.email=t@t.invalid commit -q --allow-empty -m init
+cp "$CW_ROOT/docs/agents/domain.md" docs/agents/
+echo "## 本地定制" >> docs/agents/domain.md
+cat > .change-workflow.conf <<EOF
+TOOLKIT_VERSION="1.1.6"
+TOOLKIT_SOURCE="$SRC"
+REPO="a/b"
+OWNER="a"
+DEFAULT_BRANCH="main"
+SKILLS_DIR=".opencode/skills"
+DOCS_DIR="docs/agents"
+EOF
+touch .change-workflow.manifest
+cp "$CW_ROOT/scripts/cw-update.sh" scripts/cw-update.sh && chmod +x scripts/cw-update.sh
+# 自升级（缓存重定向到临时目录，避免污染真实 ~/.change-workflow）
+rc12a=0; CHANGE_WORKFLOW_HOME="$B6/cache" ./scripts/cw-update.sh --target "$PWD" >/dev/null 2>&1 || rc12a=$?
+ok "自升级触发接管" "$rc12a" "1"
+ok "版本已升级" "$(grep -o 'TOOLKIT_VERSION="[^"]*"' .change-workflow.conf | head -1)" "TOOLKIT_VERSION=\"$(tr -d '[:space:]' < "$CW_ROOT/VERSION")\""
+ok "定制保留" "$(grep -c '## 本地定制' docs/agents/domain.md)" "1"
+ok "缓存已建立" "$([[ -d "$B6/cache/.git" ]] && echo y)" "y"
+ok "受管文件已安装" "$([[ -f .opencode/skills/change-workflow/SKILL.md ]] && echo y)" "y"
+# 接受定制后应归一
+CHANGE_WORKFLOW_HOME="$B6/cache" ./scripts/cw-update.sh --target "$PWD" --accept-local docs/agents/domain.md >/dev/null 2>&1 || true
+rc12b=0; CHANGE_WORKFLOW_HOME="$B6/cache" ./scripts/cw-update.sh --target "$PWD" >/dev/null 2>&1 || rc12b=$?
+ok "解决后归一" "$rc12b" "0"
+ok "定制仍保留" "$(grep -c '## 本地定制' docs/agents/domain.md)" "1"
+sanitize "$B6"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""

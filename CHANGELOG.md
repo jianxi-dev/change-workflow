@@ -1,3 +1,70 @@
+## 1.2.0 — 2026-09-22
+
+### 新增：项目自升级（`scripts/cw-update.sh`）
+
+**问题**：工具包升级器（`update.sh`）一直只存在于外部 clone，项目自身无法自升级
+—— 换机器 / 新同事必须知道「工具包 clone 在哪」，项目无法自述来源。
+
+**改进**：
+
+1. **`update.sh` 向 conf 写入 `TOOLKIT_SOURCE`** —— 记录工具包仓库 URL
+   （优先取 clone 的 origin remote，缺省为 `https://github.com/jianxi-dev/change-workflow.git`）
+2. **新增 `scripts/cw-update.sh`**（作为受管文件随 `update.sh` 装进每个项目）：
+   - 读本项目 conf 的 `TOOLKIT_SOURCE` 定位工具包
+   - 复用 `~/.change-workflow`（若存在）或克隆到 `~/.cache/change-workflow`，随后 `pull`
+   - 用该副本的 `update.sh` 对自身执行升级
+
+**用法**（项目内）：
+
+```bash
+./scripts/cw-update.sh              # 自升级
+./scripts/cw-update.sh --check      # 只看版本
+./scripts/cw-update.sh --dry-run    # 预览
+```
+
+**意义**：项目从此"自包含" —— 来源记录在项目自己的 conf 里，不依赖外部约定位置。
+
+### 修复（阻断性，e2e 用例 12 抓到）：模板缺结尾换行 → 接管模式**永不归一**
+
+**现象**：`scripts/cw-update.sh` 装进项目后再升级，`manifest` 始终缺它的基线，
+每次升级都报冲突（`proj/scripts/cw-update.sh` vs 源模板渲染结果差 1 字节）。
+
+**根因**：`cw_render` 用 `awk` 的 `print` 输出，**无条件补一个结尾换行**。
+而工具包有 5 个受管模板自身**没有**结尾换行
+（`SKILL.md` / `pr-automation.sh` / `cw-update.sh` / `project-board.md` / `task-tracking.md`）。
+于是：
+
+- 直接 `cp` 安装的项目文件（无结尾换行）≠ `cw_render` 渲染结果（有结尾换行）
+- 接管模式判为「不同」→ **不写基线**（1.1.3 的正确语义）→ 但差异来自渲染而非本地定制
+  → 每次都「不同」，**收敛不了**
+
+**修复**：
+
+1. 5 个模板补结尾换行 —— 使「模板字节 == 渲染字节」，`cp` 安装与渲染安装取得一致
+   （已复核：4 个既有模板的**渲染产物哈希不变**，存量安装零 churn）
+2. 新增 CI 门禁「受管模板以换行结尾」（用 `cw_list_files` 驱动，新增模板自动纳入）
+
+**教训**：渲染必须是**幂等**的 —— `render(x) == x` 对所有未做替换的文件成立。
+任何「渲染会改变字节」的路径，都会在接管模式里伪装成「本地定制」。
+
+### 修复：受管脚本装完没有执行位
+
+`cw_render` 用重定向写文件，新文件不带执行位；`update.sh` 原本只 `chmod +x
+scripts/pr-automation.sh`。新增的 `scripts/cw-update.sh` 因此装进项目后
+`./scripts/cw-update.sh` 直接 `Permission denied`。现两条路径（接管 / 正常更新）
+统一对受管脚本 `chmod +x`。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+ 通过 59 · 失败 0
+```
+
+用例 1 新增「cw-update 可执行」断言；语法/裸变量检查纳入 `scripts/cw-update.sh`。
+
+---
+
 ## 1.1.6 — 2026-09-20
 
 ### 修复（严重）：`--accept-local` 的实现与意图相反，反而导致覆盖
