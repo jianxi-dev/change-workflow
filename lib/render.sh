@@ -53,6 +53,12 @@ cw_render() {
     echo "❌ 模板不存在: $src" >&2
     return 1
   fi
+  # 源与目标同一文件时禁止：下方 `> "$dst"` 会先截断文件，左管道再读就只剩空 → 模板被清空归零。
+  # 触发场景：把工具包自身当安装目标（模板源与安装目标同路径）。
+  if [[ -e "$dst" && "$src" -ef "$dst" ]]; then
+    echo "❌ 拒绝把模板渲染到自身（会清空文件）: $src" >&2
+    return 1
+  fi
   mkdir -p "$(dirname "$dst")"
   cw_strip_header < "$src" | cw_substitute > "$dst"
 }
@@ -63,6 +69,16 @@ cw_sha() {
   else
     sha256sum "$1" | awk '{print $1}'
   fi
+}
+
+# 目标仓是否为工具包源自身（自我安装）。工具包里 13 个受管文件有 11 个的模板源与安装目标
+# 同路径（docs/agents/*.md、scripts/*.sh），自我安装会清空模板，并把模板记成受管基线
+# （此后每次改模板都报冲突）。故 setup/update 在动任何东西之前一律拒绝。
+cw_is_self_target() {
+  local a b
+  a="$(cd "$1" 2>/dev/null && pwd -P)" || return 1
+  b="$(cd "$CW_ROOT" 2>/dev/null && pwd -P)" || return 1
+  [[ "$a" == "$b" ]]
 }
 
 # 受管文件清单：所有会从工具包安装/更新的目标文件（相对仓库根）。

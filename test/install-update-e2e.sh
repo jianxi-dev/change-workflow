@@ -191,14 +191,14 @@ ok "仓库特有值残留" "$(grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|
   "$CW_ROOT/docs/agents" "$CW_ROOT/skills" "$CW_ROOT/scripts" "$CW_ROOT/workflows" 2>/dev/null \
   | grep -v 'AGENTS\.md$' | wc -l | tr -d ' ')" "0"
 syntax_fail=0
-for s in "$CW_ROOT"/setup.sh "$CW_ROOT"/update.sh "$CW_ROOT"/lib/render.sh "$CW_ROOT"/scripts/pr-automation.sh "$CW_ROOT"/scripts/cw-update.sh; do
+for s in "$CW_ROOT"/setup.sh "$CW_ROOT"/update.sh "$CW_ROOT"/lib/render.sh "$CW_ROOT"/scripts/pr-automation.sh "$CW_ROOT"/scripts/cw-update.sh "$CW_ROOT"/test/rollout-check.sh; do
   bash -n "$s" 2>/dev/null || syntax_fail=$((syntax_fail + 1))
 done
 ok "脚本语法错误数" "$syntax_fail" "0"
 ok "裸 \$VAR 紧邻非 ASCII" "$(python3 - "$CW_ROOT" <<'PY'
 import re, sys, pathlib
 root = pathlib.Path(sys.argv[1]); n = 0
-for f in ['update.sh','setup.sh','lib/render.sh','scripts/pr-automation.sh','scripts/cw-update.sh']:
+for f in ['update.sh','setup.sh','lib/render.sh','scripts/pr-automation.sh','scripts/cw-update.sh','test/rollout-check.sh']:
     p = root / f
     if not p.is_file(): continue
     for i, line in enumerate(p.read_text(encoding='utf-8').splitlines(), 1):
@@ -302,6 +302,65 @@ rc12b=0; CHANGE_WORKFLOW_HOME="$B6/cache" ./scripts/cw-update.sh --target "$PWD"
 ok "解决后归一" "$rc12b" "0"
 ok "定制仍保留" "$(grep -c '## 本地定制' docs/agents/domain.md)" "1"
 sanitize "$B6"
+
+# ── 用例 13：自撞护栏（工具包自身不得作为目标）────────────────────────────────
+# 破坏性路径一律在**副本**上演练：若护栏失效，被清空的是副本而不是本仓。
+echo ""
+echo "[13] 自撞护栏"
+B7="$(mktemp -d)"
+TK="$B7/tk"; mkdir -p "$TK"
+cp -R "$CW_ROOT/." "$TK/"
+rm -rf "$TK/.git"
+cd "$TK" || exit 1
+git init -q && git -c user.name=t -c user.email=t@t.invalid commit -q --allow-empty -m init
+
+ok "识别工具包自身" "$(bash -c "source '$TK/lib/render.sh'; cw_is_self_target '$TK' && echo yes || echo no")" "yes"
+ok "不误判普通目录" "$(bash -c "source '$TK/lib/render.sh'; cw_is_self_target '$B7' && echo yes || echo no")" "no"
+
+# cw_render 同文件渲染 = 清空的根源（`> "$dst"` 先截断再读）
+cp "$TK/docs/agents/domain.md" "$B7/probe.md"
+size_before="$(wc -c < "$B7/probe.md" | tr -d ' ')"
+rc13a=0; bash -c "source '$TK/lib/render.sh'; cw_render '$B7/probe.md' '$B7/probe.md'" >/dev/null 2>&1 || rc13a=$?
+ok "cw_render 拒绝渲染到自身" "$rc13a" "1"
+ok "探测文件未被清空" "$(wc -c < "$B7/probe.md" | tr -d ' ')" "$size_before"
+
+rc13b=0; "$TK/setup.sh" --target "$TK" --yes >/dev/null 2>&1 || rc13b=$?
+ok "setup.sh 拒绝自我安装" "$rc13b" "1"
+rc13c=0; "$TK/update.sh" --target "$TK" >/dev/null 2>&1 || rc13c=$?
+ok "update.sh 拒绝自我升级" "$rc13c" "1"
+hdr13=0
+for f in "$TK"/docs/agents/*.md "$TK"/skills/change-workflow/SKILL.md; do
+  head -1 "$f" | grep -q "工具包模板" && hdr13=$((hdr13 + 1))
+done
+ok "副本模板头未被清掉" "$hdr13" "10"
+ok "副本脚本非空" "$([[ -s "$TK/scripts/pr-automation.sh" ]] && echo y)" "y"
+sanitize "$B7"
+
+# ── 用例 14：滚动验证脚本（消费仓发布前门禁）──────────────────────────────────
+echo ""
+echo "[14] rollout-check：干净仓放行 / 有冲突仓拦截"
+B8="$(mktemp -d)"
+CLEAN="$B8/clean"; new_repo "$CLEAN" || exit 1
+write_conf "1.0.0"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "13"
+
+rc14a=0; out14a="$("$CW_ROOT/test/rollout-check.sh" "$CLEAN" 2>&1)" || rc14a=$?
+ok "干净仓退出码" "$rc14a" "0"
+case "$out14a" in *"全部消费仓升级无冲突"*) r14=0 ;; *) r14=1 ;; esac
+ok "干净仓报告通过" "$r14" "0"
+
+# 有冲突仓：本地改一个受管文件（非 LOCAL）→ 必须被拦下
+DIRTY="$B8/dirty"
+cp -R "$CLEAN" "$DIRTY"
+echo "## 本地定制" >> "$DIRTY/docs/agents/domain.md"
+rc14b=0; out14b="$("$CW_ROOT/test/rollout-check.sh" "$DIRTY" 2>&1)" || rc14b=$?
+ok "有冲突仓退出码" "$rc14b" "1"
+case "$out14b" in *"不可发布"*) r14b=0 ;; *) r14b=1 ;; esac
+ok "有冲突仓报告拦截" "$r14b" "0"
+ok "只读：未留 .new" "$([[ -f "$DIRTY/docs/agents/domain.md.new" ]] && echo y || echo n)" "n"
+ok "只读：干净仓未留 .new" "$(find "$CLEAN" -name '*.new' | wc -l | tr -d ' ')" "0"
+sanitize "$B8"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""

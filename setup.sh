@@ -46,6 +46,12 @@ command -v gh  >/dev/null || { echo "❌ 需要 gh CLI（brew install gh）" >&2
 command -v git >/dev/null || { echo "❌ 需要 git" >&2; exit 1; }
 cd "$TARGET"
 git rev-parse --git-dir >/dev/null 2>&1 || { echo "❌ $TARGET 不是 git 仓库" >&2; exit 1; }
+if cw_is_self_target "$(git rev-parse --show-toplevel)"; then
+  echo "❌ 拒绝：目标是工具包源自身（$(git rev-parse --show-toplevel)）" >&2
+  echo "   受管文件里 11 个的模板源与安装目标同路径，安装会把它们清空；本仓不是自己的消费者。" >&2
+  echo "   流程依据直接读 docs/agents/ 与 skills/change-workflow/SKILL.md 即可。" >&2
+  exit 1
+fi
 
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
 [[ -z "$REPO" ]] && { echo "❌ 无法识别 GitHub 仓库（需 gh auth login + origin remote）" >&2; exit 1; }

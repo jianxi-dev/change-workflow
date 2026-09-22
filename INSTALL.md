@@ -136,6 +136,12 @@ mv <file>.new <file>        # 2. 放弃本地改动，采用新版本
 
 ## 手动安装（不用 setup.sh）
 
+> ⚠️ **本工具包自身不是自己的消费者。** `--target` 指向工具包源目录会被 `setup.sh` /
+> `update.sh` 直接拒绝：13 个受管文件里 11 个的模板源与安装目标同路径，渲染会先截断再
+> 读取 → 清空模板。下面的手动安装同样**不适用于自我安装**（步骤 2 是同路径 `cp`，步骤 4
+> 是同文件渲染）。在本仓开发时，流程依据直接读 `docs/agents/` 与
+> `skills/change-workflow/SKILL.md` 即可。
+
 1. 复制 `skills/change-workflow/` → `<SKILLS_DIR>/change-workflow/`
 2. 复制 `scripts/pr-automation.sh` → `scripts/`（`chmod +x`）
 3. 复制 `workflows/change-closure-signal.yml` → `.github/workflows/`

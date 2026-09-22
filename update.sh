@@ -57,6 +57,11 @@ TARGET_ROOT="$(git rev-parse --show-toplevel)"
 TARGET_REPO="$(git config --get remote.origin.url 2>/dev/null || echo '(无 origin)')"
 log "目标仓库：$TARGET_ROOT  ←  $TARGET_REPO"
 log "本次只改动该仓库内的受管文件；请确认上面路径正确（错误 cwd 会改错仓库）"
+if cw_is_self_target "$TARGET_ROOT"; then
+  echo "❌ 拒绝：目标是工具包源自身（${TARGET_ROOT}）" >&2
+  echo "   升级会把模板源当成受管文件写基线，此后每次改模板都会报冲突；本仓不是自己的消费者。" >&2
+  exit 1
+fi
 
 CONF=".change-workflow.conf"
 [[ -f "$CONF" ]] || { echo "❌ 未找到 $CONF —— 请先运行 setup.sh 安装" >&2; exit 1; }

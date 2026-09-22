@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-本目录是模板源：`pr-automation.sh` 与 `cw-update.sh` 都作为受管文件装到消费仓的 `scripts/`，清单唯一定义在 `../lib/render.sh:71` 的 `cw_list_files`。改这里的文件即改变所有消费仓的安装产物。
+本目录是模板源：`pr-automation.sh` 与 `cw-update.sh` 都作为受管文件装到消费仓的 `scripts/`，清单唯一定义在 `../lib/render.sh:87` 的 `cw_list_files`。改这里的文件即改变所有消费仓的安装产物。
 
 ## 文件与职责
 
@@ -48,8 +48,8 @@ pr-automation.sh 参数表：
 
 ## 修改清单（新增/改动脚本必须连带）
 
-1. 新增/删除受管脚本 → 改 `../lib/render.sh:71` 的 `cw_list_files`。
-2. 同步 `../test/install-update-e2e.sh`：脚本语法检查循环（约 `:191`）与 Python 裸 `$VAR` 检查列表（约 `:198`）。
+1. 新增/删除受管脚本 → 改 `../lib/render.sh:87` 的 `cw_list_files`。
+2. 同步 `../test/install-update-e2e.sh`：脚本语法检查循环（`:194`）与 Python 裸 `$VAR` 检查列表（`:201`）—— **新增任何脚本（含测试侧）都要加进这两处**：本仓的「`$VAR` 紧邻全角字符」陷阱只有这里拦得住（1.2.1 的 `test/rollout-check.sh` 与 `update.sh` 守卫都曾踩中）。
 3. 同步 `../.github/workflows/ci.yml` 的脚本清单（`:21`、`:33`、`:41` 三处）。
 4. 执行位：`cw_render` 用重定向写文件，装出来的新文件不带执行位；`../update.sh:193-196` 与 `:329-332`、`../setup.sh:165` 在渲染后统一 `chmod +x`。新增受管脚本必须加进该 chmod 列表，否则消费仓 `./scripts/<name>.sh` 报 Permission denied（1.2.0 真实缺陷）。
 5. 行为变更 → 同步 `../VERSION` + `../CHANGELOG.md` 并发版。

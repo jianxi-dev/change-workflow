@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-09-22
-**Commit:** 9e37040
+**Commit:** 05b47a2
 **Branch:** main
 **语言**：本仓库全部注释/文档/commit/回复用户均用中文（de facto，无显式声明处）
 
@@ -24,7 +24,8 @@ change-workflow/
 ├── skills/change-workflow/   # 模板源 → 装到 <SKILLS_DIR>（默认 .opencode/skills）
 ├── docs/agents/              # 模板源 → 装到 <DOCS_DIR>（9 份规范）
 ├── workflows/                # 模板源 → 装到 .github/workflows/change-closure-signal.yml
-├── test/                     # 12 用例 e2e（CI 第 8 步全量跑；唯一权威验证）
+├── test/install-update-e2e.sh # 14 用例 / 74 断言（CI 第 8 步全量跑；唯一权威验证）
+├── test/rollout-check.sh     # 消费仓滚动验证（发布前本地门禁；CI 无消费仓检出，跑不了）
 ├── .opencode/                # openspec init 产物：6 个 opsx-* 命令 + 6 个 openspec-* 技能
 ├── openspec/                 # openspec 项目数据（config.yaml / changes / specs）
 ├── .github/workflows/ci.yml  # 本仓自身 CI（8 步）
@@ -38,7 +39,7 @@ change-workflow/
 
 | 任务 | 位置 | 备注 |
 |---|---|---|
-| 新增/删除受管文件 | `lib/render.sh:71` `cw_list_files` | 连带改：模板、`test` 计数断言、`ci.yml:21/33/41` 脚本清单 |
+| 新增/删除受管文件 | `lib/render.sh:87` `cw_list_files` | 连带改：模板、`test` 计数断言、`ci.yml:21/33/41` 脚本清单、`test/rollout-check.sh` |
 | 新增占位符 | `lib/render.sh:23-36` | 替换表唯一位置；`ci.yml:53` 校验一致性 |
 | 升级/冲突/基线语义 | `update.sh` | 语义教训见 `CHANGELOG.md:87-89` |
 | 安装流程 | `setup.sh` | 与 update 共用 `lib/render.sh`，勿各写一套 |
@@ -53,11 +54,12 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 | Symbol | Type | Location | Refs | Role |
 |---|---|---|---|---|
-| `cw_list_files` | fn | `lib/render.sh:71` | 11 | 13 个受管文件的**唯一清单**（4 硬编码 + 9 docs glob） |
+| `cw_list_files` | fn | `lib/render.sh:87` | 11 | 13 个受管文件的**唯一清单**（4 硬编码 + 9 docs glob；globs 在 `:93-99`，跳过 `AGENTS.md`） |
 | `cw_render` | fn | `lib/render.sh:50` | 11 | 模板 → 目标文件（剥头 + 替换占位符） |
-| `cw_sha` | fn | `lib/render.sh:60` | 9 | sha256（macOS/Linux 双实现） |
+| `cw_sha` | fn | `lib/render.sh:66` | 9 | sha256（macOS/Linux 双实现） |
 | `cw_substitute` | fn | `lib/render.sh:23` | 2 | 占位符替换表 |
 | `cw_strip_header` | fn | `lib/render.sh:40` | 2 | 剥 `<!-- change-workflow 工具包模板` 头 + 前导空行 |
+| `cw_is_self_target` | fn | `lib/render.sh:77` | 3 | 目标仓 == 工具包源自身 → setup/update 拒绝（防自装清空模板）；`cw_render` 在 `:58` 另有一道同文件护栏 |
 | `install_rendered` | fn | `setup.sh:144` | 2 | 首装渲染安装循环 |
 | `toolkit_source` / `upsert_conf` | fn | `update.sh:126` / `:133` | 3 / 3 | conf 写 `TOOLKIT_SOURCE`（供项目自升级） |
 | `is_in_list` | fn | `update.sh:117` | 3 | 数组遍历（**禁止 nameref** 的产物） |
@@ -91,12 +93,30 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 - 「测试通过」「已修复」「冒烟正常」是**结论不是证据**，不予采信（`quality-gates.md:315`）。
 - **1 task = 1 ticket = 1 分支 = 1 PR**，分支绝不复用（`pr-automation.sh:30`）；N 票同根因才能 1 PR 关 N 票且须逐票 `fixes #N`（DQ-6）。parent = 源 spec issue，其 PR 必须 `--refs-only`（`Refs #N`）。
 - 禁止 `pr-automation.sh --skip-checks`（逃生舱，`SKILL.md:181`）。
+- **禁止 `--target` 指向工具包源自身**（自我安装）：13 个受管文件里 11 个的模板源与安装目标同路径，渲染会**先截断再读取 → 文件归零**（实测 11913 字节 → 0）。由 `cw_render:58` 与 `cw_is_self_target:77` 双重拒绝。**本仓不是自己的消费者** —— 流程依据直接读 `docs/agents/` 与 `skills/change-workflow/SKILL.md`。
+
+## 本仓的开发方式（决策 2026-09-22）
+
+**本仓不以消费仓身份跑 G0-G4。** 理由：G0-G4 的编排（issue / 看板 / 分支 / PR / frontier / 归档）是为「多票并行、跨会话推进」的**应用交付**设计的；而本仓的失败模式是「CI 绿但只在 macOS 炸」「渲染不幂等」这类**契约与回归**问题，防护重心在 `test/` + CI，不在票据仪式。本仓真正的 dogfooding 面是**三个消费仓的升级结果**。
+
+替代纪律（轻量，零安装成本）：
+
+1. **先红后绿**（DQ-3）：改行为先在 e2e 加断言、确认它红，再改到绿
+2. **要原始证据**（QG-5）：不接受「测试通过 / 已修复」，贴命令输出
+3. **发布前必跑** `test/rollout-check.sh`（消费侧契约：冲突 0 + LOCAL 哨兵完整 + 覆盖数一致）
+4. 发布仍走 `VERSION` + `CHANGELOG`（`### 新增/修复` → `### 教训反思` → `### 验证`）+ tag
+5. `openspec/` **只用于大重构的提案**（`/opsx-propose` → 归档进 `openspec/specs/`），不做日常流程
+
+**何时才值得上 G0-G4**：多票并行 + 跨会话推进 / 出现第二个人或 agent 协同 / 对外开放贡献。
 
 ## COMMANDS
 
 ```bash
-# 唯一权威验证：12 用例 / 60 断言（CI 第 8 步跑的就是它）
+# 唯一权威验证：14 用例 / 74 断言（CI 第 8 步跑的就是它）
 ./test/install-update-e2e.sh
+
+# 发布前本地门禁：本工具包 HEAD 装到每个消费仓都不冲突（CI 无消费仓检出，跑不了）
+./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
 
 # 预演升级（不落盘），<dir> 为消费仓
 ./update.sh --target <dir> --check
