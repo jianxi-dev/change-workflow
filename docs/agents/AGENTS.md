@@ -4,11 +4,11 @@
 
 ## OVERVIEW
 
-本目录 9 份 `*.md` 是规范模板（不是本仓文档），安装到消费仓的 `<DOCS_DIR>`（默认 `docs/agents`）。
-清单由 `../lib/render.sh:93-99` 的 glob 自动纳入 `cw_list_files`（该 glob 跳过 `AGENTS.md` 自身）；受管文件共 13 个 = 4 硬编码 + 9 份 docs（`../lib/render.sh:87`）。
+本目录 12 份 `*.md` 是规范模板（不是本仓文档），安装到消费仓的 `<DOCS_DIR>`（默认 `docs/agents`）。
+清单由 `../lib/render.sh:93-99` 的 glob 自动纳入 `cw_list_files`（该 glob 跳过 `AGENTS.md` 自身）；受管文件共 18 个 = 6 硬编码 + 12 份 docs（`../lib/render.sh:87`）。
 改本目录的文件名即改变消费仓的 `docs/agents` 布局。
 
-## 9 份模板
+## 12 份模板
 
 | 文件 | 行数 | 主题 |
 |---|---|---|
@@ -21,6 +21,9 @@
 | `domain.md` | 39 | 探索前领域文档消费规则（术语表、ADR 冲突必须显式声明） |
 | `incident-uncommitted-work-loss.md` | 300 | 未提交代码被破坏性回滚覆盖的事故复盘 + 共享工作区保护 |
 | `incident-merge-local-workspace.md` | 45 | 合并收尾切错分支致本地工作流失效的事故复盘与强制规则 |
+| `evidence-capture.md` | 280 | 证据驱动测试规范（证据分层 before/after + 5 类证据：视频/截图/测量数字/transcript/headless 降级；挂 QG-5/DQ-3/DQ-5） |
+| `code-structure.md` | 95 | 服务层架构约束（actions 管 why/when、service 管 how + 四反模式 + 迁移清单；挂 G1 与 code-review Standards 轴） |
+| `pr-writing.md` | 164 | PR 与提交文字规范（去 AI 味：12 条 AI tells + 两遍扫描法 + add soul；挂 G2/G3/G4） |
 
 ## 模板硬规则
 
@@ -44,11 +47,17 @@
 - 豁免表在 `:319-341`：不可豁免 QG-3/4/5、DQ-1/2/3/4/5/8；可豁免的 QG-1/QG-2 必须由票作者显式声明，不得默认。
 - 挂载点 `:349`：QG-7/QG-3 → G0；QG-1..QG-5 → G1 出口；QG-6 → G1 循环；DQ-1..8 → SKILL 缺陷处理章节。
 
+新增 3 份规范与门禁的挂接：
+
+- `evidence-capture.md`：证据分层与 5 类证据（视频/截图/测量数字/transcript/headless 降级）——QG-5（独立验证+原始证据）与 DQ-3（先红后绿）/DQ-5（关闭附原始证据）的取证细则。
+- `code-structure.md`：服务层架构约束（actions 管 why/when、service 管 how）——G1 出口的 code-review Standards 轴判据。
+- `pr-writing.md`：PR 与提交文字规范（12 条 AI tells + 两遍扫描法）——G2/G3/G4 的文字质量判据。
+
 ## 改动清单
 
 - 新增/删除一份模板：首行模板头与结尾换行必须满足（见上面硬规则）。
 - `cw_list_files` 是 glob，新增模板无需改受管清单（`../lib/render.sh:93-99`）。
-- 但要更新 e2e 模板头计数断言（`../test/install-update-e2e.sh:184-188` 期望 10）。
+- 但要更新 e2e 模板头计数断言（`../test/install-update-e2e.sh:184-188` 期望 13）。
 - 改任何一份模板：它同时是消费仓的受管文件；该文件若被消费仓本地改过（或 `manifest` 记 `LOCAL`），升级时不会覆盖，写 `<file>.new` 并退 1。
 - 已知 `LOCAL` 哨兵：md-bundle 的 `change-closure-signal.yml`、`incident-merge-local-workspace.md`、`quality-gates.md`；clairis 的 `domain.md`、`issue-tracker.md`、`triage-labels.md`。
 - 行为/规范变更：同步 `../VERSION` + `../CHANGELOG.md` 并发版。
