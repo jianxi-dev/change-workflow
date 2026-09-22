@@ -195,10 +195,14 @@ if needs_bootstrap; then
   done < <(cw_list_files)
 
   if [[ "$DRY_RUN" != "1" ]]; then
-    # 受管脚本必须可执行：cw_render 用重定向写文件，不保留执行位
-    for _s in scripts/pr-automation.sh scripts/cw-update.sh; do
-      [[ -f "$_s" ]] && chmod +x "$_s" 2>/dev/null || true
-    done
+    # 受管脚本必须可执行：cw_render 用重定向写文件，不保留执行位。
+    # 名单由受管清单（cw_list_files）派生，不再硬编码：新增脚本自动获得执行位，避免漏加
+    # 导致消费仓 `./scripts/<name>.sh` 报 Permission denied（1.2.0 / 1.3.0 两次同因缺陷）。
+    while IFS='|' read -r _tpl dst_rel; do
+      case "$dst_rel" in
+        scripts/*.sh) [[ -f "$dst_rel" ]] && chmod +x "$dst_rel" 2>/dev/null || true ;;
+      esac
+    done < <(cw_list_files)
     : > "$MANIFEST"
     while IFS='|' read -r tpl_rel dst_rel; do
       [[ -n "$tpl_rel" ]] || continue
@@ -331,10 +335,14 @@ is_conflicted() {
 }
 
 if [[ "$DRY_RUN" != "1" ]]; then
-  # 受管脚本必须可执行：cw_render 用重定向写文件，不保留执行位
-  for _s in scripts/pr-automation.sh scripts/cw-update.sh; do
-    [[ -f "$_s" ]] && chmod +x "$_s" 2>/dev/null || true
-  done
+  # 受管脚本必须可执行：cw_render 用重定向写文件，不保留执行位。
+  # 名单由受管清单（cw_list_files）派生，不再硬编码：新增脚本自动获得执行位，避免漏加
+  # 导致消费仓 `./scripts/<name>.sh` 报 Permission denied（1.2.0 / 1.3.0 两次同因缺陷）。
+  while IFS='|' read -r _tpl dst_rel; do
+    case "$dst_rel" in
+      scripts/*.sh) [[ -f "$dst_rel" ]] && chmod +x "$dst_rel" 2>/dev/null || true ;;
+    esac
+  done < <(cw_list_files)
   OLD_BASELINES="$(mktemp)"
   [[ -f "$MANIFEST" ]] && cp "$MANIFEST" "$OLD_BASELINES"
   : > "$MANIFEST"

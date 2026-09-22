@@ -77,6 +77,10 @@ ok "docs/agents 文件数" "$(ls docs/agents/*.md 2>/dev/null | wc -l | tr -d ' 
 ok "SKILL 已安装" "$([[ -f .opencode/skills/change-workflow/SKILL.md ]] && echo y)" "y"
 ok "pr-automation 可执行" "$([[ -x scripts/pr-automation.sh ]] && echo y)" "y"
 ok "cw-update 可执行" "$([[ -x scripts/cw-update.sh ]] && echo y)" "y"
+# 回归锁（1.3.0 驳回缺陷）：新增受管脚本漏加 chmod 名单 → 消费仓 Permission denied(126)。
+# 断言直接查 x 位，而不是脚本内部变量，确保「清单派生」这个修复真的落地。
+ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
+ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
 ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "18"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"

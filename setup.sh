@@ -168,7 +168,14 @@ while IFS='|' read -r tpl_rel dst_rel; do
   install_rendered "$tpl_rel" "$dst_rel"
 done < <(cw_list_files)
 
-act chmod +x scripts/pr-automation.sh 2>/dev/null || true
+# 受管脚本必须可执行：cw_render 用重定向写文件，不保留执行位。
+# 名单由受管清单（cw_list_files）派生，不再硬编码：新增脚本自动获得执行位，避免漏加
+# 导致消费仓 `./scripts/<name>.sh` 报 Permission denied（1.2.0 / 1.3.0 两次同因缺陷）。
+while IFS='|' read -r _tpl dst_rel; do
+  case "$dst_rel" in
+    scripts/*.sh) [[ -f "$dst_rel" ]] && { act chmod +x "$dst_rel" 2>/dev/null || true; } ;;
+  esac
+done < <(cw_list_files)
 
 # 基线 manifest：记录安装后各受管文件的 sha256，供 update.sh 判定「是否被本地修改」。
 if [[ "$DRY_RUN" != "1" ]]; then
