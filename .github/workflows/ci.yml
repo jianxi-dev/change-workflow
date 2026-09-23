@@ -55,7 +55,9 @@ jobs:
       - name: 占位符与替换表一致性
         run: |
           used="$(grep -rho '{{[A-Z_]*}}' docs/agents skills | sort -u)"
-          known="$(grep -o 's|{{[A-Z_]*}}' lib/render.sh | sed 's/s|//' | sort -u)"
+          # lib/render.sh 里占位符写成 \{\{X\}\}（转义花括号，防止 bash brace expansion 先行破坏替换），
+          # 故取已登记表前须先用 sed 剥掉反斜杠，否则 grep 一无所获、全部占位符都会被误报为未登记。
+          known="$(sed 's/\\//g' lib/render.sh | grep -o '{{[A-Z_]*}}' | sort -u)"
           missing="$(comm -23 <(echo "$used") <(echo "$known"))"
           if [ -n "$missing" ]; then
             echo "❌ 模板使用了未在 lib/render.sh 登记的占位符:"; echo "$missing"; exit 1

@@ -17,12 +17,13 @@ set -euo pipefail
 DEFAULT_SOURCE="https://github.com/jianxi-dev/change-workflow.git"
 
 # 缓存目录优先级：CHANGE_WORKFLOW_HOME > ~/.change-workflow（既有手动 clone）> ~/.cache/change-workflow
+# ${HOME:-}：set -u 下 HOME 未定义时回退空根路径而不是直接崩（容器/受限环境曾炸）
 if [[ -n "${CHANGE_WORKFLOW_HOME:-}" ]]; then
   CACHE_DIR="$CHANGE_WORKFLOW_HOME"
-elif [[ -d "$HOME/.change-workflow/.git" ]]; then
-  CACHE_DIR="$HOME/.change-workflow"
+elif [[ -d "${HOME:-}/.change-workflow/.git" ]]; then
+  CACHE_DIR="${HOME:-}/.change-workflow"
 else
-  CACHE_DIR="$HOME/.cache/change-workflow"
+  CACHE_DIR="${HOME:-}/.cache/change-workflow"
 fi
 
 TARGET="$(pwd)"
@@ -46,9 +47,31 @@ if [[ ! -f "$CONF" ]]; then
   echo "❌ 未找到 $CONF —— 请先运行工具包 setup.sh 安装" >&2
   exit 1
 fi
-# shellcheck disable=SC1090
-source "$CONF"
-
+# 不 source conf：该文件提交进消费仓，恶意 PR 在其中追加 shell 后即被执行（RCE）。
+# 白名单逐键解析（bash 3.2 兼容）：只取 TOOLKIT_SOURCE 字面值，不求值、不执行任何内容。
+conf_get() {
+  local key="$1" line v
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "$key"=*)
+        v="${line#*=}"
+        v="${v%$'\r'}"
+        case "$v" in
+          *'#'*) v="${v%%#*}" ;;
+        esac
+        v="${v%"${v##*[![:space:]]}"}"
+        case "$v" in
+          \"*\") v="${v#\"}"; v="${v%\"}" ;;
+          \'*\') v="${v#\'}"; v="${v%\'}" ;;
+        esac
+        printf '%s\n' "$v"
+        return 0
+        ;;
+    esac
+  done < "$CONF"
+  return 1
+}
+TOOLKIT_SOURCE="$(conf_get TOOLKIT_SOURCE || true)"
 SOURCE="${TOOLKIT_SOURCE:-$DEFAULT_SOURCE}"
 echo "==> 工具包来源: $SOURCE"
 

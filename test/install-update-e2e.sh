@@ -162,6 +162,10 @@ write_conf "1.0.0"
 sed -i.cw 's|^TOOLKIT_VERSION=.*||' .change-workflow.conf && rm -f .change-workflow.conf.cw
 rc8=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc8=$?
 ok "退出码（有差异→1）" "$rc8" "1"
+# 受管脚本必须可执行（cw_chmod_scripts 从受管清单派生，1.2.0/1.3.0 两次同因缺陷）
+ok "pr-automation 可执行" "$([[ -x scripts/pr-automation.sh ]] && echo y)" "y"
+ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
+ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
 # 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 18 - 3 = 15
 ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "15"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
@@ -365,6 +369,97 @@ ok "有冲突仓报告拦截" "$r14b" "0"
 ok "只读：未留 .new" "$([[ -f "$DIRTY/docs/agents/domain.md.new" ]] && echo y || echo n)" "n"
 ok "只读：干净仓未留 .new" "$(find "$CLEAN" -name '*.new' | wc -l | tr -d ' ')" "0"
 sanitize "$B8"
+
+# ── 用例 15：cw-evidence / cw-greploop 退出码契约（回归锁）────────────────────
+# 契约（scripts/cw-evidence.sh、scripts/cw-greploop.sh 头部注释）：
+#   0 = 成功（含 --help）；1 = 参数/子命令错误；3 = 降级（依赖缺失，须与成功可区分）
+# 确定性：空 HOME + 无 GITHUB_TOKEN/GH_TOKEN + 无 CW_EVIDENCE_ALLOW_REPO
+#         ⇒ 探测不到任何 skill / gh 未认证 ⇒ 降级路径必然命中；
+#         参数校验先于能力探测 ⇒ 1 类退出码与探测结果无关。
+echo ""
+echo "[15] cw-evidence / cw-greploop 退出码契约"
+B9="$(mktemp -d)"
+new_repo "$B9/repo" || exit 1
+mkdir -p "$B9/home"
+cd "$B9/repo"
+
+# cw-evidence.sh：8 条
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN -u CW_EVIDENCE_ALLOW_REPO "$CW_ROOT/scripts/cw-evidence.sh" doctor >/dev/null 2>&1 || rc=$?
+ok "evidence doctor 退 0" "$rc" "0"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN -u CW_EVIDENCE_ALLOW_REPO "$CW_ROOT/scripts/cw-evidence.sh" headless >/dev/null 2>&1 || rc=$?
+ok "evidence headless 退 0" "$rc" "0"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN -u CW_EVIDENCE_ALLOW_REPO "$CW_ROOT/scripts/cw-evidence.sh" --help >/dev/null 2>&1 || rc=$?
+ok "evidence --help 退 0" "$rc" "0"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN -u CW_EVIDENCE_ALLOW_REPO "$CW_ROOT/scripts/cw-evidence.sh" >/dev/null 2>&1 || rc=$?
+ok "evidence 无子命令退 1" "$rc" "1"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN -u CW_EVIDENCE_ALLOW_REPO "$CW_ROOT/scripts/cw-evidence.sh" bogus >/dev/null 2>&1 || rc=$?
+ok "evidence 未知子命令退 1" "$rc" "1"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN -u CW_EVIDENCE_ALLOW_REPO "$CW_ROOT/scripts/cw-evidence.sh" --skill-path "" doctor >/dev/null 2>&1 || rc=$?
+ok "evidence --skill-path 空退 1" "$rc" "1"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN -u CW_EVIDENCE_ALLOW_REPO "$CW_ROOT/scripts/cw-evidence.sh" start "$B9/repo" >/dev/null 2>&1 || rc=$?
+ok "evidence start 降级退 3" "$rc" "3"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN -u CW_EVIDENCE_ALLOW_REPO "$CW_ROOT/scripts/cw-evidence.sh" stop >/dev/null 2>&1 || rc=$?
+ok "evidence stop 降级退 3" "$rc" "3"
+
+# cw-greploop.sh：6 条
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$CW_ROOT/scripts/cw-greploop.sh" --help >/dev/null 2>&1 || rc=$?
+ok "greploop --help 退 0" "$rc" "0"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$CW_ROOT/scripts/cw-greploop.sh" --pr abc >/dev/null 2>&1 || rc=$?
+ok "greploop --pr 非数字退 1" "$rc" "1"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$CW_ROOT/scripts/cw-greploop.sh" --max-iterations 0 >/dev/null 2>&1 || rc=$?
+ok "greploop --max-iterations 0 退 1" "$rc" "1"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$CW_ROOT/scripts/cw-greploop.sh" --vcs svn >/dev/null 2>&1 || rc=$?
+ok "greploop --vcs svn 退 1" "$rc" "1"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$CW_ROOT/scripts/cw-greploop.sh" --bogus >/dev/null 2>&1 || rc=$?
+ok "greploop 未知参数退 1" "$rc" "1"
+rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$CW_ROOT/scripts/cw-greploop.sh" >/dev/null 2>&1 || rc=$?
+ok "greploop 无 --pr 降级退 3" "$rc" "3"
+sanitize "$B9"
+
+# ── 用例 16：符号链接拒绝（C2 边界）──────────────────────────────────────────
+# 受管文件被换成符号链接时，重定向/覆盖会写穿到链接指向处 —— cw_refuse_symlink
+# 必须在任何写入前退 1（lib/render.sh:62-68；update.sh:171/234-235/378-379）。
+echo ""
+echo "[16] 符号链接拒绝"
+B10="$(mktemp -d)"
+new_repo "$B10/repo" || exit 1
+write_conf "1.0.0"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+set_version "0.9.0"
+cp .change-workflow.conf "$B10/outside.conf"
+rm -f .change-workflow.conf
+ln -s "$B10/outside.conf" .change-workflow.conf
+cp "$B10/outside.conf" "$B10/outside.before"
+rc16=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc16=$?
+ok "符号链接拒绝退出码 1" "$rc16" "1"
+ok "符号链接未被替换" "$([[ -L .change-workflow.conf ]] && echo y)" "y"
+ok "链接目标未被写穿" "$(cmp -s "$B10/outside.conf" "$B10/outside.before" && echo y || echo n)" "y"
+sanitize "$B10"
+
+# ── 用例 17：受管脚本符号链接拒绝（C2 边界）──────────────────────────────────
+# 用例 16 只覆盖 conf；受管脚本被换成符号链接时同样会写穿——文件循环因内容与基线
+# 一致判 CURRENT 跳过，真正的写穿点在收尾的 cw_chmod_scripts：chmod +x 会穿透
+# 链接改到目标权限位（lib/render.sh:154）。把已安装的 cw-evidence.sh 换成指向
+# 仓外文件的链接，update 必须在 chmod 前退 1，且链接目标权限位不得被改动。
+echo ""
+echo "[17] 受管脚本符号链接拒绝"
+B11="$(mktemp -d)"
+new_repo "$B11/repo" || exit 1
+write_conf "1.0.0"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+set_version "0.9.0"
+cp scripts/cw-evidence.sh "$B11/outside-target"
+chmod 644 "$B11/outside-target"
+cp "$B11/outside-target" "$B11/outside.before"
+rm -f scripts/cw-evidence.sh
+ln -s "$B11/outside-target" scripts/cw-evidence.sh
+rc17=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc17=$?
+ok "受管脚本符号链接拒绝退出码 1" "$rc17" "1"
+ok "受管脚本符号链接未被替换" "$([[ -L scripts/cw-evidence.sh ]] && echo y)" "y"
+ok "受管脚本链接目标未被写穿" "$(cmp -s "$B11/outside-target" "$B11/outside.before" && echo y || echo n)" "y"
+ok "受管脚本链接目标未被补执行位" "$([[ -x "$B11/outside-target" ]] && echo y || echo n)" "n"
+ok "受管脚本未产生 .new/.bak" "$([[ ! -e scripts/cw-evidence.sh.new && ! -e scripts/cw-evidence.sh.bak ]] && echo y)" "y"
+sanitize "$B11"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""

@@ -25,22 +25,56 @@
 #   + 人工清单），并在 PR 上显式标注「审查闭环降级为人工」。
 #   评分绝不伪造: 没有评分来源就如实报告没有。
 #
-# 退出码: 0 = 已打印协议或降级指引；1 = 参数错误 / 缺少无法自动检测的前提。
+# 退出码: 0 = 能力检测通过、协议已打印（不代表审查通过）；
+#         1 = 参数错误 / --pr <N> 无法通过 gh 解析；
+#         3 = 降级（greploop skill 缺失或 gh 未认证）；--help 退出 0。
 # =============================================================================
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
-# --- 载入项目配置（可选）-----------------------------------------------------
-# 目标项目根放置 .change-workflow.conf（由 setup.sh 生成）；本脚本只取 SKILLS_DIR
-# 等目录约定。cd 在 source 之前完成，避免被 conf 里的 REPO_ROOT 带偏。
+# --- 载入项目配置（只读白名单解析，绝不 source）-------------------------------
+# 目标项目根放置 .change-workflow.conf（由 setup.sh 生成）；本脚本只取 SKILLS_DIR。
+# 不 source conf：该文件提交进消费仓，恶意 PR 在其中追加 shell 后即被执行（RCE）。
+# 白名单逐键解析（bash 3.2 兼容）：只取 KEY=value 字面值，不求值、不执行任何内容。
+# cd 在读 conf 之前完成，候选路径均相对仓库根。
 CONF="$REPO_ROOT/.change-workflow.conf"
+conf_get() {
+  local key="$1" line v
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "$key"=*)
+        v="${line#*=}"
+        v="${v%$'\r'}"
+        case "$v" in
+          *'#'*) v="${v%%#*}" ;;
+        esac
+        v="${v%"${v##*[![:space:]]}"}"
+        case "$v" in
+          \"*\") v="${v#\"}"; v="${v%\"}" ;;
+          \'*\') v="${v#\'}"; v="${v%\'}" ;;
+        esac
+        printf '%s\n' "$v"
+        return 0
+        ;;
+    esac
+  done < "$CONF"
+  return 1
+}
+_sk=""
 if [[ -f "$CONF" ]]; then
-  # shellcheck disable=SC1090
-  source "$CONF"
+  _sk="$(conf_get SKILLS_DIR || true)"
 fi
-SKILLS_DIR="${SKILLS_DIR:-.opencode/skills}"
+SKILLS_DIR="${_sk:-.opencode/skills}"
+# SKILLS_DIR 只接受仓库内相对路径：绝对路径 / 路径穿越（..）→ 回退默认并警告
+case "$SKILLS_DIR" in
+  /*|..|../*|*/../*)
+    echo "⚠️  conf 的 SKILLS_DIR 非法（${SKILLS_DIR}），回退 .opencode/skills"
+    SKILLS_DIR=".opencode/skills"
+    ;;
+esac
 
 MAX_ITERATIONS="10"
 PR=""
@@ -97,7 +131,7 @@ fi
 case "$MAX_ITERATIONS" in
   ''|*[!0-9]*) die "--max-iterations 必须是正整数: ${MAX_ITERATIONS}" ;;
 esac
-if [[ "$MAX_ITERATIONS" -lt 1 ]]; then
+if (( 10#$MAX_ITERATIONS < 1 )); then
   die "--max-iterations 必须大于 0: ${MAX_ITERATIONS}"
 fi
 if [[ -n "$VCS" ]]; then
@@ -128,8 +162,10 @@ if [[ -z "$VCS" ]]; then
 fi
 
 # --- 能力检测 ----------------------------------------------------------------
-# 候选路径: 项目 SKILLS_DIR（conf，默认 .opencode/skills）→ 项目常见 agent 目录
-# → 用户级目录。只探测含 greploop/SKILL.md 的目录，不猜能力、不伪造可用。
+# 候选路径（9 根，只探测、不执行）: HOME 级 3 根 → conf SKILLS_DIR → 仓库相对
+# 3 根 → 脚本相对 2 根。与 cw-evidence.sh 的门控清单保持同序（其仓库相对项受
+# CW_EVIDENCE_ALLOW_REPO=1 门控；本脚本只读探测，不设门控）。
+# 只认含 greploop/SKILL.md 的目录，不猜能力、不伪造可用。
 detect_greploop_skill() {
   local d
   for d in "$@"; do
@@ -141,21 +177,39 @@ detect_greploop_skill() {
   return 1
 }
 
-GREPLOOP_SKILL="$(detect_greploop_skill "$SKILLS_DIR" ".opencode/skills" ".claude/skills" ".agents/skills" \
-  "$HOME/.config/opencode/skills" "$HOME/.claude/skills" "$HOME/.agents/skills")" || GREPLOOP_SKILL=""
+GREPLOOP_SKILL="$(detect_greploop_skill \
+  "${HOME:-}/.claude/skills" \
+  "${HOME:-}/.agents/skills" \
+  "${HOME:-}/.config/opencode/skills" \
+  "$SKILLS_DIR" \
+  "$PWD/.opencode/skills" \
+  "$PWD/.claude/skills" \
+  "$PWD/.agents/skills" \
+  "$SCRIPT_DIR/../.opencode/skills" \
+  "$SCRIPT_DIR/../.claude/skills")" || GREPLOOP_SKILL=""
 
-# 展示用候选清单: SKILLS_DIR 与固定项重复时不重复列出（默认值即 .opencode/skills）
-SKILL_CANDIDATES=".opencode/skills / .claude/skills / .agents/skills / 用户级 skills 目录"
+# 展示用候选清单: 与探测顺序一致；SKILLS_DIR 与固定相对项重复时不重复列出
+# shellcheck disable=SC2088  # 展示字符串故意用 ~ 缩写（探测用 ${HOME:-}，此处仅给人看，展开反而泄露路径）
+SKILL_CANDIDATES="~/.claude/skills / ~/.agents/skills / ~/.config/opencode/skills"
 case "$SKILLS_DIR" in
   .opencode/skills|.claude/skills|.agents/skills) : ;;
-  *) SKILL_CANDIDATES="${SKILLS_DIR} / ${SKILL_CANDIDATES}" ;;
+  *) SKILL_CANDIDATES="${SKILL_CANDIDATES} / ${SKILLS_DIR}" ;;
 esac
+SKILL_CANDIDATES="${SKILL_CANDIDATES} / ./.opencode/skills / ./.claude/skills / ./.agents/skills / scripts/../.opencode/skills / scripts/../.claude/skills"
 
 # gh 认证探测（只读检查；轮询与 resolve 依赖它）。未认证不报错，走降级。
 GH_OK=false
 if command -v gh >/dev/null 2>&1; then
   if gh auth status >/dev/null 2>&1; then
     GH_OK=true
+  fi
+fi
+
+# --pr 可解析性校验（gh 可用时才做）: 参数错误优先于降级——无法解析直接退 1，
+# 不降级。gh 不可用/未认证时跳过本检查（走后面的降级 → 3）。
+if [[ -n "$PR" && "$GH_OK" = true ]]; then
+  if ! gh pr view "$PR" --json number -q .number >/dev/null 2>&1; then
+    die "--pr 无法通过 gh 解析: ${PR}"
   fi
 fi
 
@@ -172,9 +226,22 @@ else
 fi
 
 # --- 打印函数 ----------------------------------------------------------------
+# 步骤 1/2 随平台变化（触发与轮询机制不同）；3-6 是平台无关的收敛循环。
 print_loop_protocol() {
-  echo "    1. 触发    push 最新提交后触发 Greptile 审查（GitHub 由 Greptile App 触发；其它平台按 greploop skill）"
-  echo "    2. 轮询    轮询评审 check-run，直到本轮评审完成"
+  case "$VCS" in
+    gitlab)
+      echo "    1. 触发    push 后触发 merge request 上的审查（GitLab 按 greploop skill 配置的机器人）"
+      echo "    2. 轮询    轮询 MR pipeline / 审查线程，直到本轮评审完成"
+      ;;
+    perforce)
+      echo "    1. 触发    按 greploop skill 在 Perforce 场景手动触发审查（无 push 自动触发）"
+      echo "    2. 轮询    按 greploop skill 轮询评审结果，直到本轮评审完成"
+      ;;
+    *)
+      echo "    1. 触发    push 最新提交后由 Greptile App 触发审查（GitHub）"
+      echo "    2. 轮询    轮询评审 check-run，直到本轮评审完成"
+      ;;
+  esac
   echo "    3. 抓取    读取评分（x/5）与全部未解决评论"
   echo "    4. 修复    逐条修复可行动评论（不做「差不多就行」的取舍）"
   echo "    5. 收敛    resolve 已处理的 review thread"
@@ -233,6 +300,8 @@ else
   echo "    ⚠️  gh 认证: 未通过（轮询与 resolve 不可用）"
 fi
 
+# dry-run 与实跑故意共用同一打印路径与退出码契约：两套协议文本必然漂移，
+# 曾出现「dry-run 打印的循环与实跑不一致」的隐患。dry-run 不发网络请求、不改文件。
 if [[ "$DRY_RUN" = true ]]; then
   echo ""
   echo "[dry-run] 未执行任何动作；以下为将执行的循环协议与退出条件"
@@ -248,11 +317,13 @@ if [[ "$DRY_RUN" = true ]]; then
   echo ""
   if [[ -n "$GREPLOOP_SKILL" && "$GH_OK" = true ]]; then
     echo "[dry-run] 能力检测通过 → 实际执行走 greploop skill 循环"
+    echo "⚠️  本脚本不执行循环：退出码 0 仅表示协议已打印，不代表审查通过"
+    exit 0
   else
     echo "[dry-run] 能力检测未通过 → 实际执行将走降级路径:"
     print_degrade
+    exit 3
   fi
-  exit 0
 fi
 
 if [[ -n "$GREPLOOP_SKILL" && "$GH_OK" = true ]]; then
@@ -267,6 +338,9 @@ if [[ -n "$GREPLOOP_SKILL" && "$GH_OK" = true ]]; then
   print_apps_note
   echo ""
   echo "==> 下一步: agent 依据 greploop skill 执行上述循环，直到退出条件满足。"
+  echo "⚠️  本脚本不执行循环：退出码 0 仅表示协议已打印，不代表审查通过"
+  exit 0
 else
   print_degrade
+  exit 3
 fi

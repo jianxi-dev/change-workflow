@@ -1,3 +1,79 @@
+## 1.3.1 — 2026-09-24
+
+### 修复：安全边界（A1/B1/C2）
+
+**问题**：三个「不可信输入」路径存在越权执行风险——仓库内候选 skill 根被自动执行
+（A1）、conf 被 `source` 导致命令替换注入（B1）、符号链接目标被受管写入写穿（C2）。
+
+**改进**：
+- A1：`cw-evidence.sh` 默认跳过仓库级候选根，仅 `CW_EVIDENCE_ALLOW_REPO=1` 或
+  `--skill-path` 显式信任才执行（RCE 信任边界）
+- B1：`update.sh` / `cw-greploop.sh` / `cw-update.sh` 全部改为白名单 `conf_get()`
+  只读键值，`source "$CONF"` 彻底移除（红证：恶意 conf 不再创建哨兵文件）
+- C2：`cw_refuse_symlink`（`lib/render.sh:62`）覆盖全部受管写入面（渲染目标、cp 源/目标、
+  manifest/conf 重写），`cw_atomic_cp`（`:130`）temp+mv 原子写，符号链接一律拒绝
+
+### 修复：状态机与假绿（A2/B2/C1/C4/A3/B3）
+
+**问题**：降级路径与成功不可区分（A2/B2）、首装渲染空值（C1）、`--force` 语义缺失（C4）、
+平台分支不可达（A3）、`--vcs` 平台文本未区分（B3）。
+
+**改进**：
+- A2/B2：`cw-evidence.sh` 与 `cw-greploop.sh` 降级统一退 3（与成功 0、参数错误 1 可区分），
+  `--pr` 经 `gh pr view` 校验不可解析退 1
+- C1：`EFFECTIVE_DATE`/`REPO_ROOT` 在渲染循环前作为 shell 变量显式设置（heredoc 内赋值
+  不进当前 shell 是根因），首装产物不再缺日期/仓库根路径
+- C4：`LOCAL` 哨兵 + `--force` 覆盖语义（`.bak` 保留定制内容）
+- A3：屏幕捕获不可用分支可达（stub 探针验证）
+- B3：`--vcs github|gitlab|perforce` 三平台文本各不相同
+
+### 修复：安装器健壮性（C3/D1/F1/F2/附带）
+
+**问题**：并发锁缺失（C3）、特殊字符路径被展开（D1）、chmod 循环三处重复（F1）、
+候选根清单两脚本漂移（F2）。
+
+**改进**：
+- C3：仓库级锁（`.git/.change-workflow.lock`，`--dry-run` 不取锁）、manifest 原子写、
+  chmod 失败即失败（不再 `|| true` 吞错）
+- D1：`REPO_ROOT` 含 `&`/`|`/`{{OWNER}}`/`$HOME` 全部字面输出
+- F1：`cw_chmod_scripts`（`lib/render.sh:148`）抽公共，替换 3 处逐字节重复循环
+- F2：9 个候选 skill 根清单两脚本逐字节一致（互指注释防漂移）
+
+### 新增：e2e 回归锁（E1）
+
+`test/install-update-e2e.sh` +70 行：case 8 补 3 个 exec 位断言、case 15 退出码契约
+14 断言、case 16 符号链接拒绝 3 断言、case 17 受管脚本符号链接拒绝 5 断言（含执行位
+写穿断言）。全部经变异验证（DQ-3 先红后绿）：变异 `cw_chmod_scripts` → 7 红、
+变异 `cmd_start` 降级 → 1 红、变异共享守卫 `cw_refuse_symlink` → 4 红，字节级还原后
+全绿。
+
+### 教训反思
+
+**降级路径的退出码必须与成功可区分。** 调用方（CI/agent）无法感知「降级但成功」，
+统一 0/1/3 契约后失败才可被断言捕获。
+
+**heredoc 内计算的变量不会进入当前 shell。** 渲染前必须存在的值，一律在渲染循环
+之前作为 shell 变量显式设置，否则 setup 与 update 两条路径渲染结果不一致，违反
+渲染幂等铁律。
+
+**变异点必须选「断言真正依赖的代码路径」。** 多个调用点共享同一守卫时，变异任一
+调用点都测不出守卫失效；要变异共享 helper 本身，让所有依赖它的断言同时暴露。
+`evidence stop 降级退 3` 尚未被变异证明，如实标注「仅 start 被证明」。
+
+**内容相等 ≠ 未被写穿。** CURRENT 跳过使内容永不重写，但 chmod 类收尾操作会穿透
+符号链接改权限位；断言权限位变化必须用 `[[ -x ]]`，`cmp` 只能证明内容。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+ 通过 101 · 失败 0            # 76 → 101：+25 断言（case 8 exec 位 +3、case 15 退出码契约 +14、case 16 符号链接 +3、case 17 受管脚本符号链接 +5）
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+ 消费仓 3 个 · 通过 9 · 失败 0
+```
+
+---
+
 ## 1.3.0 — 2026-09-23
 
 ### 新增：证据驱动测试 + 服务层架构 + PR 写作规范（3 份 docs 模板）
@@ -49,7 +125,7 @@
 
 ```
 $ ./test/install-update-e2e.sh
- 通过 74 · 失败 0            # 59 → 74：新增 15 断言覆盖新脚本语法、清单计数、模板头剥离
+ 通过 76 · 失败 0            # 59 → 76：新增 17 断言覆盖新脚本语法、清单计数、模板头剥离、执行位
 ```
 
 ---

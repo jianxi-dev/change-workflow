@@ -16,7 +16,7 @@ G2 提交/PR 机械流水线。仓库内无 shell 调用它，仅被 `../skills/
 - risk-low 且 auto-merge 不可用 → fail-open 退 0（`:13`、`:301-303`）。
 - 四件套门禁函数 `run_gate`（`:62`）；`--skip-checks` 是逃生舱，`../skills/change-workflow/SKILL.md:181` 明确禁止。
 
-### cw-update.sh（71 行）
+### cw-update.sh（94 行）
 
 消费仓自升级壳。
 
@@ -45,6 +45,26 @@ pr-automation.sh 参数表：
 | `--help` | 打印用法 |
 
 退出码硬约束：`--help` 退出码是 1（`usage()` 末尾 `exit 1`，`pr-automation.sh:57-59`），不是 0。
+
+其余 3 个包装脚本的退出码契约（0/1/3）：
+
+| 脚本 | 0 | 1 | 3 |
+|---|---|---|---|
+| `cw-evidence.sh` | doctor/headless/`--help` 正常完成（`:424-431`） | 空/未知子命令（`:424-431`） | 依赖缺失降级：start/stop 显式 `|| exit $?`（`:420-421`），不依赖 `set -e` 的边角语义（`:386`） |
+| `cw-greploop.sh` | 能力检测通过、协议已打印（`:321`/`:342`） | 参数错误（`:91`） | 依赖缺失降级（`:325`/`:345`） |
+| `cw-update.sh` | `--help`/`-h`（`:37`） | 目标不存在/非 git 仓（`:42-43`/`:48`） | —（`exec` 透传 `update.sh` 退出码，`:68`/`:70`） |
+
+3 是「降级未录制/未审查」的显式信号，不是失败：调用方（SKILL.md 编排）据此决定是否升级用户。
+
+## 共享 helper（lib/render.sh）
+
+4 个脚本装到消费仓后**不依赖 `lib/`**，但 conf 读取与写入面共用 `../lib/render.sh` 的同一批 helper —— 改这些 helper 必须四脚本一起看：
+
+- `cw_refuse_symlink`（`../lib/render.sh:62`）：所有受管写入面（渲染重定向、`cp` 安装、manifest/conf 重写）必须先过这道闸，拒绝符号链接目标（C2 安全边界）。使用点：渲染目标 `:84`、cp 源/目标 `:132-133`、受管脚本 `:153`；`update.sh:171`/`:234-235`/`:378-379`、`setup.sh:142`/`:217`。
+- `cw_atomic_cp`（`:130`）/ `cw_chmod_scripts`（`:148`）：安装原子性与执行位（见下方修改清单第 4 条）。
+- `cw_conf_get`（`:168`）：**B1 安全边界** —— 替代 `source "$CONF"`，杜绝值内命令注入（`:165`）。语义：跳过注释行、取首个 `key=` 后引号剥离的值、键不存在返 1；**不能截断含空格值**（如 `SKILLS_DIR="My Skills"`）。
+- **`conf_get` 是刻意重复的独立副本**：`cw-greploop.sh:44` 与 `cw-update.sh:52` 各有一份（消费仓无 `lib/`，不能 source）。改 conf 读取逻辑 = `render.sh:168` + 这两处**三处一起改**，漏一处即行为漂移。
+- **不 source conf（B1/RCE 边界）**：`cw-evidence.sh:45`/`:68`、`cw-greploop.sh:40`、`cw-update.sh:50` 均显式「不 source conf」；**唯一例外是 `pr-automation.sh:45` 的 `source "$CONF"`**（G2 流水线需要完整键集，且其输入是受管 conf 本身）。
 
 ## 修改清单（新增/改动脚本必须连带）
 

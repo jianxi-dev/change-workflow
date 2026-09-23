@@ -12,8 +12,9 @@ AI agent 常跳过工程规范：不建分支/issue 就开发、不拆票、误�
 |---|---|
 | `skills/change-workflow/SKILL.md` | 总编排 skill：G0-G4 五 gate + fix-first 自愈回路 + 缺陷机制 |
 | `scripts/pr-automation.sh` | issue 驱动分支/PR 自动化（`--resume-branch` 白名单收口、`--refs-only`、auto-merge fail-open） |
+| `scripts/cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` | 项目自升级 / G1 证据录制包装 / G2 Greptile 审查闭环包装（依赖缺失均降级） |
 | `workflows/change-closure-signal.yml` | CI 合并信号（Layer 1）：合并关闭 change 最后一张子票时打标 |
-| `docs/agents/*.md` | **9 份规范模板**（task-tracking / **quality-gates** / issue-tracker / project-board / triage-labels / defect-workflow / domain / incident-uncommitted-work-loss / incident-merge-local-workspace） |
+| `docs/agents/*.md` | **12 份规范模板**（task-tracking / **quality-gates** / issue-tracker / project-board / triage-labels / defect-workflow / domain / incident-uncommitted-work-loss / incident-merge-local-workspace / evidence-capture / code-structure / pr-writing） |
 | `setup.sh` | 安装向导：检测仓库 → 发现看板 → 建标签 → 写配置 → 渲染安装 → 写基线 manifest → 更新 AGENTS.md |
 | `update.sh` | **升级向导**：版本比对 → 基线哈希判定本地改动 → 安全覆盖 / 冲突旁路 → 刷新 manifest |
 | `lib/render.sh` | 占位符替换与模板头剥离的**唯一实现**（setup/update 共用，防漂移） |

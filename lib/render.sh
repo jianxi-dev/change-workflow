@@ -20,19 +20,29 @@
 CW_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # 占位符替换表。新增占位符时**只改这里**。
+# 为什么弃用 sed：sed 替换值是个微型语言（`&` = 整个匹配、`|` = 分隔符、`\` = 转义），
+# 合法目录名 `REPO_ROOT=/tmp/a&b` 会被静默渲染成 `/tmp/a{{REPO_ROOT}}b`（& 展开成占位符本身），
+# `REPO_ROOT=/tmp/a|b` 则直接摧毁 sed 命令（bad flag in substitute command）—— 两者都是合法路径，
+# 曾使渲染产物与预期逐字节不符且难以察觉。bash 参数展开做的是**纯字面量**替换，无此微型语言。
+# 注意：花括号必须写成 `\{\{REPO\}\}` 转义形态 —— bash 先做 brace expansion，
+# 未转义的 `${out//{{REPO}}/x}` 会被展开成垃圾（本机 bash 3.2 实测），不要"简化"掉反斜杠。
 cw_substitute() {
-  sed \
-    -e "s|{{REPO}}|${REPO:-}|g" \
-    -e "s|{{OWNER}}|${OWNER:-}|g" \
-    -e "s|{{DEFAULT_BRANCH}}|${DEFAULT_BRANCH:-main}|g" \
-    -e "s|{{REPO_ROOT}}|${REPO_ROOT:-}|g" \
-    -e "s|{{EFFECTIVE_DATE}}|${EFFECTIVE_DATE:-}|g" \
-    -e "s|{{PROJECT_ID}}|${PROJECT_ID:-}|g" \
-    -e "s|{{STATUS_FIELD_ID}}|${STATUS_FIELD_ID:-}|g" \
-    -e "s|{{OPT_BACKLOG}}|${OPT_BACKLOG:-}|g" \
-    -e "s|{{OPT_READY}}|${OPT_READY:-}|g" \
-    -e "s|{{OPT_IN_PROGRESS}}|${OPT_IN_PROGRESS:-}|g" \
-    -e "s|{{OPT_DONE}}|${OPT_DONE:-}|g"
+  local line out
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    out="$line"
+    out="${out//\{\{REPO\}\}/${REPO:-}}"
+    out="${out//\{\{OWNER\}\}/${OWNER:-}}"
+    out="${out//\{\{DEFAULT_BRANCH\}\}/${DEFAULT_BRANCH:-main}}"
+    out="${out//\{\{REPO_ROOT\}\}/${REPO_ROOT:-}}"
+    out="${out//\{\{EFFECTIVE_DATE\}\}/${EFFECTIVE_DATE:-}}"
+    out="${out//\{\{PROJECT_ID\}\}/${PROJECT_ID:-}}"
+    out="${out//\{\{STATUS_FIELD_ID\}\}/${STATUS_FIELD_ID:-}}"
+    out="${out//\{\{OPT_BACKLOG\}\}/${OPT_BACKLOG:-}}"
+    out="${out//\{\{OPT_READY\}\}/${OPT_READY:-}}"
+    out="${out//\{\{OPT_IN_PROGRESS\}\}/${OPT_IN_PROGRESS:-}}"
+    out="${out//\{\{OPT_DONE\}\}/${OPT_DONE:-}}"
+    printf '%s\n' "$out"
+  done
 }
 
 # 剥离模板头（面向模板读者的 HTML 注释），并去掉其后的前导空行。
@@ -44,6 +54,17 @@ cw_strip_header() {
     in_hdr                              { next }
     { print }
   ' | awk 'NF == 0 && !body { next } { body = 1; print }'
+}
+
+# 拒绝写入符号链接：受管文件若被替换成符号链接（指向仓库外或 .git 内），重定向/覆盖会
+# 穿透链接写穿到链接指向处，绕过「只改受管文件」的边界（C2）。所有受管写入面
+# （cw_render 重定向、cp 安装、manifest/conf 重写）必须先过这道闸。
+cw_refuse_symlink() {
+  local path="$1" desc="$2"
+  [[ -L "$path" ]] || return 0
+  echo "❌ 拒绝写入符号链接：${desc}（${path}）" >&2
+  echo "   受管文件必须是普通文件；请先删除该符号链接或改回真实文件。" >&2
+  exit 1
 }
 
 # 渲染：模板 → 目标文件（剥头 + 替换占位符）
@@ -59,6 +80,8 @@ cw_render() {
     echo "❌ 拒绝把模板渲染到自身（会清空文件）: $src" >&2
     return 1
   fi
+  # 符号链接目标同样会穿透重定向写穿到链接指向处（C2）
+  cw_refuse_symlink "$dst" "渲染目标"
   mkdir -p "$(dirname "$dst")"
   cw_strip_header < "$src" | cw_substitute > "$dst"
 }
@@ -71,7 +94,7 @@ cw_sha() {
   fi
 }
 
-# 目标仓是否为工具包源自身（自我安装）。工具包里 13 个受管文件有 11 个的模板源与安装目标
+# 目标仓是否为工具包源自身（自我安装）。工具包里 18 个受管文件有 16 个的模板源与安装目标
 # 同路径（docs/agents/*.md、scripts/*.sh），自我安装会清空模板，并把模板记成受管基线
 # （此后每次改模板都报冲突）。故 setup/update 在动任何东西之前一律拒绝。
 cw_is_self_target() {
@@ -99,4 +122,65 @@ cw_list_files() {
     [[ "$base" == "AGENTS.md" ]] && continue
     echo "docs/agents/$base|__DOCS_DIR__/$base"
   done
+}
+
+# 原子复制：先写同目录临时文件再 mv，避免中途失败留下半截文件（C3）。
+# 源与目标都拒绝符号链接（C2）：源若是链接说明受管文件被替换过，目标若是链接会写穿。
+# setup.sh 无 cp 安装面，此函数供 update.sh 的 7 处受管写入用。
+cw_atomic_cp() {
+  local src="$1" dst="$2" tmp
+  cw_refuse_symlink "$src" "复制源"
+  cw_refuse_symlink "$dst" "复制目标"
+  mkdir -p "$(dirname "$dst")"
+  tmp="$(mktemp "$(dirname "$dst")/.cw-tmp.XXXXXX")"
+  if ! cp "$src" "$tmp"; then
+    rm -f "$tmp"
+    echo "❌ 复制失败：$src → $dst" >&2
+    return 1
+  fi
+  mv "$tmp" "$dst"
+}
+
+# 给受管脚本补执行位（cw_render 用重定向写文件，不保留执行位）。
+# 名单由受管清单（cw_list_files）派生，不再硬编码：新增脚本自动获得执行位，避免漏加
+# 导致消费仓 `./scripts/<name>.sh` 报 Permission denied（1.2.0 / 1.3.0 两次同因缺陷）。
+# 可选 wrapper（如 setup.sh 的 act）用于 dry-run 打印；chmod 失败不再被 `|| true` 吞掉（F1）。
+cw_chmod_scripts() {
+  local wrapper="${1:-}" _tpl dst_rel
+  while IFS='|' read -r _tpl dst_rel; do
+    case "$dst_rel" in
+      scripts/*.sh)
+        cw_refuse_symlink "$dst_rel" "受管脚本"
+        [[ -f "$dst_rel" ]] || continue
+        if [[ -n "$wrapper" ]]; then
+          "$wrapper" chmod +x "$dst_rel" || { echo "❌ chmod +x 失败：$dst_rel" >&2; return 1; }
+        else
+          chmod +x "$dst_rel" || { echo "❌ chmod +x 失败：$dst_rel" >&2; return 1; }
+        fi
+        ;;
+    esac
+  done < <(cw_list_files)
+}
+
+# 从 conf 读取键值（B1：替代 `source "$CONF"`，杜绝值内命令注入）。
+# 语义对齐 source：跳过注释行；值取首个 `key=` 后的引号内内容；键不存在返回 1（调用方置空）。
+# 注意：不能截断空格 —— `SKILLS_DIR="My Skills"` 这类含空格的值必须原样保留。
+cw_conf_get() {
+  local file="$1" key="$2" line v
+  [[ -f "$file" ]] || return 1
+  while IFS= read -r line; do
+    case "$line" in
+      \#*) continue ;;
+    esac
+    case "$line" in
+      *"$key="*)
+        v="${line#*"$key="}"
+        v="${v#\"}"
+        v="${v%%\"*}"
+        printf '%s' "$v"
+        return 0
+        ;;
+    esac
+  done < "$file"
+  return 1
 }

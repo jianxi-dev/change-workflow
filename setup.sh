@@ -42,21 +42,48 @@ ask() {
   eval "$__var=\"\${ans:-\$default}\""
 }
 
+# 校验安装目录是仓库内相对路径（不含 ..）：SKILLS_DIR/DOCS_DIR 会拼进受管文件目标路径，
+# 若被填成绝对路径或带 .. 的路径，会把文件装到仓库外（B1）。
+cw_check_rel_dir() {
+  case "$1" in
+    /*|*..*) echo "❌ $2 必须是仓库内相对路径且不含 ..: $1" >&2; exit 1 ;;
+  esac
+}
+
 command -v gh  >/dev/null || { echo "❌ 需要 gh CLI（brew install gh）" >&2; exit 1; }
 command -v git >/dev/null || { echo "❌ 需要 git" >&2; exit 1; }
 cd "$TARGET"
 git rev-parse --git-dir >/dev/null 2>&1 || { echo "❌ $TARGET 不是 git 仓库" >&2; exit 1; }
+# 锁目录放 .git 内部：并发安装/升级互斥（C3）。不用 GIT_DIR 变量名 —— 它是 git 保留环境变量，
+# 赋值会静默改变后续 `git -C "$SCRIPT_DIR"` 的仓库解析（update.sh 的 toolkit_source 同因）。
+CW_GIT_DIR="$(git rev-parse --git-dir)"
 if cw_is_self_target "$(git rev-parse --show-toplevel)"; then
   echo "❌ 拒绝：目标是工具包源自身（$(git rev-parse --show-toplevel)）" >&2
-  echo "   受管文件里 11 个的模板源与安装目标同路径，安装会把它们清空；本仓不是自己的消费者。" >&2
+  echo "   受管文件里 16 个的模板源与安装目标同路径，安装会把它们清空；本仓不是自己的消费者。" >&2
   echo "   流程依据直接读 docs/agents/ 与 skills/change-workflow/SKILL.md 即可。" >&2
   exit 1
 fi
+# 并发互斥锁：mkdir 原子性保证同一时刻只有一个安装/升级进程持有锁（C3）。
+# 锁在 --dry-run 之前不生效（上面已提前 return），预演不落盘、不占锁。
+LOCK_DIR="$CW_GIT_DIR/.change-workflow.lock"
+if [[ "$DRY_RUN" != "1" ]] && ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "❌ 已有另一个升级/安装进程在运行（锁目录存在：${LOCK_DIR}）" >&2
+  echo "   确认无其他进程后手动删除该目录再重试。" >&2
+  exit 1
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
 [[ -z "$REPO" ]] && { echo "❌ 无法识别 GitHub 仓库（需 gh auth login + origin remote）" >&2; exit 1; }
 OWNER="${REPO%%/*}"
 DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || echo main)"
+# EFFECTIVE_DATE / REPO_ROOT 必须在渲染前作为 shell 变量存在：conf heredoc 里算出的值不会进入
+# 当前 shell，install_rendered 的 cw_render 会拿空值替换 {{EFFECTIVE_DATE}}/{{REPO_ROOT}}，导致
+# 首装文件缺日期/仓库根路径，且 manifest 基线记的是空值 sha —— 首次 update 因 source conf 拿到
+# 真值而重渲染，4 个含这两个占位符的文档全部翻新（1.3.0 实测：code-structure/evidence-capture/
+# pr-writing 的生效日期为空、defect-workflow 的 REPO_ROOT 为空）。
+EFFECTIVE_DATE="$(date +%F)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 log "仓库: ${REPO}（默认分支 ${DEFAULT_BRANCH}）"
 
 PROJECT_ID="" STATUS_FIELD_ID="" OPT_BACKLOG="" OPT_READY="" OPT_IN_PROGRESS="" OPT_DONE=""
@@ -103,6 +130,8 @@ ask CMD_TEST      "test 命令（留空跳过）"      "pnpm -r test"
 ask CMD_E2E       "e2e 命令（可空）"           ""
 ask SKILLS_DIR    "skill 安装目录"             ".opencode/skills"
 ask DOCS_DIR      "规范文档目录"               "docs/agents"
+cw_check_rel_dir "$SKILLS_DIR" "SKILLS_DIR"
+cw_check_rel_dir "$DOCS_DIR" "DOCS_DIR"
 
 log "写入 .change-workflow.conf"
 if [[ -f .change-workflow.conf ]]; then
@@ -110,6 +139,7 @@ if [[ -f .change-workflow.conf ]]; then
 elif [[ "$DRY_RUN" == "1" ]]; then
   echo "    [dry-run] 写 .change-workflow.conf"
 else
+  cw_refuse_symlink ".change-workflow.conf" "配置文件"
   cat > .change-workflow.conf <<EOF
 # change-workflow 配置（由 setup.sh 生成于 $(date +%F)）
 # 升级工具包：在目标仓库运行 <工具包路径>/update.sh（本文件由 setup/update 共同维护）
@@ -160,8 +190,13 @@ install_rendered() {
     echo "    [dry-run] 渲染安装 $dst"
   else
     cw_render "$SCRIPT_DIR/$tpl_rel" "$dst"
+    _written+=("$dst")
   fi
 }
+
+# 本次安装实际写入的文件（install_rendered 对已存在文件会跳过，不记入）。
+# 供 manifest 基线区分「本次写入」与「已存在」：只对写入的文件记基线（C1）。
+_written=()
 
 while IFS='|' read -r tpl_rel dst_rel; do
   [[ -n "$tpl_rel" ]] || continue
@@ -171,21 +206,42 @@ done < <(cw_list_files)
 # 受管脚本必须可执行：cw_render 用重定向写文件，不保留执行位。
 # 名单由受管清单（cw_list_files）派生，不再硬编码：新增脚本自动获得执行位，避免漏加
 # 导致消费仓 `./scripts/<name>.sh` 报 Permission denied（1.2.0 / 1.3.0 两次同因缺陷）。
-while IFS='|' read -r _tpl dst_rel; do
-  case "$dst_rel" in
-    scripts/*.sh) [[ -f "$dst_rel" ]] && { act chmod +x "$dst_rel" 2>/dev/null || true; } ;;
-  esac
-done < <(cw_list_files)
+# chmod 失败不再被 `|| true` 吞掉（F1）；act 包装保证 dry-run 只打印不执行。
+cw_chmod_scripts act
 
 # 基线 manifest：记录安装后各受管文件的 sha256，供 update.sh 判定「是否被本地修改」。
+# 只对「本次写入」或「与模板字节一致」的文件记基线；已存在且与模板不同的文件**不写基线**
+# （可能是本地定制）——否则下次升级会因 current==baseline 判为「未修改」而静默覆盖它（C1，
+# 与 update.sh 接管模式同一语义）。
 if [[ "$DRY_RUN" != "1" ]]; then
-  : > .change-workflow.manifest
+  cw_refuse_symlink ".change-workflow.manifest" "基线清单"
+  # manifest 先写临时文件再整体 mv：中途失败不留半截清单（C3）
+  _mft_tmp="$(mktemp)"
   while IFS='|' read -r tpl_rel dst_rel; do
     [[ -n "$tpl_rel" ]] || continue
     dst="${dst_rel/__SKILLS_DIR__/$SKILLS_DIR}"
     dst="${dst/__DOCS_DIR__/$DOCS_DIR}"
-    [[ -f "$dst" ]] && printf '%s  %s\n' "$(cw_sha "$dst")" "$dst" >> .change-workflow.manifest
+    [[ -f "$dst" ]] || continue
+    # 本次安装写入的文件 → 记基线
+    written=0
+    for w in "${_written[@]:-}"; do
+      if [[ "$w" == "$dst" ]]; then written=1; break; fi
+    done
+    if [[ "$written" == "1" ]]; then
+      printf '%s  %s\n' "$(cw_sha "$dst")" "$dst" >> "$_mft_tmp"
+      continue
+    fi
+    # 已存在：与模板字节一致 → 幂等重装，记基线；不同 → 本地定制，不写基线
+    tmp="$(mktemp)"
+    cw_render "$SCRIPT_DIR/$tpl_rel" "$tmp"
+    if cmp -s "$tmp" "$dst"; then
+      printf '%s  %s\n' "$(cw_sha "$dst")" "$dst" >> "$_mft_tmp"
+    else
+      log "⚠️  已存在且与模板不同，不写基线: ${dst}（本地定制；升级时 update.sh 会按冲突处理）"
+    fi
+    rm -f "$tmp"
   done < <(cw_list_files)
+  mv "$_mft_tmp" .change-workflow.manifest
 fi
 
 if [[ -f AGENTS.md ]] && ! grep -q "change-workflow" AGENTS.md; then
