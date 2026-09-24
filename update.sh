@@ -308,7 +308,8 @@ EOF
   fi
   cat <<EOF
 
-后续：git diff → git add -A && git commit -m "chore(change-workflow): 升级到 ${NEW_VERSION}"
+后续：git diff → 只显式添加升级触碰的受管文件与 .change-workflow.conf/.manifest 后提交
+（禁止 git add -A —— 白名单提交约定，防把未完成 WIP 卷进升级提交）
 EOF
   exit 0
 fi
@@ -365,6 +366,12 @@ while IFS='|' read -r tpl_rel dst_rel; do
   baseline="$(baseline_of "${dst}")"
 
   if [[ "$current_sha" == "$new_sha" ]]; then
+    # 对抗轮4 Gap A：--force 时等值路径也必须记 FORCED_LIST。旧写法在 current==new 时
+    # 提前 continue，先于下方 --force 分支触发 → 等值文件不进名单 → manifest 重写走
+    # LOCAL 保留分支（:450 一带）→ 陈旧 LOCAL 在 --force 后仍存活，文件被「本地保留」
+    # 永久跳过（红证：accept-local → mv .new → --force 后哨兵仍 LOCAL、演进不跟进）。
+    # force = 显式采用上游：基线必须归一；内容已一致，故不补写文件、不备份。
+    if [[ "$FORCE" == "1" ]]; then FORCED_LIST+=("${dst}"); fi
     CURRENT=$((CURRENT + 1)); rm -f "$TMP"; continue
   fi
 
@@ -483,6 +490,8 @@ cat <<EOF
 
 后续：
   1. 检查变更：git diff
-  2. 提交：git add -A && git commit -m "chore(change-workflow): 升级到 ${NEW_VERSION}"
+  2. 提交：只显式添加本次升级触碰的文件（受管文件 + .change-workflow.conf +
+     .change-workflow.manifest）。**禁止 git add -A** —— 白名单提交是仓库约定，
+     防止把你未完成的 WIP 一并卷进升级提交。
   3. 开 PR 合并
 EOF

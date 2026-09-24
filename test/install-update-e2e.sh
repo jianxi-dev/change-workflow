@@ -302,6 +302,22 @@ set_version "0.7.0"
 rc11f=0; "$B5/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || rc11f=$?
 ok "force 后演进归一退 0" "$rc11f" "0"
 ok "演进内容已跟进" "$(grep -c 'v2 演进内容' docs/agents/domain.md)" "1"
+# 对抗轮4 Gap A 回归锁：内容已等于上游、却带陈旧 LOCAL 哨兵的文件，--force 必须归一。
+# 旧缺陷：current==new 的提前 continue 先于 --force 分支触发 → 该文件不记 FORCED_LIST →
+# manifest 重写走 LOCAL 保留分支 → force 后仍 LOCAL，此后模板演进被「本地保留」永久
+# 跳过（红证：accept-local → mv .new → --force 后哨兵仍在、演进不跟进）。
+echo "## 定制三" >> docs/agents/evidence-capture.md
+set_version "0.6.0"
+"$B5/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+"$B5/tk2/update.sh" --target "$PWD" --accept-local docs/agents/evidence-capture.md >/dev/null 2>&1 || true
+mv docs/agents/evidence-capture.md.new docs/agents/evidence-capture.md
+"$B5/tk2/update.sh" --target "$PWD" --force >/dev/null 2>&1 || true
+ok "force 归一等值文件的 LOCAL 哨兵" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/evidence-capture.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
+echo "## v3 等值演进" >> "$B5/tk2/docs/agents/evidence-capture.md"
+set_version "0.5.0"
+rc11g=0; "$B5/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || rc11g=$?
+ok "等值 force 后演进归一退 0" "$rc11g" "0"
+ok "等值 force 后演进已跟进" "$(grep -c 'v3 等值演进' docs/agents/evidence-capture.md)" "1"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
