@@ -62,6 +62,9 @@ set_version() {
   mv "$tmp" .change-workflow.conf
 }
 
+# 读八进制权限位（python3 两平台皆有；A5 模式保持断言用）
+fmode() { python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$1"; }
+
 echo "=============================================="
 echo " change-workflow 安装/升级 端到端测试"
 echo " 工具包: $CW_ROOT ($(tr -d '[:space:]' < "$CW_ROOT/VERSION"))"
@@ -81,6 +84,11 @@ ok "cw-update 可执行" "$([[ -x scripts/cw-update.sh ]] && echo y)" "y"
 # 断言直接查 x 位，而不是脚本内部变量，确保「清单派生」这个修复真的落地。
 ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
+# A5（R1）模式保持回归锁：mktemp 恒 0600 曾随 mv 带进受管文件（首装 docs=600、脚本=711）。
+# 新建 → 0644；脚本 = 0644 + cw_chmod_scripts 的 +x → 755；manifest 新建 → 644。
+ok "docs 模式 644" "$(fmode docs/agents/domain.md)" "644"
+ok "脚本模式 755" "$(fmode scripts/cw-evidence.sh)" "755"
+ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
 ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "18"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
@@ -123,6 +131,9 @@ set_version "1.0.0"
 "$B1/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || true
 ok "未修改文件已同步" "$(grep -c 'vNEXT 演进测试' docs/agents/domain.md)" "1"
 ok "冲突文件仍未覆盖" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
+# A5（R1）覆盖更新保持目标模式（曾 644→600），新建 .bak → 644（曾 600）
+ok "覆盖后模式保持 644" "$(fmode docs/agents/domain.md)" "644"
+ok ".bak 模式 644" "$(fmode docs/agents/domain.md.bak)" "644"
 
 # ── 用例 6：--force 解决冲突 ─────────────────────────────────────────────────
 echo ""

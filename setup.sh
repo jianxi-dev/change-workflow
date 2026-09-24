@@ -245,6 +245,8 @@ if [[ "$DRY_RUN" != "1" ]]; then
     fi
     rm -f "$tmp"
   done < <(cw_list_files)
+  # 模式保持（R1）：mktemp 恒 0600，mv 前调成 manifest 应有模式（已存在→沿用；新建→644）
+  cw_tmp_mode_for "$_mft_tmp" ".change-workflow.manifest"
   mv "$_mft_tmp" .change-workflow.manifest
 fi
 

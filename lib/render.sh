@@ -113,6 +113,30 @@ cw_sha() {
   fi
 }
 
+# 读文件权限位（八进制，如 644）。双实现（与 cw_sha 同构）：
+# macOS/BSD stat 用 -f %Lp；Linux/GNU stat 用 -c %a，输出同为 octal mode。
+cw_file_mode() {
+  case "$(uname -s)" in
+    Darwin) stat -f %Lp "$1" ;;
+    *)      stat -c %a "$1" ;;
+  esac
+}
+
+# 把「即将 mv 覆盖到 dst 的临时文件」调成 dst 应有的模式（R1 模式保持，唯一策略实现）。
+# 为什么必须显式调：mktemp 建出的文件恒为 0600，mv 会把这个 0600 原样带进目标 ——
+# 首装 docs 变 600、脚本经 chmod +x 变 711；覆盖安装还会把原本 644 的文件（含 conf、
+# manifest）悄悄改成 600（红证：update 一次后 .change-workflow.conf 644→600）。
+# 规则：dst 已存在 → 沿用其现有模式（尊重用户设定，不擅自放宽也不收紧）；
+#       dst 新建   → 0644（受管脚本随后由 cw_chmod_scripts 补 +x → 755）。
+# stat 失败兜底 644：宁按默认模式写，也不写 600（600 会让消费仓其他用户/CI 读不到）。
+cw_tmp_mode_for() {
+  local tmp="$1" dst="$2" mode=""
+  if [[ -e "$dst" ]]; then
+    mode="$(cw_file_mode "$dst" 2>/dev/null)" || mode=""
+  fi
+  chmod "${mode:-0644}" "$tmp"
+}
+
 # 目标仓是否为工具包源自身（自我安装）。工具包里 18 个受管文件有 16 个的模板源与安装目标
 # 同路径（docs/agents/*.md、scripts/*.sh），自我安装会清空模板，并把模板记成受管基线
 # （此后每次改模板都报冲突）。故 setup/update 在动任何东西之前一律拒绝。
@@ -157,6 +181,8 @@ cw_atomic_cp() {
     echo "❌ 复制失败：$src → $dst" >&2
     return 1
   fi
+  # 模式保持（R1）：见 cw_tmp_mode_for 的根因注释
+  cw_tmp_mode_for "$tmp" "$dst"
   mv "$tmp" "$dst"
 }
 

@@ -166,12 +166,17 @@ toolkit_source() {
 }
 
 # 向 .change-workflow.conf upsert 一个键值：存在则替换，不存在则追加。
+# 模式保持（R1）：sed > tmp; mv 的 tmp 是 mktemp（恒 0600），mv 会把 conf 从 644 拉成 600
+# （红证：update 一次后 conf 644→600），故 mv 前经 cw_tmp_mode_for 调回 conf 应有模式。
+# 另：下方 TOOLKIT_VERSION 的 `sed -i.cw-tmp` 路径实测（macOS BSD sed 与 GNU sed 语义一致）
+# 保留原文件模式（600→600、644→644），无需额外处理。
 upsert_conf() {
   local key="$1" val="$2" tmp
   cw_refuse_symlink "$CONF" "配置文件"
   tmp="$(mktemp)"
   if grep -q "^${key}=" "$CONF" 2>/dev/null; then
     sed "s|^${key}=.*|${key}=\"${val}\"|" "$CONF" > "$tmp"
+    cw_tmp_mode_for "$tmp" "$CONF"
     mv "$tmp" "$CONF"
   else
     printf '\n%s="%s"\n' "$key" "$val" >> "$CONF"
@@ -251,6 +256,8 @@ if needs_bootstrap; then
       if is_in_list "$dst" "${B_LIST[@]:-}"; then continue; fi
       printf '%s  %s\n' "$(cw_sha "${dst}")" "${dst}" >> "$_mft_tmp"
     done < <(cw_list_files)
+    # 模式保持（R1）：mktemp 恒 0600，mv 前调成 manifest 应有模式（已存在→沿用；新建→644）
+    cw_tmp_mode_for "$_mft_tmp" "$MANIFEST"
     mv "$_mft_tmp" "$MANIFEST"
     if grep -q '^TOOLKIT_VERSION=' "$CONF"; then
       sed -i.cw-tmp "s|^TOOLKIT_VERSION=.*|TOOLKIT_VERSION=\"$NEW_VERSION\"|" "$CONF" && rm -f "$CONF.cw-tmp"
@@ -404,6 +411,8 @@ if [[ "$DRY_RUN" != "1" ]]; then
     fi
     printf '%s  %s\n' "$(cw_sha "${dst}")" "${dst}" >> "$_mft_tmp"
   done < <(cw_list_files)
+  # 模式保持（R1）：同接管路径，mv 前调模式（R1 红证：升级后 manifest 恒 600）
+  cw_tmp_mode_for "$_mft_tmp" "$MANIFEST"
   mv "$_mft_tmp" "$MANIFEST"
   rm -f "$OLD_BASELINES"
 
