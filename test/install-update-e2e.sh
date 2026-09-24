@@ -470,6 +470,25 @@ ok "evidence =0 打印跳过提示" "$r15a6" "0"
 HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN CW_EVIDENCE_ALLOW_REPO=1 "$CW_ROOT/scripts/cw-evidence.sh" doctor >/dev/null 2>&1 || true
 ok "evidence =1 执行仓内 skill" "$([[ -e "$B9/repo/EVIDENCE-RAN-MARKER" ]] && echo y || echo n)" "y"
 rm -f "$B9/repo/EVIDENCE-RAN-MARKER"
+
+# A8（R4）：conf SKILLS_DIR="./.." 曾绕过穿越校验（旧模式只拦 ../ 前缀与中段 ..），
+# 仓外植入的 greploop/SKILL.md 被报「找到（./../greploop）」。现按「补斜杠查 /../ 段」拦截。
+mkdir -p "$B9/greploop" "$B9/repo/scripts"
+printf '# decoy\n' > "$B9/greploop/SKILL.md"
+cp "$CW_ROOT/scripts/cw-greploop.sh" "$B9/repo/scripts/cw-greploop.sh" && chmod +x "$B9/repo/scripts/cw-greploop.sh"
+printf 'SKILLS_DIR="./.."\n' > "$B9/repo/.change-workflow.conf"
+out15a8="$(HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$B9/repo/scripts/cw-greploop.sh" 2>&1 || true)"
+case "$out15a8" in *"回退 .opencode/skills"*) r15a8=0 ;; *) r15a8=1 ;; esac
+ok "greploop ./.. 回退警告" "$r15a8" "0"
+case "$out15a8" in *"找到（./../greploop）"*) r15a8b=1 ;; *) r15a8b=0 ;; esac
+ok "greploop ./.. 不报告仓外找到" "$r15a8b" "0"
+# 良性空格目录仍放行（补斜杠检查不误伤）
+printf 'SKILLS_DIR="My Skills"\n' > "$B9/repo/.change-workflow.conf"
+mkdir -p "$B9/repo/My Skills/greploop"
+printf '# ok\n' > "$B9/repo/My Skills/greploop/SKILL.md"
+out15a8c="$(HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$B9/repo/scripts/cw-greploop.sh" 2>&1 || true)"
+case "$out15a8c" in *"找到（My Skills/greploop）"*) r15a8c=0 ;; *) r15a8c=1 ;; esac
+ok "greploop 空格目录放行" "$r15a8c" "0"
 sanitize "$B9"
 
 # ── 用例 16：符号链接拒绝（C2 边界）──────────────────────────────────────────

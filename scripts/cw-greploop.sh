@@ -68,13 +68,18 @@ if [[ -f "$CONF" ]]; then
   _sk="$(conf_get SKILLS_DIR || true)"
 fi
 SKILLS_DIR="${_sk:-.opencode/skills}"
-# SKILLS_DIR 只接受仓库内相对路径：绝对路径 / 路径穿越（..）→ 回退默认并警告
-case "$SKILLS_DIR" in
-  /*|..|../*|*/../*)
-    echo "⚠️  conf 的 SKILLS_DIR 非法（${SKILLS_DIR}），回退 .opencode/skills"
-    SKILLS_DIR=".opencode/skills"
-    ;;
-esac
+# SKILLS_DIR 只接受仓库内相对路径：绝对路径 / 含任一 .. 段 → 回退默认并警告。
+# A8（R4）：旧模式 `..|../*|*/../*` 漏掉 `./..` 与 `a/..` 形态（./ 前缀不匹配 ../、
+# 末尾 .. 无尾斜杠不匹配 */../*），conf="./.." 即可穿越到仓外读植入的 greploop skill
+# （红证：✅ 找到（./../greploop））。改为「两侧补 / 再查 /../ 子串」：任何 .. 段
+# （首段、末段、中段、./.. 形态）补斜杠后必以 /../ 出现；文件名里的点（a..b）不误伤。
+_sk_bad=0
+case "$SKILLS_DIR" in /*) _sk_bad=1 ;; esac
+case "/$SKILLS_DIR/" in */../*) _sk_bad=1 ;; esac
+if [[ "$_sk_bad" == "1" ]]; then
+  echo "⚠️  conf 的 SKILLS_DIR 非法（${SKILLS_DIR}），回退 .opencode/skills"
+  SKILLS_DIR=".opencode/skills"
+fi
 
 MAX_ITERATIONS="10"
 PR=""
