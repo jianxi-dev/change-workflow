@@ -39,8 +39,8 @@ change-workflow/
 
 | 任务 | 位置 | 备注 |
 |---|---|---|
-| 新增/删除受管文件 | `lib/render.sh:87` `cw_list_files` | 连带改：模板、`test` 计数断言、`ci.yml:21/35/43` 脚本清单、`test/rollout-check.sh` |
-| 新增占位符 | `lib/render.sh:23-36` | 替换表唯一位置；`ci.yml:55` 校验一致性 |
+| 新增/删除受管文件 | `lib/render.sh:110` `cw_list_files` | 连带改：模板、`test` 计数断言、`ci.yml:21/35/43` 脚本清单、`test/rollout-check.sh` |
+| 新增占位符 | `lib/render.sh:29-46` | 替换表唯一位置；`ci.yml:55` 校验一致性 |
 | 升级/冲突/基线语义 | `update.sh` | 语义教训见 `CHANGELOG.md:87-89` |
 | 安装流程 | `setup.sh` | 与 update 共用 `lib/render.sh`，勿各写一套 |
 | 门禁判据（票内容与完成） | `docs/agents/quality-gates.md` | QG-1..7 / DQ-1..8 单一事实来源 |
@@ -54,17 +54,17 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 | Symbol | Type | Location | Refs | Role |
 |---|---|---|---|---|
-| `cw_list_files` | fn | `lib/render.sh:87` | 11 | 18 个受管文件的**唯一清单**（6 硬编码 + 12 docs glob；globs 在 `:95-101`，跳过 `AGENTS.md`） |
-| `cw_render` | fn | `lib/render.sh:50` | 11 | 模板 → 目标文件（剥头 + 替换占位符） |
-| `cw_sha` | fn | `lib/render.sh:66` | 9 | sha256（macOS/Linux 双实现） |
-| `cw_substitute` | fn | `lib/render.sh:23` | 2 | 占位符替换表 |
-| `cw_strip_header` | fn | `lib/render.sh:40` | 2 | 剥 `<!-- change-workflow 工具包模板` 头 + 前导空行 |
-| `cw_is_self_target` | fn | `lib/render.sh:77` | 3 | 目标仓 == 工具包源自身 → setup/update 拒绝（防自装清空模板）；`cw_render` 在 `:58` 另有一道同文件护栏 |
-| `install_rendered` | fn | `setup.sh:150` | 2 | 首装渲染安装循环 |
-| `toolkit_source` / `upsert_conf` | fn | `update.sh:131` / `:138` | 3 / 3 | conf 写 `TOOLKIT_SOURCE`（供项目自升级） |
-| `is_in_list` | fn | `update.sh:122` | 3 | 数组遍历（**禁止 nameref** 的产物） |
-| `baseline_of` / `is_conflicted` | fn | `update.sh:264` / `:331` | 2 / 2 | 基线查询 / 冲突文件跳过基线重写 |
-| `needs_bootstrap` | fn | `update.sh:150` | 2 | 无基线 → 接管模式 |
+| `cw_list_files` | fn | `lib/render.sh:110` | 11 | 18 个受管文件的**唯一清单**（6 硬编码 + 12 docs glob；globs 在 `:118-124`，跳过 `AGENTS.md`） |
+| `cw_render` | fn | `lib/render.sh:71` | 11 | 模板 → 目标文件（剥头 + 替换占位符） |
+| `cw_sha` | fn | `lib/render.sh:89` | 9 | sha256（macOS/Linux 双实现） |
+| `cw_substitute` | fn | `lib/render.sh:29` | 2 | 占位符替换表 |
+| `cw_strip_header` | fn | `lib/render.sh:50` | 2 | 剥 `<!-- change-workflow 工具包模板` 头 + 前导空行 |
+| `cw_is_self_target` | fn | `lib/render.sh:100` | 3 | 目标仓 == 工具包源自身 → setup/update 拒绝（防自装清空模板）；`cw_render` 在 `:79` 另有一道同文件护栏 |
+| `install_rendered` | fn | `setup.sh:184` | 2 | 首装渲染安装循环 |
+| `toolkit_source` / `upsert_conf` | fn | `update.sh:162` / `:169` | 3 / 3 | conf 写 `TOOLKIT_SOURCE`（供项目自升级） |
+| `is_in_list` | fn | `update.sh:153` | 3 | 数组遍历（**禁止 nameref** 的产物） |
+| `baseline_of` / `is_conflicted` | fn | `update.sh:301` / `:370` | 2 / 2 | 基线查询 / 冲突文件跳过基线重写 |
+| `needs_bootstrap` | fn | `update.sh:182` | 2 | 无基线 → 接管模式 |
 | `validate_whitelist` / `in_files` | fn | `scripts/pr-automation.sh:139` / `:132` | 2 / 3 | G2 显式白名单（禁 `git add -A`） |
 | `run_gate` / `usage` | fn | `scripts/pr-automation.sh:62` / `:57` | 4 / 7 | 四件套门禁 / 用法（**`--help` 退 1**） |
 
@@ -74,7 +74,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 - **bash 3.2 兼容（硬）**：禁 `local -n`、`declare -A`、`mapfile`、`readarray`。CI 静态拦截在 `ci.yml:43`；`is_in_list` 曾因 `local -n` 静默失效（`CHANGELOG.md:179`）。
 - **渲染幂等铁律**：`render(x) == x` 必须对未做替换的文件成立 —— `cw_render` 用 `awk print` **无条件补结尾换行**，故每个受管模板必须自身以换行结尾（`ci.yml:78` 门禁；`CHANGELOG.md:27-48` 是一次「接管模式永不归一」的真实事故）。任何「渲染改变字节」的路径都会伪装成「本地定制」。
-- **模板头**：13 个模板（12 docs + SKILL.md）首行必须是 `<!-- change-workflow 工具包模板`，安装时剥除（`ci.yml:65`、`test:192`）。
+- **模板头**：13 个模板（12 docs + SKILL.md）首行必须是 `<!-- change-workflow 工具包模板`，安装时剥除（`ci.yml:65`、`test:196`）。
 - **模板内禁出现仓库特有值**：`jianxi-dev/md-bundle|mdpkg|clairis`、`/Users/mason`、`PVT_kwDO`、`PVTSSF_`（`ci.yml:90`）。
 - **注释写「为什么 + 历史教训」**，不是复述代码；`quality-gates.md` 每条规则固定四段：规则 / **理由** / 实证案例 / 如何验证（`DESIGN.md:52`）。shellcheck 抑制必须附中文理由（`setup.sh:40`）。
 - **输出格式**：`❌`+stderr+exit 1 错误；`⚠️` 警告；`==>` 进度（`log()`）；`[dry-run]` 预演标记；`✅` 成功。
@@ -84,16 +84,16 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
-- **禁止把「当前内容哈希」记为基线**：基线只有一个含义 = 工具包上次写入的内容；「永不触碰」用 `LOCAL` 哨兵表达（`CHANGELOG.md:87-89`、`update.sh:85-86`）。混用会导致下次升级静默覆盖用户定制（1.1.5 真实损害）。
+- **禁止把「当前内容哈希」记为基线**：基线只有一个含义 = 工具包上次写入的内容；「永不触碰」用 `LOCAL` 哨兵表达（`CHANGELOG.md:87-89`、`update.sh:118-122`）。混用会导致下次升级静默覆盖用户定制（1.1.5 真实损害）。
 - **禁止覆盖本地已改文件**：写 `<file>.new` + exit 1（`update.sh:19`）。
-- **禁止给接管模式下的「不同」文件写基线**：否则 `.new` 未处理就被冲掉（`update.sh:203-205`）。
+- **禁止给接管模式下的「不同」文件写基线**：否则 `.new` 未处理就被冲掉（`update.sh:248-250`）。
 - **禁止把 `LOCAL` 哨兵重写回真实哈希**（`update.sh:346`；`test:249/256` 回归锁）。
 - **禁止 `git reset --hard` / `git clean` / `git checkout -- <path>` 处理共享工作区**（`docs/agents/incident-uncommitted-work-loss.md:156-165`）；收尾后禁止切回任务前分支（`incident-merge-local-workspace.md:27-32`）。
 - **门禁不可豁免项**：QG-3/4/5、DQ-1/2/3/4/5/8；可豁免的 QG-1/QG-2 必须**票作者显式声明**，不得默认（`quality-gates.md:319-341`）。
 - 「测试通过」「已修复」「冒烟正常」是**结论不是证据**，不予采信（`quality-gates.md:315`）。
 - **1 task = 1 ticket = 1 分支 = 1 PR**，分支绝不复用（`pr-automation.sh:30`）；N 票同根因才能 1 PR 关 N 票且须逐票 `fixes #N`（DQ-6）。parent = 源 spec issue，其 PR 必须 `--refs-only`（`Refs #N`）。
 - 禁止 `pr-automation.sh --skip-checks`（逃生舱，`SKILL.md:181`）。
-- **禁止 `--target` 指向工具包源自身**（自我安装）：18 个受管文件里 16 个的模板源与安装目标同路径，渲染会**先截断再读取 → 文件归零**（实测 11913 字节 → 0）。由 `cw_render:58` 与 `cw_is_self_target:77` 双重拒绝。**本仓不是自己的消费者** —— 流程依据直接读 `docs/agents/` 与 `skills/change-workflow/SKILL.md`。
+- **禁止 `--target` 指向工具包源自身**（自我安装）：18 个受管文件里 16 个的模板源与安装目标同路径，渲染会**先截断再读取 → 文件归零**（实测 11913 字节 → 0）。由 `cw_render:79` 与 `cw_is_self_target:100` 双重拒绝。**本仓不是自己的消费者** —— 流程依据直接读 `docs/agents/` 与 `skills/change-workflow/SKILL.md`。
 
 ## 本仓的开发方式（决策 2026-09-22）
 
