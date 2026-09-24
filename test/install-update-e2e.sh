@@ -760,6 +760,19 @@ for k in K_QH K_SQ K_HC K_CR K_PL K_CM K_QC K_QCS K_QS K_QT; do
   done
 done
 ok "四实现输出完全一致" "$mismatch" "0"
+# 对抗轮4 Gap C 回归锁：workflow 标签提取段（# cw-label-extract: begin/end 之间）必须与
+# 统一 conf 语义一致。旧写法裸剥引号：`LABEL_READY="ready-for-agent"  # 注释`
+# （config.example.conf 的注释风格，恰是引导用户改标签处）→ 悬空引号+注释垃圾标签；
+# CRLF conf 取值带回车。按标记抽取段喂 fixture 验证（段自包含：只依赖 $CONF）。
+sed -n '/# cw-label-extract: begin/,/# cw-label-extract: end/p' \
+  "$CW_ROOT/workflows/change-closure-signal.yml" > "$B16/extract.sh"
+ok "workflow 提取段存在（begin/end 标记）" "$([[ -s "$B16/extract.sh" ]] && echo y)" "y"
+printf 'LABEL_READY="ready-for-agent"  # 注释\nLABEL_CLOSURE_PENDING=%s\r\n' "'change-close-pending'" > "$B16/labels.conf"
+out22w="$(CONF="$B16/labels.conf" bash -c "source '$B16/extract.sh'; echo \"READY=[\$LABEL_READY] CLOSURE=[\$LABEL_CLOSURE_PENDING]\"")"
+ok "workflow 提取：引号+尾注释/CR 值" "$out22w" "READY=[ready-for-agent] CLOSURE=[change-close-pending]"
+printf 'OTHER_KEY=x\n' > "$B16/labels-none.conf"
+out22d="$(CONF="$B16/labels-none.conf" bash -c "source '$B16/extract.sh'; echo \"READY=[\$LABEL_READY] CLOSURE=[\$LABEL_CLOSURE_PENDING]\"")"
+ok "workflow 提取：缺键走默认" "$out22d" "READY=[ready-for-agent] CLOSURE=[change-close-pending]"
 # 清理前退回仓库根：sanitize 会删掉当前 cwd，否则后续用例继承已删除的 cwd 报 getcwd 噪声
 cd "$CW_ROOT"
 sanitize "$B16"
