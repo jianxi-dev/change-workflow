@@ -513,6 +513,23 @@ printf '# ok\n' > "$B9/repo/My Skills/greploop/SKILL.md"
 out15a8c="$(HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$B9/repo/scripts/cw-greploop.sh" 2>&1 || true)"
 case "$out15a8c" in *"找到（My Skills/greploop）"*) r15a8c=0 ;; *) r15a8c=1 ;; esac
 ok "greploop 空格目录放行" "$r15a8c" "0"
+# R5：符号链接根围栏。红证：`.opencode/skills -> 仓外目录`（内含攻击者 greploop/SKILL.md）
+# 被报「✅ 找到」—— -f 跟随链接取真文件，探测面把仓外内容伪装成仓内能力。
+# 现候选根为链接 → 跳过；随后验证直接目录（无链接）仍能找到（能力保持）。
+mkdir -p "$B9/outside/greploop"
+printf '# attacker\n' > "$B9/outside/greploop/SKILL.md"
+rm -rf "$B9/repo/.opencode/skills"
+ln -s "$B9/outside" "$B9/repo/.opencode/skills"
+printf 'SKILLS_DIR=".opencode/skills"\n' > "$B9/repo/.change-workflow.conf"
+out15r5="$(HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$B9/repo/scripts/cw-greploop.sh" 2>&1 || true)"
+case "$out15r5" in *"找到（.opencode/skills/greploop）"*) r15r5=1 ;; *) r15r5=0 ;; esac
+ok "greploop 符号链接根不报告找到" "$r15r5" "0"
+rm "$B9/repo/.opencode/skills"
+mkdir -p "$B9/repo/.opencode/skills/greploop"
+printf '# real\n' > "$B9/repo/.opencode/skills/greploop/SKILL.md"
+out15r5b="$(HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$B9/repo/scripts/cw-greploop.sh" 2>&1 || true)"
+case "$out15r5b" in *"找到（.opencode/skills/greploop）"*) r15r5b=0 ;; *) r15r5b=1 ;; esac
+ok "greploop 直接目录仍能找到" "$r15r5b" "0"
 sanitize "$B9"
 
 # ── 用例 16：符号链接拒绝（C2 边界）──────────────────────────────────────────

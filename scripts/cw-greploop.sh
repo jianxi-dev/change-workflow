@@ -179,13 +179,25 @@ fi
 # 3 根 → 脚本相对 2 根。与 cw-evidence.sh 的门控清单保持同序（其仓库相对项受
 # CW_EVIDENCE_ALLOW_REPO=1 门控；本脚本只读探测，不设门控）。
 # 只认含 greploop/SKILL.md 的目录，不猜能力、不伪造可用。
+# 符号链接围栏（R5，移植 cw-evidence.sh probe_skill_dir 的防线；不改仓库级根的门控策略）：
+#   1) 候选根 d 本身是符号链接 → 跳过 —— 红证：`.opencode/skills -> 仓外目录`（内含攻击者
+#      greploop/SKILL.md）被报「✅ 找到（.opencode/skills/greploop）」，-f 会跟随链接取真文件；
+#   2) 命中要求 SKILL.md 是普通文件（! -L）—— 只查 -f 挡不住文件级链接写穿；
+#   3) pwd -P 归一包含校验 —— 中间层（greploop/ 目录）是符号链接逃到根外时，
+#      围栏 1/2 都放行（根与文件各自都不是链接），归一后越界即拒。
 detect_greploop_skill() {
-  local d
+  local d real_root real_dir
   for d in "$@"; do
-    if [[ -n "$d" && -f "$d/greploop/SKILL.md" ]]; then
-      printf '%s\n' "$d/greploop"
-      return 0
-    fi
+    [[ -n "$d" && ! -L "$d" ]] || continue
+    [[ -f "$d/greploop/SKILL.md" && ! -L "$d/greploop/SKILL.md" ]] || continue
+    real_root="$(cd "$d" 2>/dev/null && pwd -P)" || continue
+    real_dir="$(cd "$d/greploop" 2>/dev/null && pwd -P)" || continue
+    case "$real_dir" in
+      "$real_root"|"$real_root"/*) ;;
+      *) continue ;;
+    esac
+    printf '%s\n' "$d/greploop"
+    return 0
   done
   return 1
 }
