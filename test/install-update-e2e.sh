@@ -298,7 +298,8 @@ EOF
 touch .change-workflow.manifest
 cp "$CW_ROOT/scripts/cw-update.sh" scripts/cw-update.sh && chmod +x scripts/cw-update.sh
 # 自升级（缓存重定向到临时目录，避免污染真实 ~/.change-workflow）
-rc12a=0; CHANGE_WORKFLOW_HOME="$B6/cache" ./scripts/cw-update.sh --target "$PWD" >/dev/null 2>&1 || rc12a=$?
+# 首次克隆：TOOLKIT_SOURCE 非默认源，须显式授权（C1 信任门）
+rc12a=0; CHANGE_WORKFLOW_HOME="$B6/cache" CW_UPDATE_ALLOW_SOURCE=1 ./scripts/cw-update.sh --target "$PWD" >/dev/null 2>&1 || rc12a=$?
 ok "自升级触发接管" "$rc12a" "1"
 ok "版本已升级" "$(grep -o 'TOOLKIT_VERSION="[^"]*"' .change-workflow.conf | head -1)" "TOOLKIT_VERSION=\"$(tr -d '[:space:]' < "$CW_ROOT/VERSION")\""
 ok "定制保留" "$(grep -c '## 本地定制' docs/agents/domain.md)" "1"
@@ -309,6 +310,34 @@ CHANGE_WORKFLOW_HOME="$B6/cache" ./scripts/cw-update.sh --target "$PWD" --accept
 rc12b=0; CHANGE_WORKFLOW_HOME="$B6/cache" ./scripts/cw-update.sh --target "$PWD" >/dev/null 2>&1 || rc12b=$?
 ok "解决后归一" "$rc12b" "0"
 ok "定制仍保留" "$(grep -c '## 本地定制' docs/agents/domain.md)" "1"
+# C1 信任门：conf 指向攻击者源 + 无 CW_UPDATE_ALLOW_SOURCE + 无缓存 → fail-closed（RCE 红证）
+ATT="$B6/attacker"; mkdir -p "$ATT"
+cat > "$ATT/update.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "ATTACKER-CODE-EXECUTED" > "$(pwd)/PWNED-MARKER"
+exit 0
+EOF
+chmod +x "$ATT/update.sh"
+git -C "$ATT" init -q
+git -C "$ATT" -c user.name=t -c user.email=t@t.invalid add -A
+git -C "$ATT" -c user.name=t -c user.email=t@t.invalid commit -q -m "attacker"
+M="$B6/mal"; mkdir -p "$M/scripts"
+git -C "$M" init -q && git -C "$M" -c user.name=t -c user.email=t@t.invalid commit -q --allow-empty -m init
+cat > "$M/.change-workflow.conf" <<EOF
+TOOLKIT_VERSION="1.1.6"
+TOOLKIT_SOURCE="$ATT"
+REPO="a/b"
+OWNER="a"
+DEFAULT_BRANCH="main"
+SKILLS_DIR=".opencode/skills"
+DOCS_DIR="docs/agents"
+EOF
+touch "$M/.change-workflow.manifest"
+cp "$CW_ROOT/scripts/cw-update.sh" "$M/scripts/cw-update.sh" && chmod +x "$M/scripts/cw-update.sh"
+cd "$M"
+rc12m=0; CHANGE_WORKFLOW_HOME="$B6/mal-cache" ./scripts/cw-update.sh --target "$PWD" >/dev/null 2>&1 || rc12m=$?
+ok "恶意源无授权拒绝" "$rc12m" "1"
+ok "恶意源未执行" "$([[ -e "$M/PWNED-MARKER" ]] && echo y || echo n)" "n"
 sanitize "$B6"
 
 # ── 用例 13：自撞护栏（工具包自身不得作为目标）────────────────────────────────

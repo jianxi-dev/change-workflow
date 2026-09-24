@@ -73,6 +73,22 @@ conf_get() {
 }
 TOOLKIT_SOURCE="$(conf_get TOOLKIT_SOURCE || true)"
 SOURCE="${TOOLKIT_SOURCE:-$DEFAULT_SOURCE}"
+# 信任门（C1 安全边界）：conf 提交进消费仓，恶意 PR 可把 TOOLKIT_SOURCE 改成攻击者仓库，
+# 其 update.sh 在下方 exec 时即被执行（RCE 红证：marker 落地）。故非默认源仅在
+# (a) 显式授权 CW_UPDATE_ALLOW_SOURCE=1，或 (b) 与既有缓存来源一致时采用；
+# 否则 fail-closed 拒绝 —— 绝不静默回退默认源（回退会让用户误以为升级成功）。
+if [[ -n "$TOOLKIT_SOURCE" && "$TOOLKIT_SOURCE" != "$DEFAULT_SOURCE" ]]; then
+  if [[ "${CW_UPDATE_ALLOW_SOURCE:-}" == "1" ]]; then
+    : # 显式授权
+  elif [[ -d "$CACHE_DIR/.git" && "$(git -C "$CACHE_DIR" remote get-url origin 2>/dev/null || true)" == "$TOOLKIT_SOURCE" ]]; then
+    : # 与既有缓存来源一致（缓存是上次信任过的来源克隆的）
+  else
+    echo "❌ 拒绝使用非默认工具包来源: $TOOLKIT_SOURCE" >&2
+    echo "   conf 中的 TOOLKIT_SOURCE 与默认源不同，且未获信任。" >&2
+    echo "   若确需使用该来源，请显式授权: export CW_UPDATE_ALLOW_SOURCE=1" >&2
+    exit 1
+  fi
+fi
 echo "==> 工具包来源: $SOURCE"
 
 # 确保本地有工具包副本
