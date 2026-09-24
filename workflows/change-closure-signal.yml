@@ -31,9 +31,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 载入项目配置（可选）
-          if [ -f .change-workflow.conf ]; then
-            set -a; . ./.change-workflow.conf; set +a
+          # 载入项目配置（可选）—— 只提取两个标签字面值，绝不 source：
+          # conf 提交进消费仓，恶意 PR 可在其中追加 shell（如 LABEL_READY="$(touch pwned)"），
+          # source 会在 CI（pull_request: closed + issues/pull-requests: write）下执行（RCE）。
+          CONF=.change-workflow.conf
+          if [ -f "$CONF" ]; then
+            LABEL_READY=$(sed -n 's/^LABEL_READY="\{0,1\}\([^"]*\)"\{0,1\}.*/\1/p' "$CONF" | head -1)
+            LABEL_CLOSURE_PENDING=$(sed -n 's/^LABEL_CLOSURE_PENDING="\{0,1\}\([^"]*\)"\{0,1\}.*/\1/p' "$CONF" | head -1)
           fi
           LABEL_READY="${LABEL_READY:-ready-for-agent}"
           LABEL_CLOSURE_PENDING="${LABEL_CLOSURE_PENDING:-change-close-pending}"
