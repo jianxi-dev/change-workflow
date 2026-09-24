@@ -64,7 +64,7 @@ warn() { echo "⚠️  $*" >&2; }
 #   1. ${HOME:-}/.claude/skills
 #   2. ${HOME:-}/.agents/skills
 #   3. ${HOME:-}/.config/opencode/skills
-# 根 4-9（仓库级，仅当 CW_EVIDENCE_ALLOW_REPO 非空才探测 —— 信任模型见头注 4；
+# 根 4-9（仓库级，仅当 CW_EVIDENCE_ALLOW_REPO=1 才探测 —— 信任模型见头注 4；
 #          SKILLS_DIR 只取环境变量，绝不 source 仓库内 conf）:
 #   4. ${SKILLS_DIR:-.opencode/skills}
 #   5. $PWD/.opencode/skills
@@ -105,7 +105,7 @@ probe_skill_dir() {
 
 # 定位 scripts/evidence.py: 找到 → stdout 打印路径并退 0；否则退 1。
 # --skill-path 显式点名最优先（用户显式给的路径 = 显式授权）；随后根 1-3；
-# 仓库级六根仅在 CW_EVIDENCE_ALLOW_REPO 非空时探测（A1）。候选顺序与
+# 仓库级六根仅在 CW_EVIDENCE_ALLOW_REPO=1 时探测（A1，精确匹配见 find_evidence）。候选顺序与
 # cw-greploop.sh 共享同一清单（见上方 F2 注释）。
 # stdout 只出最终路径（调用方以 $( ) 捕获），过程提示不出现在这里。
 find_evidence() {
@@ -129,8 +129,10 @@ find_evidence() {
     fi
   done
 
-  # 仓库级六根默认拒绝（A1）: 仓库可控路径 = PR 可植入 evidence.py = RCE 面
-  [[ -n "${CW_EVIDENCE_ALLOW_REPO:-}" ]] || return 1
+  # 仓库级六根默认拒绝（A1）: 仓库可控路径 = PR 可植入 evidence.py = RCE 面。
+  # 精确匹配 =1（A6/R2）: 旧「非空即开」让 CW_EVIDENCE_ALLOW_REPO=0 反而**启用**探测
+  # （红证: =0 时仓内植入的 evidence.py 被 exec，marker 落地）—— 与「显式授权」语义相反。
+  [[ "${CW_EVIDENCE_ALLOW_REPO:-}" == "1" ]] || return 1
   for root in \
     "${SKILLS_DIR:-.opencode/skills}" \
     "$PWD/.opencode/skills" \
@@ -245,8 +247,9 @@ cmd_doctor() {
   else
     printf '  ⚠️  %s\n' "skill: 未安装（候选路径均无 scripts/evidence.py）"
   fi
-  # A1 可见性: 仓库级六根被跳过时必须明说，否则用户不知道还有六条路径没探测
-  if [[ -z "${CW_EVIDENCE_ALLOW_REPO:-}" ]]; then
+  # A1 可见性: 仓库级六根被跳过时必须明说，否则用户不知道还有六条路径没探测。
+  # 判据与 find_evidence 同一精确匹配（A6/R2）: 非 =1（含 =0、空、未设）一律视为跳过。
+  if [[ "${CW_EVIDENCE_ALLOW_REPO:-}" != "1" ]]; then
     printf '  ⚠️  %s\n' "仓库级候选根已跳过（6 条）: 设 CW_EVIDENCE_ALLOW_REPO=1 或 --skill-path <dir> 可信探测"
   fi
 

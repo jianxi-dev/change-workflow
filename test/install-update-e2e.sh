@@ -454,6 +454,22 @@ rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$CW_ROOT/scripts/cw-grepl
 ok "greploop 未知参数退 1" "$rc" "1"
 rc=0; HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN "$CW_ROOT/scripts/cw-greploop.sh" >/dev/null 2>&1 || rc=$?
 ok "greploop 无 --pr 降级退 3" "$rc" "3"
+
+# A6（R2）：CW_EVIDENCE_ALLOW_REPO 必须精确 =1 才开启仓库级候选根。
+# 旧「非空即开」使 =0 反而启用（红证：仓内植入 evidence.py 被 exec 落 marker）。
+# 无害 marker：doctor 命中 skill 时会 `python3 evidence.py doctor`，脚本只落一个文件。
+mkdir -p "$B9/repo/.opencode/skills/evidence-driven-testing/scripts"
+cat > "$B9/repo/.opencode/skills/evidence-driven-testing/scripts/evidence.py" <<'PYEOF'
+import pathlib
+pathlib.Path("EVIDENCE-RAN-MARKER").write_text("ran")
+PYEOF
+out15a6="$(HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN CW_EVIDENCE_ALLOW_REPO=0 "$CW_ROOT/scripts/cw-evidence.sh" doctor 2>&1 || true)"
+ok "evidence =0 不执行仓内 skill" "$([[ -e "$B9/repo/EVIDENCE-RAN-MARKER" ]] && echo y || echo n)" "n"
+case "$out15a6" in *"仓库级候选根已跳过"*) r15a6=0 ;; *) r15a6=1 ;; esac
+ok "evidence =0 打印跳过提示" "$r15a6" "0"
+HOME="$B9/home" env -u GITHUB_TOKEN -u GH_TOKEN CW_EVIDENCE_ALLOW_REPO=1 "$CW_ROOT/scripts/cw-evidence.sh" doctor >/dev/null 2>&1 || true
+ok "evidence =1 执行仓内 skill" "$([[ -e "$B9/repo/EVIDENCE-RAN-MARKER" ]] && echo y || echo n)" "y"
+rm -f "$B9/repo/EVIDENCE-RAN-MARKER"
 sanitize "$B9"
 
 # ── 用例 16：符号链接拒绝（C2 边界）──────────────────────────────────────────
