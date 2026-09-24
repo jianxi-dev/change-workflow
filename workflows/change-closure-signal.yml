@@ -36,8 +36,14 @@ jobs:
           # source 会在 CI（pull_request: closed + issues/pull-requests: write）下执行（RCE）。
           CONF=.change-workflow.conf
           if [ -f "$CONF" ]; then
-            LABEL_READY=$(sed -n 's/^LABEL_READY="\{0,1\}\([^"]*\)"\{0,1\}.*/\1/p' "$CONF" | head -1)
-            LABEL_CLOSURE_PENDING=$(sed -n 's/^LABEL_CLOSURE_PENDING="\{0,1\}\([^"]*\)"\{0,1\}.*/\1/p' "$CONF" | head -1)
+            # 去管道（F7）：旧 `sed … | head -1` 在 set -euo pipefail 下，conf 含大量重复键
+            # （输出超 64KB 管道缓冲）时 head 命中即退 → sed 收 SIGPIPE(141) → 整个 step 中止
+            # （红证：5000 行 LABEL_READY fixture → rc=141）。改 grep -m1 单命令 + 参数展开，
+            # 无管道即无 SIGPIPE；引号剥离语义与旧写法一致。
+            _l="$(grep -m1 '^LABEL_READY=' "$CONF" || true)"
+            LABEL_READY="${_l#*=}"; LABEL_READY="${LABEL_READY#\"}"; LABEL_READY="${LABEL_READY%\"}"
+            _l="$(grep -m1 '^LABEL_CLOSURE_PENDING=' "$CONF" || true)"
+            LABEL_CLOSURE_PENDING="${_l#*=}"; LABEL_CLOSURE_PENDING="${LABEL_CLOSURE_PENDING#\"}"; LABEL_CLOSURE_PENDING="${LABEL_CLOSURE_PENDING%\"}"
           fi
           LABEL_READY="${LABEL_READY:-ready-for-agent}"
           LABEL_CLOSURE_PENDING="${LABEL_CLOSURE_PENDING:-change-close-pending}"
