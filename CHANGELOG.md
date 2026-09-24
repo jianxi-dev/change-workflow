@@ -106,7 +106,7 @@ $ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
 ### 配套：受管文件 13 → 18
 
 `lib/render.sh` 的 `cw_list_files` 清单、`ci.yml` 的脚本列表与静态检查、
-`test/install-update-e2e.sh` 的断言计数（59 → 74）、`docs/agents/AGENTS.md` 索引同步
+`test/install-update-e2e.sh` 的期望值同步（断言数 74 → 74，无净新增）、`docs/agents/AGENTS.md` 索引同步
 更新。
 
 ### 教训反思
@@ -125,7 +125,7 @@ $ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
 
 ```
 $ ./test/install-update-e2e.sh
- 通过 76 · 失败 0            # 59 → 76：新增 17 断言覆盖新脚本语法、清单计数、模板头剥离、执行位
+ 通过 74 · 失败 0            # v1.2.1 实测 74 → fd31579 实测 74：无净新增断言（仅把期望值同步到 18 个受管文件）；原条目「通过 76 / 59 → 76：新增 17 断言」系失实计数，1.3.1 按 `git archive` 离线复跑校正
 ```
 
 ---
