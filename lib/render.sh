@@ -172,15 +172,16 @@ cw_conf_get() {
     case "$line" in
       \#*) continue ;;
     esac
+    # 锚定行首（1.3.1 QA ISSUE-002）：子串匹配 *"$key="* 会被诱饵行误命中
+    # （如 OLD_REPO= 在 REPO= 之前先子串命中 REPO=），故键必须位于行首。
     case "$line" in
-      *"$key="*)
-        v="${line#*"$key="}"
-        v="${v#\"}"
-        v="${v%%\"*}"
-        printf '%s' "$v"
-        return 0
-        ;;
+      "$key"=*) v="${line#"$key"=}" ;;
+      *) continue ;;
     esac
+    v="${v#\"}"
+    v="${v%%\"*}"
+    printf '%s' "$v"
+    return 0
   done < "$file"
   return 1
 }
