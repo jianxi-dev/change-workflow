@@ -168,7 +168,7 @@ flowchart TB
 - **G1 出口（顺序固定，全部通过才允许 commit）**：
   1. `code-review` 双轴（Standards + Spec）——每任务后必做，**须逐条对照 QG-4 检查测试是否驱动真实路径**
   2. `review`（pre-landing 结构审查）——仅 risk-medium/high 追加
-   3. **QG-5 独立验证**：验证者（orchestrator，非实施者）跑**自己的探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数）**粘贴到票上**；未附原始证据的「已完成」不予采信。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据
+   3. **QG-5 独立验证**：验证者（orchestrator，非实施者）跑**自己的探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数）**粘贴到票上**；未附原始证据的「已完成」不予采信。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据；`cw-evidence.sh` 退出码：0=成功 / 1=参数或子命令错误 / 3=依赖缺失降级——3 是预期路径，按脚本打印的降级指引继续，不得视为失败放弃证据纪律
    4. 通过后 → G2
 
 > **QG-5 为何强制**（2026-09-20）：修复期抓出 **4 个「自测全绿但实际无效」**的交付，**4/4 全部由独立探针抓出，零例外**。自证无效。本地 e2e 单文件实测约 **16 秒**，成本极低。
@@ -186,7 +186,7 @@ flowchart TB
 - **auto-merge**：risk-low 尝试启用；仓库未启用时脚本 fail-open（提示 `gh pr merge <N> --squash`，CI 绿后执行）
 - **从头模式适用场景**：artifacts docs PR（文件就绪一次成型）；单文件快速改动
 - PR 模板必填项全填（impact/verification/risk）；禁止 `--skip-checks`
-- **可选审查闭环**（risk-medium/high 合并确认前）：可调用 `scripts/cw-greploop.sh` 跑 Greptile 审查闭环（触发 → 轮询 → 修复 → resolve → 重触发；退出 = 满分零未解决评论或达 max-iterations）；无 Greptile 时降级为本地审查闭环（code-review / review 输出 + 人工清单）并在 PR 上显式标注「审查闭环降级为人工」
+- **可选审查闭环**（risk-medium/high 合并确认前）：可调用 `scripts/cw-greploop.sh` 跑 Greptile 审查闭环（触发 → 轮询 → 修复 → resolve → 重触发；退出 = 满分零未解决评论或达 max-iterations）；无 Greptile 时降级为本地审查闭环（code-review / review 输出 + 人工清单）并在 PR 上显式标注「审查闭环降级为人工」；`cw-greploop.sh` 退出码：0=协议已打印（不代表审查通过）/ 1=参数错误或 --pr 无法解析 / 3=降级——按降级策略继续
 
 ### G3 任务级收尾（每轮必做，非阻塞）｜执行：learn + sync-gbrain
 
