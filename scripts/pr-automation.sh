@@ -39,11 +39,41 @@ cd "$REPO_ROOT"
 
 # --- 载入项目配置（可选）-----------------------------------------------------
 # 目标项目根放置 .change-workflow.conf（由 setup.sh 生成）；缺失则用内置默认值。
+# 不 source conf（B1/RCE 边界）：conf 提交进消费仓且**不受管**（INSTALL.md:133），
+# 恶意 PR 可在其中追加 shell（如 CMD_TEST="$(touch pwned)"），source 即执行。
+# 白名单逐键解析（与 cw-update.sh:52 同款 conf_get），只取字面值、不求值。
 CONF="$REPO_ROOT/.change-workflow.conf"
-if [[ -f "$CONF" ]]; then
-  # shellcheck disable=SC1090
-  source "$CONF"
-fi
+conf_get() {
+  local key="$1" line v
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "$key"=*)
+        v="${line#*=}"
+        v="${v%$'\r'}"
+        case "$v" in
+          *'#'*) v="${v%%#*}" ;;
+        esac
+        v="${v%"${v##*[![:space:]]}"}"
+        case "$v" in
+          \"*\") v="${v#\"}"; v="${v%\"}" ;;
+          \'*\') v="${v#\'}"; v="${v%\'}" ;;
+        esac
+        printf '%s\n' "$v"
+        return 0
+        ;;
+    esac
+  done < "$CONF"
+  return 1
+}
+CMD_TYPECHECK="$(conf_get CMD_TYPECHECK || true)"
+CMD_LINT="$(conf_get CMD_LINT || true)"
+CMD_TEST="$(conf_get CMD_TEST || true)"
+LABEL_RISK_LOW="$(conf_get LABEL_RISK_LOW || true)"
+LABEL_RISK_MEDIUM="$(conf_get LABEL_RISK_MEDIUM || true)"
+LABEL_RISK_HIGH="$(conf_get LABEL_RISK_HIGH || true)"
+LABEL_SOURCE="$(conf_get LABEL_SOURCE || true)"
+LABEL_READY="$(conf_get LABEL_READY || true)"
+DEFAULT_BRANCH="$(conf_get DEFAULT_BRANCH || true)"
 CMD_TYPECHECK="${CMD_TYPECHECK:-}"
 CMD_LINT="${CMD_LINT:-}"
 CMD_TEST="${CMD_TEST:-}"

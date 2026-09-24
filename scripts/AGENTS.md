@@ -64,7 +64,7 @@ pr-automation.sh 参数表：
 - `cw_atomic_cp`（`:130`）/ `cw_chmod_scripts`（`:148`）：安装原子性与执行位（见下方修改清单第 4 条）。
 - `cw_conf_get`（`:168`）：**B1 安全边界** —— 替代 `source "$CONF"`，杜绝值内命令注入（`:165`）。语义：跳过注释行、取首个 `key=` 后引号剥离的值、键不存在返 1；**不能截断含空格值**（如 `SKILLS_DIR="My Skills"`）。
 - **`conf_get` 是刻意重复的独立副本**：`cw-greploop.sh:44` 与 `cw-update.sh:52` 各有一份（消费仓无 `lib/`，不能 source）。改 conf 读取逻辑 = `render.sh:168` + 这两处**三处一起改**，漏一处即行为漂移。
-- **不 source conf（B1/RCE 边界）**：`cw-evidence.sh:45`/`:68`、`cw-greploop.sh:40`、`cw-update.sh:50` 均显式「不 source conf」；**唯一例外是 `pr-automation.sh:45` 的 `source "$CONF"`**（G2 流水线需要完整键集，且其输入是受管 conf 本身）。
+- **不 source conf（B1/RCE 边界）**：`cw-evidence.sh:45`/`:68`、`cw-greploop.sh:40`、`cw-update.sh:50`、`pr-automation.sh:45` 均显式「不 source conf」——全部改为白名单逐键解析（`conf_get`）；conf 提交进消费仓且不受管，source 即 RCE。
 
 ## 修改清单（新增/改动脚本必须连带）
 
