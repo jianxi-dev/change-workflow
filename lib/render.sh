@@ -181,9 +181,12 @@ cw_atomic_cp() {
     echo "❌ 复制失败：$src → $dst" >&2
     return 1
   fi
-  # 模式保持（R1）：见 cw_tmp_mode_for 的根因注释
-  cw_tmp_mode_for "$tmp" "$dst"
-  mv "$tmp" "$dst"
+  # 模式保持（R1）：见 cw_tmp_mode_for 的根因注释。
+  # 失败路径清理（F9）：chmod/mv 失败在 set -e 下会直接中止调用方，旧写法把 .cw-tmp.*
+  # 永久遗留在受管目录（红证：故障注入假 mv → dst 目录残留 .cw-tmp.XXXX）。
+  # 显式捕获 → 删临时文件 → return 1，让「原子写」名副其实（失败不留半成品）。
+  cw_tmp_mode_for "$tmp" "$dst" || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$dst" || { rm -f "$tmp"; return 1; }
 }
 
 # 给受管脚本补执行位（cw_render 用重定向写文件，不保留执行位）。
