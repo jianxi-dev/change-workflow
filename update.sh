@@ -178,16 +178,20 @@ toolkit_source() {
 }
 
 # 向 .change-workflow.conf upsert 一个键值：存在则替换，不存在则追加。
-# 模式保持（R1）：sed > tmp; mv 的 tmp 是 mktemp（恒 0600），mv 会把 conf 从 644 拉成 600
+# 模式保持（R1）：> tmp; mv 的 tmp 是 mktemp（恒 0600），mv 会把 conf 从 644 拉成 600
 # （红证：update 一次后 conf 644→600），故 mv 前经 cw_tmp_mode_for 调回 conf 应有模式。
 # 另：下方 TOOLKIT_VERSION 的 `sed -i.cw-tmp` 路径实测（macOS BSD sed 与 GNU sed 语义一致）
 # 保留原文件模式（600→600、644→644），无需额外处理。
+# 为什么用 awk 而非 sed：sed 替换值是个微型语言（& = 整个匹配、\ = 转义、| = 分隔符）。
+# 红证：toolkit origin=https://example.com/a&b.git 时，旧 sed 把 & 展开为整行匹配 →
+# conf 出现 TOOLKIT_SOURCE="https://example.com/aTOOLKIT_SOURCE="…旧值…"b.git" 损坏值。
+# 值经 ENVIRON 传入（不走 -v，-v 也做反斜杠转义），awk 输出为纯字面量，& 与 \ 均安全。
 upsert_conf() {
   local key="$1" val="$2" tmp
   cw_refuse_symlink "$CONF" "配置文件"
   tmp="$(mktemp)"
   if grep -q "^${key}=" "$CONF" 2>/dev/null; then
-    sed "s|^${key}=.*|${key}=\"${val}\"|" "$CONF" > "$tmp"
+    V="$val" awk -v k="$key" 'BEGIN { pat = "^" k "=" } $0 ~ pat { print k "=\"" ENVIRON["V"] "\""; next } { print }' "$CONF" > "$tmp"
     cw_tmp_mode_for "$tmp" "$CONF"
     mv "$tmp" "$CONF"
   else
