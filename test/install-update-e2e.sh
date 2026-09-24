@@ -278,6 +278,17 @@ ok "LOCAL 哨兵未被重写" "$(awk '$2=="docs/agents/domain.md"{print $1}' .ch
 set_version "0.9.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
 ok "多次更新后仍保留" "$(grep -c '## 有意保留的本地文档' docs/agents/domain.md)" "1"
+# 路径归一回归锁：`./` 前缀曾绕过旧行过滤 → 旧行 + `LOCAL  ./…` 并存（哨兵死行），
+# 谎报成功后下次 update 仍 rc=1。现循环内剥「./」：manifest 恰好 1 行且归一。
+echo "## 本地定制二" >> docs/agents/quality-gates.md
+set_version "0.9.0"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+rc11d=0; "$CW_ROOT/update.sh" --target "$PWD" --accept-local ./docs/agents/quality-gates.md >/dev/null 2>&1 || rc11d=$?
+ok "./前缀 accept-local 退 0" "$rc11d" "0"
+ok "./前缀归一后 manifest 恰 1 行" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/quality-gates.md" || rest=="./docs/agents/quality-gates.md") c++ } END {print c+0}' .change-workflow.manifest)" "1"
+set_version "0.8.0"
+rc11e=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc11e=$?
+ok "./前缀接受后 update 归一" "$rc11e" "0"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────

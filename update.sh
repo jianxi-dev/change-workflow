@@ -132,6 +132,10 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
   cw_refuse_symlink "$MANIFEST" "基线清单"
   accepted=0
   for p in "${ACCEPT_LOCAL[@]}"; do
+    # 路径归一：剥「./」前缀（与 pr-automation.sh 的 in_files 同款）。manifest 键与受管清单
+    # 目标均为无前缀相对路径；红证：`--accept-local ./docs/...` 过滤不命中旧行 → 旧行 +
+    # `LOCAL  ./…` 并存，哨兵成死行，下次 update 仍 rc=1 报同一文件（谎报成功后永不归一）。
+    p="${p#./}"
     if [[ ! -f "$p" ]]; then warn "跳过（文件不存在）：${p}"; continue; fi
     if [[ -f "${p}.new" ]]; then
       warn "注意：${p} 仍有未处理的 ${p}.new —— 接受本地后将不再提示，请确认不再需要它"
