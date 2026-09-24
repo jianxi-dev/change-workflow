@@ -213,7 +213,10 @@ cw_chmod_scripts() {
 cw_conf_get() {
   local file="$1" key="$2" line v
   [[ -f "$file" ]] || return 1
-  while IFS= read -r line; do
+  # 末行无换行守卫（S1）：conf 若以无结尾换行的行收尾（编辑器截断 / printf 漏 \n），
+  # 裸 read 对末行返回非 0 → 旧循环直接丢弃该行 → 末行键取值失败（红证：rc=1/空）。
+  # 与孪生副本（cw-greploop.sh:46 / cw-update.sh:54 的 conf_get）一致；漏一处即行为漂移。
+  while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
       \#*) continue ;;
     esac

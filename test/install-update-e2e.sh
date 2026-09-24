@@ -602,6 +602,16 @@ ok "accept-local 后再更新归一" "$rc19d" "0"
 ok "空格路径本地内容保留" "$(grep -c '## 本地定制' 'My Docs/triage-labels.md')" "1"
 sanitize "$B13"
 
+# ── 用例 20：cw_conf_get 末行无换行守卫（S1）──────────────────────────────────
+# conf 以无结尾换行的行收尾时，裸 read 对末行返回非 0 → 旧循环丢弃该行（红证：rc=1/空），
+# 而孪生副本（cw-greploop.sh / cw-update.sh 的 conf_get）能取到 —— 三处语义必须一致。
+echo ""
+echo "[20] cw_conf_get 末行无换行守卫"
+B14="$(mktemp -d)"
+printf 'REPO="a/b"\nDOCS_DIR="My Docs"' > "$B14/conf-nonl"   # 末行故意无 \n
+ok "末行无换行仍可取值" "$(bash -c "source '$CW_ROOT/lib/render.sh'; cw_conf_get '$B14/conf-nonl' DOCS_DIR")" "My Docs"
+sanitize "$B14"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="
