@@ -67,7 +67,7 @@
 
 ```
 $ ./test/install-update-e2e.sh
- 通过 101 · 失败 0            # 76 → 101：+25 断言（case 8 exec 位 +3、case 15 退出码契约 +14、case 16 符号链接 +3、case 17 受管脚本符号链接 +5）
+ 通过 106 · 失败 0            # 76 → 106：+30 断言（case 8 exec 位 +3、case 15 退出码契约 +14、case 16 符号链接 +3、case 17 受管脚本符号链接 +5、case 12 恶意源信任门 +2、case 18 父目录符号链接 +3）
 $ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
  消费仓 3 个 · 通过 9 · 失败 0
 ```
