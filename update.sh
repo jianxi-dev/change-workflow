@@ -126,6 +126,10 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
     printf '    %s\n' "${ACCEPT_LOCAL[@]}"
     exit 0
   fi
+  # 符号链接闸（S2）：与接管路径、正常路径收尾的 manifest 写前 cw_refuse_symlink 同一
+  # C2 边界。红证：manifest 为符号链接时本路径原本 rc=0 放行 —— 同卷 mv 以 rename 替换
+  # 链接（链接被销毁），跨卷 mv 退化为复制+删除则直接经链接写穿仓外目标。
+  cw_refuse_symlink "$MANIFEST" "基线清单"
   accepted=0
   for p in "${ACCEPT_LOCAL[@]}"; do
     if [[ ! -f "$p" ]]; then warn "跳过（文件不存在）：${p}"; continue; fi

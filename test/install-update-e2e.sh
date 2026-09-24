@@ -612,6 +612,24 @@ printf 'REPO="a/b"\nDOCS_DIR="My Docs"' > "$B14/conf-nonl"   # 末行故意无 \
 ok "末行无换行仍可取值" "$(bash -c "source '$CW_ROOT/lib/render.sh'; cw_conf_get '$B14/conf-nonl' DOCS_DIR")" "My Docs"
 sanitize "$B14"
 
+# ── 用例 21：--accept-local 的 manifest 符号链接闸（S2）───────────────────────
+# 接管/正常路径的 manifest 写前都有 cw_refuse_symlink，唯独 accept-local 块曾漏闸
+# （红证：manifest 为链接时 rc=0 放行，链接被 mv 替换）。
+echo ""
+echo "[21] accept-local manifest 符号链接闸"
+B15="$(mktemp -d)"; new_repo "$B15/repo" || exit 1
+write_conf "1.0.0"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+cp .change-workflow.manifest "$B15/outside.manifest"
+cp "$B15/outside.manifest" "$B15/outside.before"
+rm -f .change-workflow.manifest
+ln -s "$B15/outside.manifest" .change-workflow.manifest
+rc21=0; "$CW_ROOT/update.sh" --target "$PWD" --accept-local docs/agents/domain.md >/dev/null 2>&1 || rc21=$?
+ok "accept-local 符号链接拒绝退 1" "$rc21" "1"
+ok "manifest 链接未被替换" "$([[ -L .change-workflow.manifest ]] && echo y)" "y"
+ok "链接目标未被写穿" "$(cmp -s "$B15/outside.manifest" "$B15/outside.before" && echo y || echo n)" "y"
+sanitize "$B15"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="
