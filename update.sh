@@ -140,6 +140,9 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
     # 过滤同按「剩余整串」比较（R3）：旧 `$2 != p` 对空格路径永不命中 → 旧行残留、LOCAL 不生效
     if [[ -f "$MANIFEST" ]]; then awk -v p="$p" '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest != p) print }' "$MANIFEST" > "$tmp_manifest"; fi
     printf 'LOCAL  %s\n' "$p" >> "$tmp_manifest"
+    # 模式保持（R1 收尾）：mktemp 恒 0600，mv 前调回 manifest 应有模式 —— 与接管/正常路径
+    # 的 manifest 写同构；红证：accept-local 一次后 manifest 644→600（rc=0 静默）。
+    cw_tmp_mode_for "$tmp_manifest" "$MANIFEST"
     mv "$tmp_manifest" "$MANIFEST"
     log "已接受本地版本（此后永久跳过）：${p}"
     accepted=$((accepted + 1))

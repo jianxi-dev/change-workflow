@@ -628,6 +628,12 @@ rc21=0; "$CW_ROOT/update.sh" --target "$PWD" --accept-local docs/agents/domain.m
 ok "accept-local 符号链接拒绝退 1" "$rc21" "1"
 ok "manifest 链接未被替换" "$([[ -L .change-workflow.manifest ]] && echo y)" "y"
 ok "链接目标未被写穿" "$(cmp -s "$B15/outside.manifest" "$B15/outside.before" && echo y || echo n)" "y"
+# R1 收尾缺口回归锁：accept-local 路径的 tmp_manifest 曾漏 cw_tmp_mode_for
+# （红证：manifest 644 → accept-local → 600，rc=0 静默）。恢复普通文件后再接受一次，断言模式保持。
+rm -f .change-workflow.manifest
+cp "$B15/outside.manifest" .change-workflow.manifest && chmod 644 .change-workflow.manifest
+"$CW_ROOT/update.sh" --target "$PWD" --accept-local docs/agents/domain.md >/dev/null 2>&1 || true
+ok "accept-local 后 manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
 sanitize "$B15"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
