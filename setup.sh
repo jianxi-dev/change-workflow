@@ -64,14 +64,18 @@ if cw_is_self_target "$(git rev-parse --show-toplevel)"; then
   exit 1
 fi
 # 并发互斥锁：mkdir 原子性保证同一时刻只有一个安装/升级进程持有锁（C3）。
-# 锁在 --dry-run 之前不生效（上面已提前 return），预演不落盘、不占锁。
+# --dry-run 不取锁（预演不落盘），但绝不能因此去删别人的锁 —— 故 trap 必须
+# 与取锁同在「非 dry-run」分支内（update.sh:108-115 同构，1.3.1 QA ISSUE-001）。
 LOCK_DIR="$CW_GIT_DIR/.change-workflow.lock"
-if [[ "$DRY_RUN" != "1" ]] && ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "❌ 已有另一个升级/安装进程在运行（锁目录存在：${LOCK_DIR}）" >&2
-  echo "   确认无其他进程后手动删除该目录再重试。" >&2
-  exit 1
+if [[ "$DRY_RUN" != "1" ]]; then
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "❌ 已有另一个升级/安装进程在运行（锁目录存在：${LOCK_DIR}）" >&2
+    echo "   确认无其他进程后手动删除该目录再重试。" >&2
+    exit 1
+  fi
+  # trap 只在真正持有锁时设置：dry-run 不取锁，也绝不能碰他人的锁
+  trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
 [[ -z "$REPO" ]] && { echo "❌ 无法识别 GitHub 仓库（需 gh auth login + origin remote）" >&2; exit 1; }
