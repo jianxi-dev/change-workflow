@@ -20,7 +20,7 @@ G2 提交/PR 机械流水线。仓库内无 shell 调用它，仅被 `../skills/
 
 消费仓自升级壳。
 
-- 读消费仓 conf 的 `TOOLKIT_SOURCE`（`:52`）。
+- 读消费仓 conf 的 `TOOLKIT_SOURCE`（`:74`）。
 - 缓存目录优先级：`CHANGE_WORKFLOW_HOME` > `~/.change-workflow` > `~/.cache/change-workflow`（`:20-26`）。
 - 缓存已存在则 `git pull --ff-only`，否则 `git clone`（`:79-87`）。
 - `exec` 缓存副本的 `update.sh`（`:91`/`:93`），退出码透传；`--target` 之外的参数原样转发。
@@ -50,7 +50,7 @@ pr-automation.sh 参数表：
 
 | 脚本 | 0 | 1 | 3 |
 |---|---|---|---|
-| `cw-evidence.sh` | doctor/headless/`--help` 正常完成（`:424-431`） | 空/未知子命令（`:424-431`） | 依赖缺失降级：start/stop 显式 `|| exit $?`（`:420-421`），不依赖 `set -e` 的边角语义（`:386`） |
+| `cw-evidence.sh` | doctor/headless/`--help` 正常完成（`:422/:425/:426`） | 空/未知子命令（`:427-434`） | 依赖缺失降级：start/stop 显式 `|| exit $?`（`:423-424`），不依赖 `set -e` 的边角语义（`:389`） |
 | `cw-greploop.sh` | 能力检测通过、协议已打印（`:321`/`:342`） | 参数错误（`:91`） | 依赖缺失降级（`:325`/`:345`） |
 | `cw-update.sh` | `--help`/`-h`（`:37`） | 目标不存在/非 git 仓（`:42-43`/`:48`） | —（`exec` 透传 `update.sh` 退出码，`:91`/`:93`） |
 
