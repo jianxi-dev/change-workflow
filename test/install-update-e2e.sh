@@ -490,6 +490,26 @@ ok "受管脚本链接目标未被补执行位" "$([[ -x "$B11/outside-target" ]
 ok "受管脚本未产生 .new/.bak" "$([[ ! -e scripts/cw-evidence.sh.new && ! -e scripts/cw-evidence.sh.bak ]] && echo y)" "y"
 sanitize "$B11"
 
+# ── 用例 18：父目录符号链接拒绝（C2 补强）────────────────────────────────────
+# 用例 16/17 只查 leaf；父目录（scripts/）被换成符号链接时，mkdir -p 与重定向会
+# 穿透链接写穿到链接指向处（红证：仓外落地 4 个脚本）。cw_refuse_symlink 现对
+# 相对路径逐级检查组件（lib/render.sh:62-68），绝对路径只查 leaf（防系统链接误伤）。
+echo ""
+echo "[18] 父目录符号链接拒绝"
+B12="$(mktemp -d)"
+new_repo "$B12/repo" || exit 1
+write_conf "1.0.0"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+set_version "0.9.0"
+OUTSIDE="$B12/outside"; mkdir -p "$OUTSIDE"
+rm -rf scripts
+ln -s "$OUTSIDE" scripts
+rc18=0; "$CW_ROOT/update.sh" --target "$PWD" --force >/dev/null 2>&1 || rc18=$?
+ok "父目录符号链接拒绝退出码 1" "$rc18" "1"
+ok "仓外目录零写入" "$(ls -A "$OUTSIDE" | wc -l | tr -d ' ')" "0"
+ok "父目录链接未被替换" "$([[ -L scripts ]] && echo y)" "y"
+sanitize "$B12"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="

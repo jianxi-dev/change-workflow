@@ -60,11 +60,30 @@ cw_strip_header() {
 # 穿透链接写穿到链接指向处，绕过「只改受管文件」的边界（C2）。所有受管写入面
 # （cw_render 重定向、cp 安装、manifest/conf 重写）必须先过这道闸。
 cw_refuse_symlink() {
-  local path="$1" desc="$2"
-  [[ -L "$path" ]] || return 0
-  echo "❌ 拒绝写入符号链接：${desc}（${path}）" >&2
-  echo "   受管文件必须是普通文件；请先删除该符号链接或改回真实文件。" >&2
-  exit 1
+  local path="$1" desc="$2" d
+  # leaf 检查（原有）：文件本身是符号链接 → 拒绝
+  if [[ -L "$path" ]]; then
+    echo "❌ 拒绝写入符号链接：${desc}（${path}）" >&2
+    echo "   受管文件必须是普通文件；请先删除该符号链接或改回真实文件。" >&2
+    exit 1
+  fi
+  # 相对路径逐级组件检查（C2 补强）：父目录被换成符号链接时，mkdir -p 与重定向会
+  # 穿透链接写穿到链接指向处（红证：rm -rf scripts; ln -s ../outside scripts → 仓外落地 4 个脚本）。
+  # 绝对路径（如 mktemp 的 /var/folders 源）只查 leaf：系统目录本身就有符号链接
+  # （/var → /private/var），逐级检查会误伤。
+  case "$path" in
+    /*) return 0 ;;
+  esac
+  d="$(dirname "$path")"
+  while [[ "$d" != "." && "$d" != "/" && -n "$d" ]]; do
+    if [[ -L "$d" ]]; then
+      echo "❌ 拒绝写入符号链接：${desc} 的父目录组件（${d}）" >&2
+      echo "   受管文件必须是普通文件；请先删除该符号链接或改回真实目录。" >&2
+      exit 1
+    fi
+    d="$(dirname "$d")"
+  done
+  return 0
 }
 
 # 渲染：模板 → 目标文件（剥头 + 替换占位符）
