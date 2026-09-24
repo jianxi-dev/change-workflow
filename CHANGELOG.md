@@ -67,7 +67,7 @@
 
 ```
 $ ./test/install-update-e2e.sh
- 通过 150 · 失败 0            # 76 → 150：+74 断言（case 8 exec 位 +3、case 15 退出码契约 +14、case 16 符号链接 +3、case 17 受管脚本符号链接 +5、case 12 恶意源信任门 +2、case 18 父目录符号链接 +3、case 1/5 模式保持 +5、case 15 ALLOW_REPO +3 与 greploop 穿越 +3、case 19 空格 manifest +9、case 20 conf 末行守卫 +1、case 21 accept-local 符号链接闸 +3、case 21 accept-local 模式保持 +1、case 11 ./ 前缀归一 +3 与 --force 清 LOCAL 哨兵 +3、case 22 conf 解析器四实现一致 +7、case 15 greploop 符号链接围栏 +2、case 22 引号+注释组合 +4）
+ 通过 160 · 失败 0            # 76 → 160：+84 断言（case 8 exec 位 +3、case 15 退出码契约 +14、case 16 符号链接 +3、case 17 受管脚本符号链接 +5、case 12 恶意源信任门 +2、case 18 父目录符号链接 +3、case 1/5 模式保持 +5、case 15 ALLOW_REPO +3 与 greploop 穿越 +3、case 19 空格 manifest +9、case 20 conf 末行守卫 +1、case 21 accept-local 符号链接闸 +3、case 21 accept-local 模式保持 +1、case 11 ./ 前缀归一 +3 与 --force 清 LOCAL 哨兵 +3、case 22 conf 解析器四实现一致 +7、case 15 greploop 符号链接围栏 +2、case 22 引号+注释组合 +4、case 19 CRLF 清单 +4、case 11 force 等值路径 +3、case 22 workflow 标签提取 +3）
 $ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
  消费仓 3 个 · 通过 9 · 失败 0
 ```
