@@ -660,6 +660,17 @@ set_version "0.9.0"
 rc19d=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc19d=$?
 ok "accept-local 后再更新归一" "$rc19d" "0"
 ok "空格路径本地内容保留" "$(grep -c '## 本地定制' 'My Docs/triage-labels.md')" "1"
+# 对抗轮4 Gap B 回归锁：manifest 读取端必须容忍 CRLF。旧缺陷：四处解析点比较裸 rest ——
+# CRLF 清单每行 rest 带 \r → 全部基线失配（误报「无基线记录」+ rc=1），且重写时 LOCAL
+# 哨兵匹配不上被静默丢弃（本地保留的保护无声解除）。
+python3 -c "p='.change-workflow.manifest'; d=open(p,'rb').read().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'); open(p,'wb').write(d)"
+set_version "0.9.0"
+rc19e=0; out19e="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1)" || rc19e=$?
+ok "CRLF manifest 更新退 0" "$rc19e" "0"
+case "$out19e" in *"无基线记录"*) r19e=1 ;; *) r19e=0 ;; esac
+ok "CRLF manifest 无「无基线记录」误报" "$r19e" "0"
+ok "CRLF manifest 保留 LOCAL 哨兵" "$(awk '{ rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="My Docs/triage-labels.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "1"
+ok "CRLF manifest 后本地内容仍保留" "$(grep -c '## 本地定制' 'My Docs/triage-labels.md')" "1"
 sanitize "$B13"
 
 # ── 用例 20：cw_conf_get 末行无换行守卫（S1）──────────────────────────────────

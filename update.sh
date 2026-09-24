@@ -142,7 +142,10 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
     fi
     tmp_manifest="$(mktemp)"
     # 过滤同按「剩余整串」比较（R3）：旧 `$2 != p` 对空格路径永不命中 → 旧行残留、LOCAL 不生效
-    if [[ -f "$MANIFEST" ]]; then awk -v p="$p" '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest != p) print }' "$MANIFEST" > "$tmp_manifest"; fi
+    # 对抗轮4 Gap B：比较前剥行尾 \r（CRLF 清单曾让全部基线失配 → 误报无基线 + 重写丢
+    # LOCAL 哨兵）；路径经 ENVIRON 传入而非 -v（-v 做反斜杠转义，含 \ 的路径永不命中，
+    # 与 upsert_conf 同因）。写侧不动：非命中行原样保留（含其行尾风格）。
+    if [[ -f "$MANIFEST" ]]; then CW_P="$p" awk '{ rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest != ENVIRON["CW_P"]) print }' "$MANIFEST" > "$tmp_manifest"; fi
     printf 'LOCAL  %s\n' "$p" >> "$tmp_manifest"
     # 模式保持（R1 收尾）：mktemp 恒 0600，mv 前调回 manifest 应有模式 —— 与接管/正常路径
     # 的 manifest 写同构；红证：accept-local 一次后 manifest 644→600（rc=0 静默）。
@@ -330,7 +333,8 @@ DOCS_DIR="${DOCS_DIR:-docs/agents}"
 # 写入端（printf '%s  %s\n'）不变 —— 只有读取端需要容错。
 baseline_of() {
   [[ -f "$MANIFEST" ]] || return 0
-  awk -v p="$1" '{ sha=$1; rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == p) { print sha; exit } }' "$MANIFEST"
+  # 对抗轮4 Gap B：剥行尾 \r + 路径经 ENVIRON（理由见 accept-local 过滤处注释）。
+  CW_P="$1" awk '{ sha=$1; rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == ENVIRON["CW_P"]) { print sha; exit } }' "$MANIFEST"
 }
 
 UPDATED=0; ADDED=0; CURRENT=0; CONFLICTED=0; LOCAL_KEPT=0
@@ -444,12 +448,15 @@ if [[ "$DRY_RUN" != "1" ]]; then
       continue
     fi
     if is_conflicted "${dst}"; then
-      prev="$(awk -v p="${dst}" '{ sha=$1; rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == p) { print sha; exit } }' "$OLD_BASELINES")"
+      # 对抗轮4 Gap B：剥 \r + ENVIRON（同 accept-local / baseline_of 处注释）
+      prev="$(CW_P="${dst}" awk '{ sha=$1; rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == ENVIRON["CW_P"]) { print sha; exit } }' "$OLD_BASELINES")"
       [[ -n "$prev" ]] && printf '%s  %s\n' "$prev" "${dst}" >> "$_mft_tmp"
       continue
     fi
     # 保留 LOCAL 哨兵（--accept-local 的选择），勿覆盖回真实哈希
-    prev="$(awk -v p="${dst}" '{ sha=$1; rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == p) { print sha; exit } }' "$OLD_BASELINES")"
+    # 对抗轮4 Gap B：剥 \r + ENVIRON —— 不剥则 CRLF 清单下 prev 取不到 "LOCAL"，
+    # 哨兵在此被静默改写回哈希，本地保留保护无声解除。
+    prev="$(CW_P="${dst}" awk '{ sha=$1; rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == ENVIRON["CW_P"]) { print sha; exit } }' "$OLD_BASELINES")"
     if [[ "$prev" == "LOCAL" ]]; then
       printf 'LOCAL  %s\n' "${dst}" >> "$_mft_tmp"
       continue
