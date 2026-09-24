@@ -684,9 +684,14 @@ sanitize "$B15"
 # 四份实现（lib/render.sh cw_conf_get + 三份消费侧副本 conf_get）必须逐字同语义。
 # 红证（漂移）：副本先剥 # 后剥引号 → "…/r#frag" 返回悬空引号；lib 不剥行内注释 →
 # `SKILLS_DIR=.opencode/skills # 注释` 会把文件装进垃圾目录；lib 不剥 \r → CRLF 值带回车。
+# 红证（组合回归，1.3.1 统一后新发现）：`K="val" # c` 闭引号后跟行尾注释 →
+# 「首尾同引号」判定失败 → 落入无引号分支 → 引号存活返回 `"val"`（旧实现返回 val）。
 echo ""
-echo "[22] conf 解析器语义对齐（引号优先/空白#注释/CR）"
+echo "[22] conf 解析器语义对齐（引号优先/空白#注释/CR/引号+注释组合）"
 B16="$(mktemp -d)"
+# 先 cd 进本用例临时目录：上一用例的 sanitize 已删掉 shell 当时的 cwd，
+# 裸 bash 启动会报 "shell-init: error retrieving current directory"（getcwd 噪声）。
+cd "$B16"
 {
   printf 'K_QH="a#b"\n'
   printf "K_SQ='a b'\n"
@@ -694,6 +699,10 @@ B16="$(mktemp -d)"
   printf 'K_CR=unquoted\r\n'
   printf 'K_PL=normal\n'
   printf '# K_CM=ghost\n'
+  printf 'K_QC="val" # c\n'
+  printf 'K_QCS="a#b" # c\n'
+  printf "K_QS='x # y'\n"
+  printf 'K_QT="v"   \n'
 } > "$B16/fixture.conf"
 lib_get() { bash -c "source '$CW_ROOT/lib/render.sh'; cw_conf_get '$B16/fixture.conf' '$1'"; }
 # 副本函数体抽到临时文件后 source 调用（副本读全局 $CONF；三份同名 conf_get 不可共存一 shell）
@@ -709,9 +718,14 @@ ok "CRLF 去尾部回车" "$(lib_get K_CR | cat -v)" "unquoted"
 ok "普通值原样" "$(lib_get K_PL)" "normal"
 rc22=0; lib_get K_CM >/dev/null 2>&1 || rc22=$?
 ok "注释行整行跳过" "$rc22" "1"
+# 引号值 + 行尾注释/尾随空白组合（闭引号后只有空白或 # 注释 → 仍须剥引号取内值）
+ok "双引号+行尾注释" "$(lib_get K_QC)" "val"
+ok "双引号内含#+行尾注释" "$(lib_get K_QCS)" "a#b"
+ok "单引号内含#保留" "$(lib_get K_QS)" "x # y"
+ok "双引号+尾随空白" "$(lib_get K_QT)" "v"
 # 四实现输出完全一致（逐键比对 lib 与三份副本的原始字节）
 mismatch=0
-for k in K_QH K_SQ K_HC K_CR K_PL K_CM; do
+for k in K_QH K_SQ K_HC K_CR K_PL K_CM K_QC K_QCS K_QS K_QT; do
   l="$(lib_get "$k" 2>/dev/null || true)"
   for f in cw-update.sh pr-automation.sh cw-greploop.sh; do
     c="$(copy_get "$f" "$k" 2>/dev/null || true)"
@@ -719,6 +733,8 @@ for k in K_QH K_SQ K_HC K_CR K_PL K_CM; do
   done
 done
 ok "四实现输出完全一致" "$mismatch" "0"
+# 清理前退回仓库根：sanitize 会删掉当前 cwd，否则后续用例继承已删除的 cwd 报 getcwd 噪声
+cd "$CW_ROOT"
 sanitize "$B16"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────

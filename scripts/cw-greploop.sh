@@ -43,25 +43,36 @@ cd "$REPO_ROOT"
 # 统一规范（F6+F8，与 lib/render.sh 的 cw_conf_get 及 cw-update.sh / pr-automation.sh 的
 # conf_get 逐字同语义，改一处必同步四处，回归锁在 e2e 用例 22）：
 #   1) `#` 开头的整行注释跳过；2) 原始值 = 首个 `=` 之后的全部文本；3) 去尾部 \r；
-#   4) 值被**成对**的 " 或 ' 包裹（首尾同引号且长度≥2）→ 剥掉这对引号，内部 # 原样保留；
-#      否则仅在「空白 + #」处截断行内注释（`x # c` → `x`；无空白的 `r#frag` 保留）；
+#   4) 值以 " 或 ' 开头且**后方存在同名闭引号** → 取首对引号之间的内值（内部 # 原样保留），
+#      但闭引号之后只允许「空白」或「空白 + # 注释」（红证：`"val" # c` 旧「首尾同引号」
+#      判定被尾注释破坏 → 引号存活返回 `"val"`）；引号后有杂质 → 整值按无引号处理；
+#      无引号时仅在「空白 + #」处截断行内注释（`x # c` → `x`；无空白的 `r#frag` 保留）；
 #   5) 去尾部空白；6) 输出。键不存在返回 1。
 CONF="$REPO_ROOT/.change-workflow.conf"
 conf_get() {
-  local key="$1" line v
+  local key="$1" line v q inner rest
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
       \#*) continue ;;
     esac
+    # 锚定行首（1.3.1 QA ISSUE-002）：子串匹配 *"$key="* 会被诱饵行误命中
+    # （如 OLD_REPO= 在 REPO= 之前先子串命中 REPO=），故键必须位于行首。
     case "$line" in
       "$key"=*) v="${line#*=}" ;;
       *) continue ;;
     esac
     v="${v%$'\r'}"
-    if [[ ${#v} -ge 2 && ${v:0:1} == '"' && ${v: -1} == '"' ]]; then
-      v="${v:1:${#v}-2}"
-    elif [[ ${#v} -ge 2 && ${v:0:1} == "'" && ${v: -1} == "'" ]]; then
-      v="${v:1:${#v}-2}"
+    q="${v:0:1}"
+    if [[ "$q" == '"' || "$q" == "'" ]] && [[ "${v:1}" == *"$q"* ]]; then
+      # 同名闭引号存在 → 取首对引号之间的内值；但闭引号之后只允许「空白」或
+      # 「空白 + # 注释」（红证：`"val" # c` 旧「首尾同引号」判定被尾注释破坏 →
+      # 引号存活返回 `"val"`，统一前的旧实现返回 val）。引号后有杂质 → 按无引号处理。
+      inner="${v#"$q"}"
+      rest="${inner#*"$q"}"
+      case "${rest#"${rest%%[![:space:]]*}"}" in
+        ''|'#'*) v="${inner%%"$q"*}" ;;
+        *) v="${v%%[[:space:]]#*}" ;;
+      esac
     else
       v="${v%%[[:space:]]#*}"
     fi
@@ -179,7 +190,7 @@ fi
 # 3 根 → 脚本相对 2 根。与 cw-evidence.sh 的门控清单保持同序（其仓库相对项受
 # CW_EVIDENCE_ALLOW_REPO=1 门控；本脚本只读探测，不设门控）。
 # 只认含 greploop/SKILL.md 的目录，不猜能力、不伪造可用。
-# 符号链接围栏（R5，移植 cw-evidence.sh probe_skill_dir 的防线；不改仓库级根的门控策略）：
+# 符号链接围栏（F1 围栏部分，移植 cw-evidence.sh probe_skill_dir 的防线；不改仓库级根的门控策略）：
 #   1) 候选根 d 本身是符号链接 → 跳过 —— 红证：`.opencode/skills -> 仓外目录`（内含攻击者
 #      greploop/SKILL.md）被报「✅ 找到（.opencode/skills/greploop）」，-f 会跟随链接取真文件；
 #   2) 命中要求 SKILL.md 是普通文件（! -L）—— 只查 -f 挡不住文件级链接写穿；
