@@ -79,7 +79,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 - **注释写「为什么 + 历史教训」**，不是复述代码；`quality-gates.md` 每条规则固定四段：规则 / **理由** / 实证案例 / 如何验证（`DESIGN.md:52`）。shellcheck 抑制必须附中文理由（`setup.sh:40`）。
 - **输出格式**：`❌`+stderr+exit 1 错误；`⚠️` 警告；`==>` 进度（`log()`）；`[dry-run]` 预演标记；`✅` 成功。
 - **缩进 2 空格，无 tab**；公共 helper `log`/`warn`/`act`/`ask`。
-- **commit**：Conventional Commits 前缀 + **中文** 标题（如 `fix(update): 接管模式静默覆盖本地定制`）；升级/首装固定文案见 `README.md:93`、`INSTALL.md:52`。
+- **commit**：Conventional Commits 前缀 + **中文** 标题（如 `fix(update): 接管模式静默覆盖本地定制`）；升级/首装固定文案见 `README.md:94`、`INSTALL.md:52`。
 - **发版**：`VERSION` + `CHANGELOG.md` 同步（每版结构：`### 新增/修复` → `### 教训反思` → `### 验证`（贴 e2e 通过数））→ tag → push。
 
 ## ANTI-PATTERNS (THIS PROJECT)
