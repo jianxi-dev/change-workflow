@@ -49,7 +49,10 @@ OWNER="acme"
 DEFAULT_BRANCH="main"
 PROJECT_ID="PVT_demo"
 STATUS_FIELD_ID="PVTSSF_demo"
-OPT_BACKLOG="b1" OPT_READY="r1" OPT_IN_PROGRESS="p1" OPT_DONE="d1"
+OPT_BACKLOG="b1"
+OPT_READY="r1"
+OPT_IN_PROGRESS="p1"
+OPT_DONE="d1"
 SKILLS_DIR=".opencode/skills"
 DOCS_DIR="docs/agents"
 EOF
@@ -591,7 +594,10 @@ OWNER="acme"
 DEFAULT_BRANCH="main"
 PROJECT_ID="PVT_demo"
 STATUS_FIELD_ID="PVTSSF_demo"
-OPT_BACKLOG="b1" OPT_READY="r1" OPT_IN_PROGRESS="p1" OPT_DONE="d1"
+OPT_BACKLOG="b1"
+OPT_READY="r1"
+OPT_IN_PROGRESS="p1"
+OPT_DONE="d1"
 SKILLS_DIR="My Skills"
 DOCS_DIR="My Docs"
 EOF
@@ -656,6 +662,47 @@ cp "$B15/outside.manifest" .change-workflow.manifest && chmod 644 .change-workfl
 "$CW_ROOT/update.sh" --target "$PWD" --accept-local docs/agents/domain.md >/dev/null 2>&1 || true
 ok "accept-local 后 manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
 sanitize "$B15"
+
+# ── 用例 22：conf 解析器语义对齐（F6+F8）──────────────────────────────────────
+# 四份实现（lib/render.sh cw_conf_get + 三份消费侧副本 conf_get）必须逐字同语义。
+# 红证（漂移）：副本先剥 # 后剥引号 → "…/r#frag" 返回悬空引号；lib 不剥行内注释 →
+# `SKILLS_DIR=.opencode/skills # 注释` 会把文件装进垃圾目录；lib 不剥 \r → CRLF 值带回车。
+echo ""
+echo "[22] conf 解析器语义对齐（引号优先/空白#注释/CR）"
+B16="$(mktemp -d)"
+{
+  printf 'K_QH="a#b"\n'
+  printf "K_SQ='a b'\n"
+  printf 'K_HC=x # c\n'
+  printf 'K_CR=unquoted\r\n'
+  printf 'K_PL=normal\n'
+  printf '# K_CM=ghost\n'
+} > "$B16/fixture.conf"
+lib_get() { bash -c "source '$CW_ROOT/lib/render.sh'; cw_conf_get '$B16/fixture.conf' '$1'"; }
+# 副本函数体抽到临时文件后 source 调用（副本读全局 $CONF；三份同名 conf_get 不可共存一 shell）
+copy_get() {
+  local f="$1" k="$2"
+  sed -n '/^conf_get() {/,/^}/p' "$CW_ROOT/scripts/$f" > "$B16/cg_$f.sh"
+  bash -c "CONF='$B16/fixture.conf'; source '$B16/cg_$f.sh'; conf_get '$k'"
+}
+ok "成对双引号内 # 保留" "$(lib_get K_QH)" "a#b"
+ok "成对单引号内空格保留" "$(lib_get K_SQ)" "a b"
+ok "空白+行内注释截断" "$(lib_get K_HC)" "x"
+ok "CRLF 去尾部回车" "$(lib_get K_CR | cat -v)" "unquoted"
+ok "普通值原样" "$(lib_get K_PL)" "normal"
+rc22=0; lib_get K_CM >/dev/null 2>&1 || rc22=$?
+ok "注释行整行跳过" "$rc22" "1"
+# 四实现输出完全一致（逐键比对 lib 与三份副本的原始字节）
+mismatch=0
+for k in K_QH K_SQ K_HC K_CR K_PL K_CM; do
+  l="$(lib_get "$k" 2>/dev/null || true)"
+  for f in cw-update.sh pr-automation.sh cw-greploop.sh; do
+    c="$(copy_get "$f" "$k" 2>/dev/null || true)"
+    [[ "$c" == "$l" ]] || mismatch=$((mismatch + 1))
+  done
+done
+ok "四实现输出完全一致" "$mismatch" "0"
+sanitize "$B16"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""

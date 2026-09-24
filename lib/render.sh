@@ -208,14 +208,22 @@ cw_chmod_scripts() {
 }
 
 # 从 conf 读取键值（B1：替代 `source "$CONF"`，杜绝值内命令注入）。
-# 语义对齐 source：跳过注释行；值取首个 `key=` 后的引号内内容；键不存在返回 1（调用方置空）。
+# 统一规范（F6+F8）：本实现与三份独立副本（scripts/cw-update.sh、scripts/pr-automation.sh、
+# scripts/cw-greploop.sh 的 conf_get）**逐字同语义**，改一处必同步四处，漏一处即漂移
+# （红证：副本先剥 # 后剥引号 → `"https://host/r#frag"` 返回悬空引号 `"https://host/r`；
+# lib 不剥行内注释 → `SKILLS_DIR=.opencode/skills # 注释` 会把文件装进垃圾目录；
+# lib 不剥 \r → CRLF conf 取值带回车）。回归锁在 test/install-update-e2e.sh 用例 22。
+# 规范：1) `#` 开头的整行注释跳过；2) 原始值 = 首个 `=` 之后的全部文本；3) 去尾部 \r；
+#       4) 值被**成对**的 " 或 ' 包裹（首尾同引号且长度≥2）→ 剥掉这对引号，内部 # 原样保留；
+#          否则仅在「空白 + #」处截断行内注释（`x # c` → `x`；无空白的 `r#frag` 保留）；
+#       5) 去尾部空白；6) 输出。键不存在返回 1（调用方置空）。
 # 注意：不能截断空格 —— `SKILLS_DIR="My Skills"` 这类含空格的值必须原样保留。
 cw_conf_get() {
   local file="$1" key="$2" line v
   [[ -f "$file" ]] || return 1
   # 末行无换行守卫（S1）：conf 若以无结尾换行的行收尾（编辑器截断 / printf 漏 \n），
   # 裸 read 对末行返回非 0 → 旧循环直接丢弃该行 → 末行键取值失败（红证：rc=1/空）。
-  # 与孪生副本（cw-greploop.sh:46 / cw-update.sh:54 的 conf_get）一致；漏一处即行为漂移。
+  # 与孪生副本（cw-greploop.sh / cw-update.sh 的 conf_get）一致；漏一处即行为漂移。
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
       \#*) continue ;;
@@ -223,12 +231,19 @@ cw_conf_get() {
     # 锚定行首（1.3.1 QA ISSUE-002）：子串匹配 *"$key="* 会被诱饵行误命中
     # （如 OLD_REPO= 在 REPO= 之前先子串命中 REPO=），故键必须位于行首。
     case "$line" in
-      "$key"=*) v="${line#"$key"=}" ;;
+      "$key"=*) v="${line#*=}" ;;
       *) continue ;;
     esac
-    v="${v#\"}"
-    v="${v%%\"*}"
-    printf '%s' "$v"
+    v="${v%$'\r'}"
+    if [[ ${#v} -ge 2 && ${v:0:1} == '"' && ${v: -1} == '"' ]]; then
+      v="${v:1:${#v}-2}"
+    elif [[ ${#v} -ge 2 && ${v:0:1} == "'" && ${v: -1} == "'" ]]; then
+      v="${v:1:${#v}-2}"
+    else
+      v="${v%%[[:space:]]#*}"
+    fi
+    v="${v%"${v##*[![:space:]]}"}"
+    printf '%s\n' "$v"
     return 0
   done < "$file"
   return 1

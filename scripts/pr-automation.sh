@@ -41,27 +41,35 @@ cd "$REPO_ROOT"
 # 目标项目根放置 .change-workflow.conf（由 setup.sh 生成）；缺失则用内置默认值。
 # 不 source conf（B1/RCE 边界）：conf 提交进消费仓且**不受管**（INSTALL.md:133），
 # 恶意 PR 可在其中追加 shell（如 CMD_TEST="$(touch pwned)"），source 即执行。
-# 白名单逐键解析（与 cw-update.sh:52 同款 conf_get），只取字面值、不求值。
+# 白名单逐键解析（与 cw-update.sh 同款 conf_get），只取字面值、不求值。
+# 统一规范（F6+F8，与 lib/render.sh 的 cw_conf_get 及 cw-update.sh / cw-greploop.sh 的
+# conf_get 逐字同语义，改一处必同步四处，回归锁在 e2e 用例 22）：
+#   1) `#` 开头的整行注释跳过；2) 原始值 = 首个 `=` 之后的全部文本；3) 去尾部 \r；
+#   4) 值被**成对**的 " 或 ' 包裹（首尾同引号且长度≥2）→ 剥掉这对引号，内部 # 原样保留；
+#      否则仅在「空白 + #」处截断行内注释（`x # c` → `x`；无空白的 `r#frag` 保留）；
+#   5) 去尾部空白；6) 输出。键不存在返回 1。
 CONF="$REPO_ROOT/.change-workflow.conf"
 conf_get() {
   local key="$1" line v
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
-      "$key"=*)
-        v="${line#*=}"
-        v="${v%$'\r'}"
-        case "$v" in
-          *'#'*) v="${v%%#*}" ;;
-        esac
-        v="${v%"${v##*[![:space:]]}"}"
-        case "$v" in
-          \"*\") v="${v#\"}"; v="${v%\"}" ;;
-          \'*\') v="${v#\'}"; v="${v%\'}" ;;
-        esac
-        printf '%s\n' "$v"
-        return 0
-        ;;
+      \#*) continue ;;
     esac
+    case "$line" in
+      "$key"=*) v="${line#*=}" ;;
+      *) continue ;;
+    esac
+    v="${v%$'\r'}"
+    if [[ ${#v} -ge 2 && ${v:0:1} == '"' && ${v: -1} == '"' ]]; then
+      v="${v:1:${#v}-2}"
+    elif [[ ${#v} -ge 2 && ${v:0:1} == "'" && ${v: -1} == "'" ]]; then
+      v="${v:1:${#v}-2}"
+    else
+      v="${v%%[[:space:]]#*}"
+    fi
+    v="${v%"${v##*[![:space:]]}"}"
+    printf '%s\n' "$v"
+    return 0
   done < "$CONF"
   return 1
 }
