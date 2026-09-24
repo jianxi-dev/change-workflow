@@ -289,6 +289,16 @@ ok "./前缀归一后 manifest 恰 1 行" "$(awk '{ rest=$0; sub(/^[^[:space:]]+
 set_version "0.8.0"
 rc11e=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc11e=$?
 ok "./前缀接受后 update 归一" "$rc11e" "0"
+# --force 清 LOCAL 哨兵回归锁：force = 显式采用上游 → 基线必须归一（红证：force 后
+# manifest 仍 LOCAL，模板演进被「本地保留」静默跳过，文件永远停在旧版）
+"$CW_ROOT/update.sh" --target "$PWD" --force >/dev/null 2>&1 || true
+ok "force 后 LOCAL 哨兵已清除" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/domain.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
+cp -R "$CW_ROOT" "$B5/tk2"
+echo "## v2 演进内容" >> "$B5/tk2/docs/agents/domain.md"
+set_version "0.7.0"
+rc11f=0; "$B5/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || rc11f=$?
+ok "force 后演进归一退 0" "$rc11f" "0"
+ok "演进内容已跟进" "$(grep -c 'v2 演进内容' docs/agents/domain.md)" "1"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────

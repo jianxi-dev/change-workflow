@@ -330,6 +330,10 @@ baseline_of() {
 
 UPDATED=0; ADDED=0; CURRENT=0; CONFLICTED=0; LOCAL_KEPT=0
 CONFLICT_LIST=()
+# --force 覆盖过的文件清单：force = 用户显式采用上游，基线必须归一为当前内容哈希。
+# 红证：LOCAL 文件被 --force 覆盖后 manifest 仍是 LOCAL，下次模板演进时该文件被
+# 「本地保留」静默跳过 —— 用户已放弃本地版，哨兵却永久生效（内容与基线双双失真）。
+FORCED_LIST=()
 
 while IFS='|' read -r tpl_rel dst_rel; do
   [[ -n "$tpl_rel" ]] || continue
@@ -365,7 +369,7 @@ while IFS='|' read -r tpl_rel dst_rel; do
   if [[ "$FORCE" == "1" ]]; then
     log "强制覆盖：${dst}（备份 .bak）"
     if [[ "$DRY_RUN" != "1" ]]; then cw_atomic_cp "${dst}" "${dst}.bak"; cw_atomic_cp "$TMP" "${dst}"; fi
-    UPDATED=$((UPDATED + 1)); rm -f "$TMP"; continue
+    UPDATED=$((UPDATED + 1)); FORCED_LIST+=("${dst}"); rm -f "$TMP"; continue
   fi
 
   # 哨兵基线 LOCAL：用户显式选择「保留本地」（--accept-local）→ 永久跳过，不更新也不报冲突
@@ -398,6 +402,12 @@ is_conflicted() {
   return 1
 }
 
+is_forced() {
+  local p="$1" c
+  for c in "${FORCED_LIST[@]:-}"; do [[ "$c" == "$p" ]] && return 0; done
+  return 1
+}
+
 if [[ "$DRY_RUN" != "1" ]]; then
   # 受管文件若被换成符号链接，重定向/覆盖会写穿到链接指向处（C2）—— 写 manifest/conf 前先拒绝
   cw_refuse_symlink "$MANIFEST" "基线清单"
@@ -416,6 +426,12 @@ if [[ "$DRY_RUN" != "1" ]]; then
     dst="${dst_rel/__SKILLS_DIR__/$SKILLS_DIR}"
     dst="${dst/__DOCS_DIR__/$DOCS_DIR}"
     [[ -f "${dst}" ]] || continue
+    # --force 覆盖过的文件：最先处理（先于 conflicted/LOCAL 判断），基线归一为当前哈希。
+    # force = 显式采用上游，旧 LOCAL 哨兵必须清除，否则后续演进被「本地保留」静默跳过。
+    if is_forced "${dst}"; then
+      printf '%s  %s\n' "$(cw_sha "${dst}")" "${dst}" >> "$_mft_tmp"
+      continue
+    fi
     if is_conflicted "${dst}"; then
       prev="$(awk -v p="${dst}" '{ sha=$1; rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == p) { print sha; exit } }' "$OLD_BASELINES")"
       [[ -n "$prev" ]] && printf '%s  %s\n' "$prev" "${dst}" >> "$_mft_tmp"
