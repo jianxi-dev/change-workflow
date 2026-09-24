@@ -133,7 +133,8 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
       warn "注意：${p} 仍有未处理的 ${p}.new —— 接受本地后将不再提示，请确认不再需要它"
     fi
     tmp_manifest="$(mktemp)"
-    if [[ -f "$MANIFEST" ]]; then awk -v p="$p" '$2 != p' "$MANIFEST" > "$tmp_manifest"; fi
+    # 过滤同按「剩余整串」比较（R3）：旧 `$2 != p` 对空格路径永不命中 → 旧行残留、LOCAL 不生效
+    if [[ -f "$MANIFEST" ]]; then awk -v p="$p" '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest != p) print }' "$MANIFEST" > "$tmp_manifest"; fi
     printf 'LOCAL  %s\n' "$p" >> "$tmp_manifest"
     mv "$tmp_manifest" "$MANIFEST"
     log "已接受本地版本（此后永久跳过）：${p}"
@@ -305,9 +306,15 @@ DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 SKILLS_DIR="${SKILLS_DIR:-.opencode/skills}"
 DOCS_DIR="${DOCS_DIR:-docs/agents}"
 
+# manifest 行格式「<sha>  <path>」，path 可含空格（SKILLS_DIR="My Skills" 等，R3）。
+# 读取端一律按「行首哈希 + 剩余整串」比较，绝不用 $2 —— awk 默认按空白拆列，
+# $2 只拿到路径第一段，空格路径永远匹配不上：baseline_of 误报「无基线记录」→ .new + rc=1，
+# 且重写时旧行被丢弃（红证：accept-local 后 manifest 中该文件 0 行，永不归一）。
+# 写法：sha=$1 后 sub 掉「首个非空格 token + 其后空格」，rest 即完整路径。
+# 写入端（printf '%s  %s\n'）不变 —— 只有读取端需要容错。
 baseline_of() {
   [[ -f "$MANIFEST" ]] || return 0
-  awk -v p="$1" '$2 == p { print $1; exit }' "$MANIFEST"
+  awk -v p="$1" '{ sha=$1; rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == p) { print sha; exit } }' "$MANIFEST"
 }
 
 UPDATED=0; ADDED=0; CURRENT=0; CONFLICTED=0; LOCAL_KEPT=0
@@ -399,12 +406,12 @@ if [[ "$DRY_RUN" != "1" ]]; then
     dst="${dst/__DOCS_DIR__/$DOCS_DIR}"
     [[ -f "${dst}" ]] || continue
     if is_conflicted "${dst}"; then
-      prev="$(awk -v p="${dst}" '$2 == p { print $1; exit }' "$OLD_BASELINES")"
+      prev="$(awk -v p="${dst}" '{ sha=$1; rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == p) { print sha; exit } }' "$OLD_BASELINES")"
       [[ -n "$prev" ]] && printf '%s  %s\n' "$prev" "${dst}" >> "$_mft_tmp"
       continue
     fi
     # 保留 LOCAL 哨兵（--accept-local 的选择），勿覆盖回真实哈希
-    prev="$(awk -v p="${dst}" '$2 == p { print $1; exit }' "$OLD_BASELINES")"
+    prev="$(awk -v p="${dst}" '{ sha=$1; rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == p) { print sha; exit } }' "$OLD_BASELINES")"
     if [[ "$prev" == "LOCAL" ]]; then
       printf 'LOCAL  %s\n' "${dst}" >> "$_mft_tmp"
       continue

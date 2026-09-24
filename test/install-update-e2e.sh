@@ -537,6 +537,52 @@ ok "仓外目录零写入" "$(ls -A "$OUTSIDE" | wc -l | tr -d ' ')" "0"
 ok "父目录链接未被替换" "$([[ -L scripts ]] && echo y)" "y"
 sanitize "$B12"
 
+# ── 用例 19：空格目录 manifest 解析（R3）──────────────────────────────────────
+# manifest 行「<sha>  <path>」的 path 可含空格；旧读取端用 awk $2 比较 → 空格路径
+# 永远「无基线记录」→ .new + rc=1，且重写丢行、--accept-local 永不粘住（每次复发）。
+echo ""
+echo "[19] 空格目录 manifest 解析"
+B13="$(mktemp -d)"; new_repo "$B13/repo" || exit 1
+cat > .change-workflow.conf <<EOF
+TOOLKIT_VERSION="1.0.0"
+EFFECTIVE_DATE="2026-01-01"
+REPO="acme/demo"
+OWNER="acme"
+DEFAULT_BRANCH="main"
+PROJECT_ID="PVT_demo"
+STATUS_FIELD_ID="PVTSSF_demo"
+OPT_BACKLOG="b1" OPT_READY="r1" OPT_IN_PROGRESS="p1" OPT_DONE="d1"
+SKILLS_DIR="My Skills"
+DOCS_DIR="My Docs"
+EOF
+touch .change-workflow.manifest
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+ok "空格目录已安装" "$([[ -f 'My Docs/domain.md' && -f 'My Skills/change-workflow/SKILL.md' ]] && echo y)" "y"
+cp -R "$CW_ROOT" "$B13/tk2"
+echo "## vNEXT 空格演进测试" >> "$B13/tk2/docs/agents/domain.md"
+set_version "1.0.0"
+rc19=0; out19="$("$B13/tk2/update.sh" --target "$PWD" 2>&1)" || rc19=$?
+ok "空格路径更新退 0" "$rc19" "0"
+ok "空格路径已同步" "$(grep -c 'vNEXT 空格演进测试' 'My Docs/domain.md')" "1"
+case "$out19" in *"无基线记录"*) r19=1 ;; *) r19=0 ;; esac
+ok "无「无基线记录」误报" "$r19" "0"
+set_version "1.0.0"
+out19b="$("$B13/tk2/update.sh" --target "$PWD" 2>&1 || true)"
+case "$out19b" in *"已最新 18"*) r19b=0 ;; *) r19b=1 ;; esac
+ok "二次运行已最新" "$r19b" "0"
+# --accept-local 对空格路径生效：本地修改 → 冲突 → 接受 → 归一且哨兵粘住
+echo "## 本地定制" >> "My Docs/triage-labels.md"
+set_version "1.0.0"
+rc19c=0; "$B13/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || rc19c=$?
+ok "空格路径本地修改报冲突" "$rc19c" "1"
+"$B13/tk2/update.sh" --target "$PWD" --accept-local "My Docs/triage-labels.md" >/dev/null 2>&1 || true
+ok "accept-local 记 LOCAL 哨兵" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="My Docs/triage-labels.md") print $1 }' .change-workflow.manifest)" "LOCAL"
+set_version "0.9.0"
+rc19d=0; "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || rc19d=$?
+ok "accept-local 后再更新归一" "$rc19d" "0"
+ok "空格路径本地内容保留" "$(grep -c '## 本地定制' 'My Docs/triage-labels.md')" "1"
+sanitize "$B13"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="
