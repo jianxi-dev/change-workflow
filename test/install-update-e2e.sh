@@ -342,16 +342,28 @@ ok "dry-run 本地保留计数一致" "$r11j" "0"
 # （红证：accept-local → rm → update：新增 1 · 本地保留 0，grep -c '^LOCAL' 为 1）。
 rm docs/agents/pr-writing.md
 out11k="$("$B5/tk2/update.sh" --target "$PWD" --dry-run 2>&1 || true)"
-case "$out11k" in *"本地保留 1"*) r11k=0 ;; *) r11k=1 ;; esac
-ok "缺失+LOCAL dry-run 计本地保留" "$r11k" "0"
+ok "缺失+LOCAL dry-run 计本地保留" "$(printf '%s' "$out11k" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "1"
 rc11l=0; out11l="$("$B5/tk2/update.sh" --target "$PWD" 2>&1)" || rc11l=$?
 ok "缺失+LOCAL 真实更新退 0" "$rc11l" "0"
 ok "缺失+LOCAL 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo y)" "y"
-case "$out11l" in *"本地保留 1"*) r11l=0 ;; *) r11l=1 ;; esac
-ok "缺失+LOCAL 真实更新计本地保留" "$r11l" "0"
+ok "缺失+LOCAL 真实更新计本地保留" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "1"
 ok "缺失+LOCAL kept==^LOCAL" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11l="$(printf '%s' "$out11l" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
 ok "缺失+LOCAL 五桶和==18" "$(( ${m11l:-0} ))" "18"
+# 对抗轮7 回归锁：缺失 + LOCAL 哨兵 + --force —— force 优先于 LOCAL 哨兵（与等值/差异路径
+# 同原则），缺失分支必须归一：计 ADDED + 记 FORCED_LIST → manifest 重写走哈希归一分支。
+# 旧缺陷：缺失分支无 force 分流 → --force 仍走 LOCAL 保留分支 → 文件被「本地保留」永久
+# 冻结，模板演进永不跟进（红证：accept-local → rm → --force：本地保留 1 · 哨兵仍在）。
+rm docs/agents/pr-writing.md
+out11m="$("$B5/tk2/update.sh" --target "$PWD" --dry-run --force 2>&1 || true)"
+ok "缺失+LOCAL force dry-run 计新增非保留" "$(printf '%s' "$out11m" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "0"
+rc11n=0; out11n="$("$B5/tk2/update.sh" --target "$PWD" --force 2>&1)" || rc11n=$?
+ok "缺失+LOCAL force 真实更新退 0" "$rc11n" "0"
+ok "缺失+LOCAL force 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo y)" "y"
+ok "缺失+LOCAL force 哨兵归一" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/pr-writing.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
+ok "缺失+LOCAL force kept==^LOCAL" "$(printf '%s' "$out11n" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
+m11n="$(printf '%s' "$out11n" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
+ok "缺失+LOCAL force 五桶和==18" "$(( ${m11n:-0} ))" "18"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
@@ -584,7 +596,7 @@ sanitize "$B9"
 
 # ── 用例 16：符号链接拒绝（C2 边界）──────────────────────────────────────────
 # 受管文件被换成符号链接时，重定向/覆盖会写穿到链接指向处 —— cw_refuse_symlink
-# 必须在任何写入前退 1（lib/render.sh:62-68；update.sh:132/194/258-259/451-452）。
+# 必须在任何写入前退 1（lib/render.sh:62-68；update.sh:132/194/258-259/452-453）。
 echo ""
 echo "[16] 符号链接拒绝"
 B10="$(mktemp -d)"
