@@ -365,7 +365,13 @@ while IFS='|' read -r tpl_rel dst_rel; do
     # 发布契约在该状态（accept-local → rm）下必然误报不可发布。
     # 红证：accept-local → rm 文件 → update：新增 1 · 本地保留 0，而 grep -c '^LOCAL' 为 1。
     # 重装仍执行（缺失文件恢复上游内容），仅计数改道；dry-run 与真实同路径，计数一致。
-    if [[ "$(baseline_of "${dst}")" == "LOCAL" ]]; then
+    # 对抗轮7：--force 优先于 LOCAL 哨兵（同 :405-411 既有分支）。缺失文件被 --force
+    # 重装 = 用户显式采用上游 → 必须记 FORCED_LIST，使 manifest 重写把哨兵归一为当前哈希；
+    # 否则哨兵永久存活，下次模板演进该文件被「本地保留」静默跳过（内容与基线双双失真）。
+    if [[ "$FORCE" == "1" ]]; then
+      log "新增（强制覆盖）：${dst}"
+      ADDED=$((ADDED + 1)); FORCED_LIST+=("${dst}")
+    elif [[ "$(baseline_of "${dst}")" == "LOCAL" ]]; then
       log "新增（本地保留）：${dst}"
       LOCAL_KEPT=$((LOCAL_KEPT + 1))
     else
