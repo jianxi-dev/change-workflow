@@ -68,7 +68,7 @@ source 语义。
   `cw-greploop.sh` 候选根加符号链接围栏
 - CI 信号：workflow 标签提取对齐统一解析语义（去 `grep -q` 管道的 pipefail SIGPIPE
   假失败 + 注释/CR 处理）；SKILL.md 标注标签名可由 conf 改写
-- e2e：101 → 170 断言（+69），每项修复均先红后绿回归锁
+- e2e：101 → 176 断言（+75），每项修复均先红后绿回归锁
 
 ### 教训反思
 
@@ -103,7 +103,7 @@ source 语义。
 
 ```
 $ ./test/install-update-e2e.sh
- 通过 170 · 失败 0            # 76 → 170：+94 断言（case 8 exec 位 +3、case 15 退出码契约 +14、case 16 符号链接 +3、case 17 受管脚本符号链接 +5、case 12 恶意源信任门 +2、case 18 父目录符号链接 +3、case 1/5 模式保持 +5、case 15 ALLOW_REPO +3 与 greploop 穿越 +3、case 19 空格 manifest +9、case 20 conf 末行守卫 +1、case 21 accept-local 符号链接闸 +3、case 21 accept-local 模式保持 +1、case 11 ./ 前缀归一 +3 与 --force 清 LOCAL 哨兵 +3、case 22 conf 解析器四实现一致 +7、case 15 greploop 符号链接围栏 +2、case 22 引号+注释组合 +4、case 19 CRLF 清单 +4、case 11 force 等值路径 +3、case 22 workflow 标签提取 +3、case 11 LOCAL+等值计数 +4、case 11 缺失+LOCAL 计数 +6）
+ 通过 176 · 失败 0            # 76 → 176：+100 断言（case 8 exec 位 +3、case 15 退出码契约 +14、case 16 符号链接 +3、case 17 受管脚本符号链接 +5、case 12 恶意源信任门 +2、case 18 父目录符号链接 +3、case 1/5 模式保持 +5、case 15 ALLOW_REPO +3 与 greploop 穿越 +3、case 19 空格 manifest +9、case 20 conf 末行守卫 +1、case 21 accept-local 符号链接闸 +3、case 21 accept-local 模式保持 +1、case 11 ./ 前缀归一 +3 与 --force 清 LOCAL 哨兵 +3、case 22 conf 解析器四实现一致 +7、case 15 greploop 符号链接围栏 +2、case 22 引号+注释组合 +4、case 19 CRLF 清单 +4、case 11 force 等值路径 +3、case 22 workflow 标签提取 +3、case 11 LOCAL+等值计数 +4、case 11 缺失+LOCAL 计数 +6、case 11 强制覆盖缺失+LOCAL 哨兵 +6）
 $ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
  消费仓 3 个 · 通过 9 · 失败 0
 ```
