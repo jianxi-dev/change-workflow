@@ -24,7 +24,7 @@ change-workflow/
 ├── skills/change-workflow/   # 模板源 → 装到 <SKILLS_DIR>（默认 .opencode/skills）
 ├── docs/agents/              # 模板源 → 装到 <DOCS_DIR>（12 份规范）
 ├── workflows/                # 模板源 → 装到 .github/workflows/change-closure-signal.yml
-├── test/install-update-e2e.sh # 22 用例 / 160 断言（CI 第 8 步全量跑；唯一权威验证）
+├── test/install-update-e2e.sh # 22 用例 / 164 断言（CI 第 8 步全量跑；唯一权威验证）
 ├── test/rollout-check.sh     # 消费仓滚动验证（发布前本地门禁；CI 无消费仓检出，跑不了）
 ├── .opencode/                # openspec init 产物：6 个 opsx-* 命令 + 6 个 openspec-* 技能
 ├── openspec/                 # openspec 项目数据（config.yaml / changes / specs）
@@ -112,7 +112,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 ## COMMANDS
 
 ```bash
-# 唯一权威验证：22 用例 / 160 断言（CI 第 8 步跑的就是它）
+# 唯一权威验证：22 用例 / 164 断言（CI 第 8 步跑的就是它）
 ./test/install-update-e2e.sh
 
 # 发布前本地门禁：本工具包 HEAD 装到每个消费仓都不冲突（CI 无消费仓检出，跑不了）
