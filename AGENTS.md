@@ -63,7 +63,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 | `install_rendered` | fn | `setup.sh:184` | 2 | 首装渲染安装循环 |
 | `toolkit_source` / `upsert_conf` | fn | `update.sh:177` / `:192` | 3 / 3 | conf 写 `TOOLKIT_SOURCE`（供项目自升级） |
 | `is_in_list` | fn | `update.sh:168` | 3 | 数组遍历（**禁止 nameref** 的产物） |
-| `baseline_of` / `is_conflicted` | fn | `update.sh:334` / `:438` | 2 / 2 | 基线查询 / 冲突文件跳过基线重写 |
+| `baseline_of` / `is_conflicted` | fn | `update.sh:334` / `:444` | 2 / 2 | 基线查询 / 冲突文件跳过基线重写 |
 | `needs_bootstrap` | fn | `update.sh:206` | 2 | 无基线 → 接管模式 |
 | `validate_whitelist` / `in_files` | fn | `scripts/pr-automation.sh:188` / `:181` | 2 / 3 | G2 显式白名单（禁 `git add -A`） |
 | `run_gate` / `usage` | fn | `scripts/pr-automation.sh:111` / `:106` | 4 / 7 | 四件套门禁 / 用法（**`--help` 退 1**） |
@@ -87,7 +87,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 - **禁止把「当前内容哈希」记为基线**：基线只有一个含义 = 工具包上次写入的内容；「永不触碰」用 `LOCAL` 哨兵表达（`CHANGELOG.md:308-309`、`update.sh:118-122`）。混用会导致下次升级静默覆盖用户定制（1.1.5 真实损害）。
 - **禁止覆盖本地已改文件**：写 `<file>.new` + exit 1（`update.sh:19`）。
 - **禁止给接管模式下的「不同」文件写基线**：否则 `.new` 未处理就被冲掉（`update.sh:249-251`）。
-- **禁止把 `LOCAL` 哨兵重写回真实哈希**（`update.sh:480-485`；`test:273/:280` 回归锁）。
+- **禁止把 `LOCAL` 哨兵重写回真实哈希**（`update.sh:486-491`；`test:273/:280` 回归锁）。
 - **禁止 `git reset --hard` / `git clean` / `git checkout -- <path>` 处理共享工作区**（`docs/agents/incident-uncommitted-work-loss.md:156-165`）；收尾后禁止切回任务前分支（`incident-merge-local-workspace.md:27-32`）。
 - **门禁不可豁免项**：QG-3/4/5、DQ-1/2/3/4/5/8；可豁免的 QG-1/QG-2 必须**票作者显式声明**，不得默认（`quality-gates.md:319-341`）。
 - 「测试通过」「已修复」「冒烟正常」是**结论不是证据**，不予采信（`quality-gates.md:315`）。

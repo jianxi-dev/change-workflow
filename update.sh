@@ -365,7 +365,7 @@ while IFS='|' read -r tpl_rel dst_rel; do
     # 发布契约在该状态（accept-local → rm）下必然误报不可发布。
     # 红证：accept-local → rm 文件 → update：新增 1 · 本地保留 0，而 grep -c '^LOCAL' 为 1。
     # 重装仍执行（缺失文件恢复上游内容），仅计数改道；dry-run 与真实同路径，计数一致。
-    # 对抗轮7：--force 优先于 LOCAL 哨兵（同 :405-411 既有分支）。缺失文件被 --force
+    # 对抗轮7：--force 优先于 LOCAL 哨兵（同 :411-417 既有分支）。缺失文件被 --force
     # 重装 = 用户显式采用上游 → 必须记 FORCED_LIST，使 manifest 重写把哨兵归一为当前哈希；
     # 否则哨兵永久存活，下次模板演进该文件被「本地保留」静默跳过（内容与基线双双失真）。
     if [[ "$FORCE" == "1" ]]; then
@@ -389,7 +389,7 @@ while IFS='|' read -r tpl_rel dst_rel; do
   if [[ "$current_sha" == "$new_sha" ]]; then
     # 对抗轮4 Gap A：--force 时等值路径也必须记 FORCED_LIST。旧写法在 current==new 时
     # 提前 continue，先于下方 --force 分支触发 → 等值文件不进名单 → manifest 重写走
-    # LOCAL 保留分支（:480 一带）→ 陈旧 LOCAL 在 --force 后仍存活，文件被「本地保留」
+    # LOCAL 保留分支（:486 一带）→ 陈旧 LOCAL 在 --force 后仍存活，文件被「本地保留」
     # 永久跳过（红证：accept-local → mv .new → --force 后哨兵仍 LOCAL、演进不跟进）。
     # force = 显式采用上游：基线必须归一；内容已一致，故不补写文件、不备份。
     # 对抗轮5 MAJOR：等值路径必须按基线分流计数，不能一律「已最新」。为什么：LOCAL
