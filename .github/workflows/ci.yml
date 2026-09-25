@@ -92,8 +92,8 @@ jobs:
       - name: 无仓库特有值残留
         run: |
           # 排除 AGENTS.md：目录级知识库本就需要指名下列禁串（它是规则文本，不会被安装到消费仓）
-          hits="$(grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_' \
-               docs/agents skills scripts workflows 2>/dev/null | grep -v 'AGENTS\.md$' || true)"
+          hits="$(grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_\|apps/web\|packages/editor\|packages/renderer\|pnpm\|@md-bundle' \
+               docs/agents skills scripts workflows setup.sh config.example.conf 2>/dev/null | grep -v 'AGENTS\.md$' || true)"
           if [ -n "$hits" ]; then
             echo "❌ 模板含仓库特有值（安装到其它仓库会指向错误目标）:"; echo "$hits"; exit 1
           fi

@@ -20,4 +20,4 @@
 
 ## 项目补充标签
 
-缺陷严重级别、wave 标签、模块标签等详见 `docs/agents/issue-tracker.md`。
+缺陷严重级别、模块标签等详见 `docs/agents/issue-tracker.md`。

@@ -20,7 +20,7 @@
 
 - **一条 task 一票**：tasks.md 本身就是垂直切片粒度（每条约 1 commit），天然匹配。
 - **Parent = 源 issue（to-tickets/to-spec 原语）**：每张子票统一引用其来源 spec issue（G0-PRE 由 to-spec 创建）作为 Parent，**不另设 wave/change 级 parent**；对账锚点即该 spec issue（§4）。
-- 标题前缀防刷屏：`[change=md-bundle-v2/1.3]` 格式。
+- 标题前缀防刷屏：`[change=<change名>/<task号>]` 格式。
 
 ## 3. 发布规则（走 GitHub issue）
 
@@ -31,7 +31,7 @@ to-tickets 流程在本仓库一律发布为 GitHub issue（不使用本地 `.sc
 - **What to build**：从用户视角描述端到端行为
 - **Acceptance criteria**：具体可验证的 AC 清单（**须满足 QG-1**，见下）
 - **Blocked by**：阻塞它的其他 ticket 引用（无则 "None — can start immediately"）
-- **接线归属**（QG-3）：本票导出的新 API 由**哪张票**负责接进 `apps/web`，及其**具体接线位置**
+- **接线归属**（QG-3）：本票导出的新 API 由**哪张票**负责接进应用层，及其**具体接线位置**
 - 标签：`ready-for-agent` + 模块标签，或加 `no-ui-impact`（豁免 QG-1/QG-2）
 
 ### 3.1 AC 质量门禁（QG-1 / QG-3）
@@ -41,19 +41,19 @@ to-tickets 流程在本仓库一律发布为 GitHub issue（不使用本地 `.sc
 **QG-1｜面向用户的票，AC 必须含浏览器可观测陈述**：
 
 ```
-在 `pnpm --filter @md-bundle/web dev` 打开的页面中，
+在 `<dev 命令>` 打开的页面中，
 <具体操作> 之后，<可具体观测的结果>。
-验证：apps/web/test/<feature>.spec.ts 通过。
+验证：<E2E_DIR> 下对应 e2e 用例通过。
 ```
 
-**反向验收判据**：若一条 AC 能在**不修改 `apps/web`** 的前提下被满足 → 票切错了（QG-7）。
+**反向验收判据**：若一条 AC 能在**不修改应用层** 的前提下被满足 → 票切错了（QG-7）。
 
 **QG-3｜分派接线**：任何导出新 API 的票，必须显式指定接线票与接线位置；无引用且未指定 → 拒票。
 
 **禁入信号（出现任一即拒票）**：
 - AC 全部是库层断言（如「`getBlocks()` 返回块数组」「类型检查通过」）
 - AC 无法用「打开页面操作一次」验证
-- 导出新 API 却无 `apps/web` 引用、且未指定接线票
+- 导出新 API 却无应用层引用、且未指定接线票
 
 ## 4. 子票关联与对账（Parent = 源 spec issue）
 
@@ -96,12 +96,12 @@ to-tickets 拆出的每张子票统一引用其**来源 issue**（G0-PRE 由 to-
 | `implement` | 总编排：按 spec/tickets 实施，自动内嵌 tdd + 定期 typecheck/test，完成后调 code-review | ✅ 必用 |
 | `tdd` | 测试先行（红→绿 + 垂直切片），锁定行为契约。**测试须满足 QG-4**（驱动真实路径，禁止绕过 keymap/事件/公共 API） | ✅ implement 内嵌 |
 | `programming` | 代码规范对照（no any / 250 LOC 上限） | 可选叠加 |
-| 四件套硬门禁 | `pnpm -r typecheck/lint/test`（+e2e 涉及时），push 前强制 | ✅ `pr-automation.sh` 已内置 |
-| **e2e 硬门禁（QG-2）** | 用户可见变更**必须**新增/扩展 `apps/web/test/*.spec.ts`，否则票上须有 `no-ui-impact` | ✅ **新增门禁，push 前强制** |
+| 四件套硬门禁 | 本仓门禁命令（`.change-workflow.conf` 的 `CMD_TYPECHECK`/`CMD_LINT`/`CMD_TEST`，+e2e 涉及时），push 前强制 | ✅ `pr-automation.sh` 已内置 |
+| **e2e 硬门禁（QG-2）** | 用户可见变更**必须**新增/扩展 e2e 用例，否则票上须有 `no-ui-impact` | ✅ **新增门禁，push 前强制** |
 | **独立验证（QG-5）** | 验证者跑自己的探针并把**原始输出**粘贴到票上；未附原始证据的「已完成」不予采信 | ✅ **新增门禁** |
-| **集成 checkpoint（QG-6）** | change ≥6 票时，每 ≤4 票合并 + `pnpm -r build` + 浏览器打开一次 | ✅ **新增门禁** |
+| **集成 checkpoint（QG-6）** | change ≥6 票时，每 ≤4 票合并 + 本仓构建命令 + 浏览器打开一次 | ✅ **新增门禁** |
 
-> **QG-2 的由来（2026-09-20）**：`editor-v2` change 期间新增 e2e 为 **0**，CI 跑的是 v1 旧行为——「CI 绿」只等于「旧功能没坏」，与「新功能存在」逻辑上无关。CI 已在跑 e2e，此门禁**不增加基建成本**，只是让覆盖跟上新功能。完整根因见 `docs/agents/retro-editor-v2-quality.md`。
+> **QG-2 的由来（2026-09-20）**：源项目某 change 期间新增 e2e 为 **0**，CI 跑的是旧行为——「CI 绿」只等于「旧功能没坏」，与「新功能存在」逻辑上无关。CI 已在跑 e2e，此门禁**不增加基建成本**，只是让覆盖跟上新功能。完整根因见源项目质量复盘。
 
 ### 7.2 执行后（提交前自审）
 

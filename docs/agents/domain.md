@@ -24,10 +24,9 @@
 ├── AGENTS.md              ← 当前项目知识库
 ├── CONTEXT.md             ← 待 /domain-modeling 按需创建
 ├── docs/adr/
-│   └── 0002-editing-paradigm-and-shared-renderer.md
-├── apps/web/
-├── packages/editor/
-└── packages/renderer/
+│   └── 0001-<决策主题>.md
+├── <app 目录>/
+└── <包目录>/
 ```
 
 ## 使用术语表词汇

@@ -5,7 +5,7 @@
 ---
 name: change-workflow
 description: 变更生命周期总编排——保证 change 全流程（spec 归一化 → openspec 规划 → 拆票 → 实施 → 提交/PR → 收尾 → 归档）按仓库规范执行。启动新 change / 接手进行中 change / 拆子票 / 任务级收尾 / change 级收尾检测时使用。
-allowed-tools: Bash(gh:*|git:*|openspec:*|pnpm:*)
+allowed-tools: Bash(gh:*|git:*|openspec:*)
 ---
 
 # Change Workflow — 变更生命周期总编排
@@ -34,7 +34,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*|pnpm:*)
 | `pr-automation.sh` | 脚本（G2 机械动作：门禁/提交/push/PR） |
 | `cw-evidence.sh` | 脚本（G1 出口·QG-5 证据采集：按证据分层协议采集 before/after 成对产物，落 `.artifacts/<票号>/`；无 ffmpeg/GUI 走 headless 降级） |
 | `cw-greploop.sh` | 脚本（G2 可选·Greptile 审查闭环：PR 创建后 risk-medium/high 合并确认前调用；无 Greptile 降级为本地审查闭环并显式标注） |
-| `gh` / `git` / `openspec` CLI / `pnpm` | CLI 工具（被 skill/脚本调用） |
+| `gh` / `git` / `openspec` CLI | CLI 工具（被 skill/脚本调用） |
 
 ## 会话启动：消费合并信号（跨会话自动收尾）
 
@@ -132,7 +132,7 @@ flowchart TB
 - 以四要素为输入调用 propose，生成 proposal/design/tasks.md，并确认 `openspec status --change <名> --json` 中 tasks 就绪
 - **切片约束注入**（切片只切一次）：propose 生成 tasks.md 时要求每条 task 满足 to-tickets 垂直切片原则（贯穿 schema→API→UI→test 全层 / 独立可演示可验证 / 适配单个 context window / prefactor 单独成条；过大或横向的 task 在 propose 阶段即切细）
 - **QG-7 判据（强制前置）**：每条 task 必须能回答「**这张票做完，用户能否在页面上看到点东西？**」不能 → 该 task 切错了，就地重切后再进入阶段三
-- **QG-3 前置**：tasks.md 中每条导出新 API 的 task，必须写明**接线归属**（由哪条 task 负责接进 `apps/web`，及具体接线位置）；无归属的接线工作不得留白
+- **QG-3 前置**：tasks.md 中每条导出新 API 的 task，必须写明**接线归属**（由哪条 task 负责接进应用层，及具体接线位置）；无归属的接线工作不得留白
 
 **阶段三 G0-POST（issue 发布面）｜执行：必调 to-tickets skill**
 
@@ -159,9 +159,9 @@ flowchart TB
 - implement 按 spec/tickets 实施，**内嵌 tdd**（红→绿 + 垂直切片）+ 定期 typecheck/test
 - **QG-4 测试约束**：测试必须驱动**真实链路**（keydown/keymap/事件/`EditorView` 公共 API），禁止直接调内部函数；测可见性须断言**计算样式**，禁止断言「元素存在」
 - **服务层架构自检**（条件触发：本票 diff 含新增共享逻辑或跨流程重复块时）：按 `docs/agents/code-structure.md` 的两层分离定义与四反模式清单自检；命中任一条须回修，不回修须在票上显式说明理由（如"当前仅单调用方，暂不抽取"）
-- 四件套硬门禁：`pnpm -r typecheck` / `pnpm -r lint` / `pnpm -r test`（涉 e2e 另跑）
-- **QG-2 e2e 硬门禁**：用户可见变更**必须**新增/扩展 `apps/web/test/*.spec.ts`；票上标 `no-ui-impact` 者豁免
-- **QG-6 集成 checkpoint**：change ≥6 票时，每完成 ≤4 票执行一次——合并到集成分支 → `pnpm -r build` → **浏览器打开一次** → 记录「用户现在能看到什么」
+- 四件套硬门禁：本仓门禁命令（`.change-workflow.conf` 的 `CMD_TYPECHECK` / `CMD_LINT` / `CMD_TEST`；涉 e2e 另跑 `CMD_E2E`）
+- **QG-2 e2e 硬门禁**：用户可见变更**必须**新增/扩展 e2e 用例（`<E2E_DIR>` 下）；票上标 `no-ui-impact` 者豁免
+- **QG-6 集成 checkpoint**：change ≥6 票时，每完成 ≤4 票执行一次——合并到集成分支 → 本仓构建命令 → **浏览器打开一次** → 记录「用户现在能看到什么」
 - commit 引用 `fixes #N` / `refs #N`
 - **任何「flaky」结论必须附复核证据**（重跑输出）；复核确认真实回归 → 进入缺陷处理机制（§7）
 - **G1 出口（顺序固定，全部通过才允许 commit）**：
@@ -172,7 +172,7 @@ flowchart TB
 
 > **QG-5 为何强制**（2026-09-20）：修复期抓出 **4 个「自测全绿但实际无效」**的交付，**4/4 全部由独立探针抓出，零例外**。自证无效。本地 e2e 单文件实测约 **16 秒**，成本极低。
 >
-> **QG-2 为何强制**（2026-09-20）：`editor-v2` change 的 9 个 PR 中 **8 个对 `apps/web/src` 与 e2e 双双零改动**，12 张票全部打勾、CI 全绿，而用户打开页面**看不到任何变化**。完整根因见 `docs/agents/retro-editor-v2-quality.md`。
+> **QG-2 为何强制**（2026-09-20）：源项目某 change 的 9 个 PR 中 **8 个对应用层与 e2e 双双零改动**，12 张票全部打勾、CI 全绿，而用户打开页面**看不到任何变化**。完整根因见源项目质量复盘。
 
 ### G2 提交/PR gate｜执行：pr-automation.sh（脚本机械动作）
 
@@ -270,4 +270,4 @@ gh issue list --label needs-triage --state open
 - ✗ 修改 `.github/ISSUE_TEMPLATE/bug.yml`（已是 `[bug]` 前缀）
 - ✗ 发版走 PR 评审（发版 = `VERSION`+`CHANGELOG`+tag，不改代码；功能 PR 已在 G2 评审过）
 - ✗ 复制 to-tickets/to-spec 的拆票/规格逻辑（以其 SKILL.md 为单一事实来源）
-- ✗ cross-repo 复用部署（mdpkg/clairis 各仓独立配置）
+- ✗ cross-repo 复用部署（各消费仓独立配置）
