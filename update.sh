@@ -359,9 +359,20 @@ while IFS='|' read -r tpl_rel dst_rel; do
   cw_render "$tpl" "$TMP"
 
   if [[ ! -f "${dst}" ]]; then
-    log "新增：${dst}"
+    # 三桶唯一性（对抗轮6）：基线 LOCAL = 用户 --accept-local 的显式保留决定，文件缺失
+    # 不撤销它 —— 下方 manifest 重写仍会原样保留哨兵（LOCAL 保留分支）。若此处计 ADDED，
+    # 汇总「本地保留」与 ^LOCAL 行数背离 → rollout-check 的 kept==grep -c '^LOCAL'
+    # 发布契约在该状态（accept-local → rm）下必然误报不可发布。
+    # 红证：accept-local → rm 文件 → update：新增 1 · 本地保留 0，而 grep -c '^LOCAL' 为 1。
+    # 重装仍执行（缺失文件恢复上游内容），仅计数改道；dry-run 与真实同路径，计数一致。
+    if [[ "$(baseline_of "${dst}")" == "LOCAL" ]]; then
+      log "新增（本地保留）：${dst}"
+      LOCAL_KEPT=$((LOCAL_KEPT + 1))
+    else
+      log "新增：${dst}"
+      ADDED=$((ADDED + 1))
+    fi
     if [[ "$DRY_RUN" != "1" ]]; then cw_atomic_cp "$TMP" "${dst}"; fi
-    ADDED=$((ADDED + 1))
     rm -f "$TMP"; continue
   fi
 
@@ -372,7 +383,7 @@ while IFS='|' read -r tpl_rel dst_rel; do
   if [[ "$current_sha" == "$new_sha" ]]; then
     # 对抗轮4 Gap A：--force 时等值路径也必须记 FORCED_LIST。旧写法在 current==new 时
     # 提前 continue，先于下方 --force 分支触发 → 等值文件不进名单 → manifest 重写走
-    # LOCAL 保留分支（:450 一带）→ 陈旧 LOCAL 在 --force 后仍存活，文件被「本地保留」
+    # LOCAL 保留分支（:480 一带）→ 陈旧 LOCAL 在 --force 后仍存活，文件被「本地保留」
     # 永久跳过（红证：accept-local → mv .new → --force 后哨兵仍 LOCAL、演进不跟进）。
     # force = 显式采用上游：基线必须归一；内容已一致，故不补写文件、不备份。
     # 对抗轮5 MAJOR：等值路径必须按基线分流计数，不能一律「已最新」。为什么：LOCAL

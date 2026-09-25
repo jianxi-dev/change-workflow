@@ -336,6 +336,22 @@ ok "LOCAL+等值 哨兵仍保留" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space
 out11j="$("$B5/tk2/update.sh" --target "$PWD" --dry-run 2>&1 || true)"
 case "$out11j" in *"本地保留 1"*) r11j=0 ;; *) r11j=1 ;; esac
 ok "dry-run 本地保留计数一致" "$r11j" "0"
+# 对抗轮6 回归锁（三桶唯一性）：accept-local 后**文件被删除** —— LOCAL 是用户显式保留
+# 决定，缺失不撤销它；manifest 重写仍原样保留哨兵。旧缺陷把重装计为 ADDED → 汇总
+# 「本地保留 0」而 ^LOCAL=1 → rollout-check 的 kept==grep -c '^LOCAL' 发布契约必然误报
+# （红证：accept-local → rm → update：新增 1 · 本地保留 0，grep -c '^LOCAL' 为 1）。
+rm docs/agents/pr-writing.md
+out11k="$("$B5/tk2/update.sh" --target "$PWD" --dry-run 2>&1 || true)"
+case "$out11k" in *"本地保留 1"*) r11k=0 ;; *) r11k=1 ;; esac
+ok "缺失+LOCAL dry-run 计本地保留" "$r11k" "0"
+rc11l=0; out11l="$("$B5/tk2/update.sh" --target "$PWD" 2>&1)" || rc11l=$?
+ok "缺失+LOCAL 真实更新退 0" "$rc11l" "0"
+ok "缺失+LOCAL 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo y)" "y"
+case "$out11l" in *"本地保留 1"*) r11l=0 ;; *) r11l=1 ;; esac
+ok "缺失+LOCAL 真实更新计本地保留" "$r11l" "0"
+ok "缺失+LOCAL kept==^LOCAL" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
+m11l="$(printf '%s' "$out11l" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
+ok "缺失+LOCAL 五桶和==18" "$(( ${m11l:-0} ))" "18"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
@@ -568,7 +584,7 @@ sanitize "$B9"
 
 # ── 用例 16：符号链接拒绝（C2 边界）──────────────────────────────────────────
 # 受管文件被换成符号链接时，重定向/覆盖会写穿到链接指向处 —— cw_refuse_symlink
-# 必须在任何写入前退 1（lib/render.sh:62-68；update.sh:132/194/258-259/441-442）。
+# 必须在任何写入前退 1（lib/render.sh:62-68；update.sh:132/194/258-259/451-452）。
 echo ""
 echo "[16] 符号链接拒绝"
 B10="$(mktemp -d)"
