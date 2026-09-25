@@ -30,7 +30,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*|pnpm:*)
 | G0-G4 | gate（流程检查点，非工具） |
 | G0-PRE / G0-POST / 阶段二 | G0 的时序子阶段标签；阶段二 = openspec-propose 调用窗口（非独立 gate） |
 | E2（G1 出口） | G1 内的检查点子阶段（code-review 必做 + review 条件） |
-| `to-spec` / `openspec-propose` / `to-tickets` / `implement` / `tdd` / `code-review` / `review` / `learn` / `sync-gbrain` / `triage` / `qa` | skill（执行者） |
+| `to-spec` / `openspec-propose` / `to-tickets` / `implement` / `tdd` / `code-review` / `review` / `learn` / `sync-gbrain` / `triage` | skill（执行者） |
 | `pr-automation.sh` | 脚本（G2 机械动作：门禁/提交/push/PR） |
 | `cw-evidence.sh` | 脚本（G1 出口·QG-5 证据采集：按证据分层协议采集 before/after 成对产物，落 `.artifacts/<票号>/`；无 ffmpeg/GUI 走 headless 降级） |
 | `cw-greploop.sh` | 脚本（G2 可选·Greptile 审查闭环：PR 创建后 risk-medium/high 合并确认前调用；无 Greptile 降级为本地审查闭环并显式标注） |
@@ -88,9 +88,8 @@ flowchart TB
   end
   E -.->|"发现缺陷"| X1
   F -.->|"发现缺陷"| X1
-  F -->|"⑫ 发布节奏触发"| S["ship 发版通道（正式发版）<br/>前置：QA 已通过<br/>bump VERSION/CHANGELOG/TODOS→push→发版 PR"]
-  S -.->|"⑬ ship 推送即收尾"| L1["learn→sync-gbrain 增量<br/>覆盖版本文件"]
-  H -.->|"⑭ change 收口后：下一 change 输入"| A1
+  F -->|"⑫ 发布节奏触发"| S["发版（正式发布）<br/>VERSION+CHANGELOG+tag"]
+  H -.->|"⑬ change 收口后：下一 change 输入"| A1
 ```
 
 ## skill 调用总表
@@ -107,7 +106,6 @@ flowchart TB
 | `openspec-apply-change` | G1 | 可选（按需） | 按 openspec 官方 tasks 指令流实施（`/opsx-apply`） |
 | `code-review` | G1 出口·步骤 1 | 必调（每任务后） | 双轴自审（Standards 代码规范 + Spec 需求符合，并行防互相掩盖）；通过才允许 commit |
 | `review` | G1 出口·步骤 2 | 条件调（risk-medium/high） | pre-landing 结构审查（SQL 安全/LLM trust boundary/条件副作用/scope drift）；risk-low 跳过 |
-| `qa` | 发版前（ship 前置）/日常按需/**QG-7 兜底** | **发版前必做**（ship-readiness 门禁）；日常 risk-high/核心模块收口前按需；**change ≥6 票时按 QG-6 在集成 checkpoint 做轻量浏览器确认** | 浏览器真机验证（Quick/Standard/Exhaustive；分支上自动 diff-aware），产出 health score + ship-readiness；QA 截图贴入缺陷票作复现基线 |
 | `quality-gates`（规范，非 skill） | **G0 切片 + G1 出口 + G2 前置** | 必读（`docs/agents/quality-gates.md`） | QG-1..QG-7 七条硬门禁定义：QG-7 挂 G0 切片、QG-1/QG-3 挂 G0 拆票、QG-2/QG-4/QG-5 挂 G1 出口、QG-6 挂 G1 循环 |
 | `evidence-capture`（规范，非 skill） | **G1 出口·QG-5 + 缺陷线 DQ-3/DQ-5** | 必读（`docs/agents/evidence-capture.md`） | 证据分层协议（before/after 成对）+ 5 类证据规范（视频/截图/测量数字/transcript/headless 降级）；`cw-evidence.sh` 是其采集脚本 |
 | `code-structure`（规范，非 skill） | **G1 实施 + G1 出口·code-review Standards 轴** | 条件读（`docs/agents/code-structure.md`；仅本票 diff 含新增共享逻辑或跨流程重复块时触发） | 服务层架构约束：两层分离（actions 管 why/when，service 管 how）+ 四反模式清单（God/Leaky/Inconsistent/Over-abstraction） |
@@ -115,9 +113,9 @@ flowchart TB
 | `triage` | 缺陷状态机 | 条件调（缺陷流程内） | needs-triage → 验证/grill → ready-for-agent（附 agent brief）→ 修复 → 验证 → close |
 | `learn` | G3 | 必调 | 沉淀经验（模式/陷阱/偏好）到 learnings |
 | `sync-gbrain` | G3（learn 后立即） | 必调 | 刷新代码索引；push + PR 后立即，不等合并 |
-| `ship`（发版通道） | G3 之后（按发布节奏） | 触发条件=正式发版 **且 QA 已通过** | ship 内全链：test + coverage audit + review + 版本 bump + CHANGELOG + TODOS + commit + push + 发版 PR；**ship 推送即收尾：ship 后同样立即 learn → sync-gbrain 增量** |
+| **发版**（非 skill） | G3 之后（按发布节奏） | 触发条件=正式发版 | `VERSION` + `CHANGELOG.md` 同步 → `git tag` → push；不改代码故无需 PR 评审，详见 `docs/agents/task-tracking.md` §7.6 |
 | `openspec-update-change` / `openspec-sync-specs` / `openspec-archive-change` | G4 | 必调（自动触发，§8.2） | 实施漂移修订（有则做）/ 主 spec 同步（**仅合并后**）/ 归档 change |
-| **明确不纳入** | — | — | `ship` 不进入日常 change 流程（仅发版通道）；`momus`（方案审计非 runtime）；`grill-with-docs`/`office-hours`/`wayfinder`（输入源识别对象，非流程内调用） |
+| **明确不纳入** | — | — | `momus`（方案审计非 runtime）；`grill-with-docs`/`office-hours`/`wayfinder`（输入源识别对象，非流程内调用）；外部探索式 QA / 发布自动化 skill（如 gstack `qa`/`ship`）不进入本流程——浏览器验证由 QG-5/QG-6 承担，发版走 tag |
 
 ## 五个 gate
 
@@ -195,7 +193,7 @@ flowchart TB
 - **不阻塞下一 change**：下一 change 自 commit/push 完成后即可启动；learn/sync 是收尾动作而非前置 gate，可并行
 - **frontier 自动推进**：G3 后自动运行 `gh issue list --label ready-for-agent --state open --json number,title,body` 按 `[change=<名>/` 精确筛选 → 逐票解析 Blocked by 确认全部 closed → 取第一张可开工票自动进入其 G1（单 agent 会话内自动循环）；无票可做 → change 收口检查（completedTasks==totalTasks 且无残留且无未合并 PR）→ 自动进入 G4。标签名以 conf `LABEL_READY` 为准（默认 `ready-for-agent`），conf 值优先
 - **自动化边界**：单 agent 会话内自动（frontier 推进）；跨会话由「会话启动消费 `change-close-pending` 信号」覆盖（见上节）；唯一人工介入 = risk-medium/high PR 合并确认
-- **learn/sync 不依赖 ship**：每轮交付后的知识闭环服务下一 change/会话；ship 若触发，其后额外增量一次
+- **learn/sync 与发版解耦**：每轮交付后的知识闭环服务下一 change/会话；发版（`VERSION`+`CHANGELOG`+tag）不改代码，无需额外 sync
 - **文字质量**：learn 记录与收尾回复发布前过 `docs/agents/pr-writing.md`（T9 模糊归因在学习记录里危害最大，必须给出处）；如触发发版/PR，`cw-greploop.sh` 为可选调用（同 G2 降级策略）
 
 ### G4 change 级收尾（§8.2 自动触发，合并后）｜执行：openspec 套件 + gbrain
@@ -270,6 +268,6 @@ gh issue list --label needs-triage --state open
 
 - ✗ 修改 `.opencode/skills/openspec-propose/SKILL.md` 等上游 skill（零侵入）
 - ✗ 修改 `.github/ISSUE_TEMPLATE/bug.yml`（已是 `[bug]` 前缀）
-- ✗ ship 进入日常 change 流程（仅发版通道）
+- ✗ 发版走 PR 评审（发版 = `VERSION`+`CHANGELOG`+tag，不改代码；功能 PR 已在 G2 评审过）
 - ✗ 复制 to-tickets/to-spec 的拆票/规格逻辑（以其 SKILL.md 为单一事实来源）
 - ✗ cross-repo 复用部署（mdpkg/clairis 各仓独立配置）

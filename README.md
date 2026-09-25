@@ -62,7 +62,7 @@ G4 归档   全部合并 → validate --strict → archive → 看板 Done → �
 |---|---|---|
 | **OpenSpec** | `openspec-propose` / `openspec-apply-change` / `openspec-sync-specs` / `openspec-archive-change` / `openspec-update-change` / `openspec-explore`（+ `openspec` CLI） | change 规划产物生成、实施指令流、主 spec 同步、归档 |
 | **Real Engineers**（Matt Pocock 的 engineering skills） | `to-spec`（需求综合成规格票）/ `to-tickets`（垂直切片拆票）/ `triage`（缺陷状态机）/ `implement`（实施总编排）/ `tdd`（测试先行）/ `code-review`（Standards+Spec 双轴自审）/ `learn`（经验沉淀）；配置入口 `setup-matt-pocock-skills` | G0 归一化与拆票、G1 实施与出口自审、G3 沉淀 |
-| **gstack** | `review`（pre-landing 结构审查）/ `qa`（浏览器真机验证 + ship-readiness）/ `ship`（正式发版通道）/ `sync-gbrain`（代码索引刷新）/ `browse` / `investigate` / `git-master` | G1 出口条件审查、发版通道、G3 索引刷新 |
+| **gstack** | `review`（pre-landing 结构审查）/ `sync-gbrain`（代码索引刷新）/ `browse` / `investigate` | G1 出口条件审查、G3 索引刷新 |
 | **gbrain** | 知识库能力（`query` / `capture` 等） | 跨会话经验与代码检索（`sync-gbrain` 桥接 gstack ↔ gbrain） |
 
 > **降级友好**：目标项目未安装上述 skill 时，流程仍可运行——对应环节降级为「agent 直接执行」；未装 `openspec` 时设 `OPENSPEC_ENABLED=false`。

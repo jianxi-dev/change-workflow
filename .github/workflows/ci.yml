@@ -99,5 +99,23 @@ jobs:
           fi
           echo "✅ 无仓库特有值残留"
 
+      - name: qa/ship 移除回归锁
+        run: |
+          # 1.4.0 移除 gstack qa/ship：其「长命分支 + 发版 PR」模型与「逐票合 main」不兼容。
+          # 锁住被删除的流程性字符串，防止日后无意识加回。说明性提及
+          # （SKILL.md「明确不纳入」/ task-tracking §7.6）与 incident 史料不在锁内。
+          fail=0
+          lock='ship 发版通道|ship 推送即收尾|ship-readiness|全自动发布（版本 bump|git-master'
+          while IFS='|' read -r tpl _dst; do
+            [ -f "$tpl" ] || continue
+            case "$tpl" in */incident-*.md) continue ;; esac
+            hits="$(grep -nE "$lock" "$tpl" || true)"
+            if [ -n "$hits" ]; then
+              echo "❌ 受管模板出现已移除的 qa/ship 流程引用: $tpl"; echo "$hits"; fail=1
+            fi
+          done < <(bash -c 'source lib/render.sh; cw_list_files')
+          [ "$fail" -eq 0 ] && echo "✅ 无 qa/ship 流程引用残留"
+          exit $fail
+
       - name: 安装/升级 端到端测试
         run: ./test/install-update-e2e.sh

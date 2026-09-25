@@ -1,3 +1,47 @@
+## 1.4.0 — 2026-09-25
+
+### 变更：移除 qa/ship 依赖（与逐票合 main 模型对齐）
+
+**问题**：`qa`/`ship`（gstack）被列为流程编排的一部分，但两者与「1 task = 1 ticket = 1 分支
+= 1 PR 逐票合 main」不兼容——`qa` 需要可运行的实例、`ship` 需要发版分支 + 发版 PR；而本流程的
+浏览器验证已有 QG-5/QG-6 承担，发版只需 `VERSION`/`CHANGELOG`/tag。门禁唯一事实来源
+`quality-gates.md` 从未引用这两个 skill。后果是文档留下无法回答的问题（「发版前 qa 在哪个分支跑」），
+每轮交付多付一份与 gate 无关的 token。
+
+**改进**：
+
+- `skills/change-workflow/SKILL.md`：删除 `qa`/`ship` 全部引用（术语表、编排路线图第 ⑫⑬ 边、
+  skill 调用总表两行、G3 措辞、明确不做）；「明确不纳入」改为显式说明外部 QA/发版 skill 不进入流程
+- `docs/agents/task-tracking.md`：§7.2 删 qa/ship 行与 ship-测试重复 note，更名「执行后（提交前自审）」；
+  §7.3/§7.4 去掉 ship 措辞；§7.5 闭环示意 `git-master`→`pr-automation.sh`（该残留早于脚本化实现）；
+  **新增 §7.6「浏览器验证与发版」**：QG-5/QG-6 如何承担浏览器验证 + tag 发版流程
+- `README.md`：gstack 依赖行去掉 `qa`/`ship`/`git-master`
+
+### 教训反思
+
+**门禁的唯一事实来源是 `quality-gates.md`，不是 skill 调用表。** `qa`/`ship` 被编排表列了半年，
+门禁文档零引用——它们从未承重。判断一个依赖是否必需，先看它有没有对应的门禁条目，而不是看它
+有没有被写进流程表。移除后 QG/DQ 判据一字未动，e2e 与消费仓滚动验证均全绿，反证了这一点。
+
+**外部 skill 的模型假设必须与本流程对齐后才能纳入。** gstack 的 `qa`/`ship` 假设「工作累积在
+长命分支、收尾时一次性 ship」；本流程是「逐票合 main」。模型不匹配时硬塞进流程，只会产生
+「在哪个分支跑」这类无法回答的问题。落点放不对就该移除，而不是继续为它编解释。
+
+**文档里的孤儿引用是负债。** `task-tracking.md` 的 `git-master` 早于 `pr-automation.sh`
+脚本化实现，却留了半年——它会让人以为提交走的是 git skill 而非脚本。清理受管面时要连带扫
+「同义但过期」的引用，别只删本次点名的那个。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+ 通过 176 · 失败 0
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+ 消费仓 3 个 · 通过 9 · 失败 0
+```
+
+---
+
 ## 1.3.1 — 2026-09-25
 
 ### 修复：安全边界（A1/B1/C2）
