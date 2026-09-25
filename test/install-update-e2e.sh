@@ -318,6 +318,24 @@ set_version "0.5.0"
 rc11g=0; "$B5/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || rc11g=$?
 ok "等值 force 后演进归一退 0" "$rc11g" "0"
 ok "等值 force 后演进已跟进" "$(grep -c 'v3 等值演进' docs/agents/evidence-capture.md)" "1"
+# 对抗轮5 MAJOR 回归锁：LOCAL 哨兵 + 内容已等值时，普通 update 必须计「本地保留」
+# 而非「已最新」。旧缺陷：current==new 的提前 continue 先于 LOCAL 分支触发 → 一律计
+# CURRENT，而 manifest 仍保留 LOCAL 行 → rollout-check 的 kept==grep -c '^LOCAL' 发布
+# 契约（AGENTS.md「LOCAL 哨兵完整」）在该可达状态（accept-local → mv .new）下必然
+# 误报「不可发布」。dry-run 计数必须与真实一致 —— rollout-check 跑的就是 --dry-run。
+echo "## 定制四" >> docs/agents/pr-writing.md
+set_version "0.4.0"
+"$B5/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+"$B5/tk2/update.sh" --target "$PWD" --accept-local docs/agents/pr-writing.md >/dev/null 2>&1 || true
+mv docs/agents/pr-writing.md.new docs/agents/pr-writing.md
+rc11h=0; out11h="$("$B5/tk2/update.sh" --target "$PWD" 2>&1)" || rc11h=$?
+ok "LOCAL+等值 普通更新退 0" "$rc11h" "0"
+case "$out11h" in *"本地保留 1"*) r11h=0 ;; *) r11h=1 ;; esac
+ok "LOCAL+等值 计为本地保留" "$r11h" "0"
+ok "LOCAL+等值 哨兵仍保留" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/pr-writing.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "1"
+out11j="$("$B5/tk2/update.sh" --target "$PWD" --dry-run 2>&1 || true)"
+case "$out11j" in *"本地保留 1"*) r11j=0 ;; *) r11j=1 ;; esac
+ok "dry-run 本地保留计数一致" "$r11j" "0"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────

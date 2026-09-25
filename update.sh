@@ -375,8 +375,20 @@ while IFS='|' read -r tpl_rel dst_rel; do
     # LOCAL 保留分支（:450 一带）→ 陈旧 LOCAL 在 --force 后仍存活，文件被「本地保留」
     # 永久跳过（红证：accept-local → mv .new → --force 后哨兵仍 LOCAL、演进不跟进）。
     # force = 显式采用上游：基线必须归一；内容已一致，故不补写文件、不备份。
-    if [[ "$FORCE" == "1" ]]; then FORCED_LIST+=("${dst}"); fi
-    CURRENT=$((CURRENT + 1)); rm -f "$TMP"; continue
+    # 对抗轮5 MAJOR：等值路径必须按基线分流计数，不能一律「已最新」。为什么：LOCAL
+    # 哨兵 + 内容已等值是可达成状态（accept-local → mv .new），一律计 CURRENT 会让
+    # 汇总「本地保留」与 manifest 的 LOCAL 行数背离 → rollout-check 的
+    # kept==grep -c '^LOCAL' 发布契约（AGENTS.md「LOCAL 哨兵完整」）误报不可发布。
+    # force 时哨兵即将被归一清除（FORCED_LIST → manifest 重写走哈希），不算「保留」；
+    # LOCAL 时哨兵由重写路径原样保留，文件确被「本地保留」，计 LOCAL_KEPT。
+    if [[ "$FORCE" == "1" ]]; then
+      FORCED_LIST+=("${dst}"); CURRENT=$((CURRENT + 1))
+    elif [[ "$baseline" == "LOCAL" ]]; then
+      LOCAL_KEPT=$((LOCAL_KEPT + 1))
+    else
+      CURRENT=$((CURRENT + 1))
+    fi
+    rm -f "$TMP"; continue
   fi
 
   # --force 优先于 LOCAL 哨兵：用户显式要求覆盖（含 --accept-local 保留的文件）。
@@ -387,7 +399,8 @@ while IFS='|' read -r tpl_rel dst_rel; do
     UPDATED=$((UPDATED + 1)); FORCED_LIST+=("${dst}"); rm -f "$TMP"; continue
   fi
 
-  # 哨兵基线 LOCAL：用户显式选择「保留本地」（--accept-local）→ 永久跳过，不更新也不报冲突
+  # 哨兵基线 LOCAL：用户显式选择「保留本地」（--accept-local）→ 永久跳过，不更新也不报冲突。
+  # 例外：--force 显式采用上游时哨兵会被归一清除（见 FORCED_LIST），本地版即被放弃。
   if [[ "$baseline" == "LOCAL" ]]; then
     LOCAL_KEPT=$((LOCAL_KEPT + 1)); rm -f "$TMP"; continue
   fi
@@ -488,7 +501,8 @@ $(printf '  - %s.new\n' "${CONFLICT_LIST[@]}")
 处理方式（任选）：
   1. 人工 diff 合并：diff <file> <file>.new → 合并后删除 .new
   2. 放弃本地改动：mv <file>.new <file>
-  3. 强制覆盖：./update.sh --force（覆盖前会备份 .bak）
+  3. 强制覆盖：./update.sh --force（覆盖前会备份 .bak；注意也会覆盖
+     --accept-local 保留的文件并清除其 LOCAL 哨兵 —— 哨兵归一是有意语义）
 EOF
   exit 1
 fi
