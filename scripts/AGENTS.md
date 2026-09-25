@@ -60,7 +60,7 @@ pr-automation.sh 参数表：
 
 4 个脚本装到消费仓后**不依赖 `lib/`**，但 conf 读取与写入面共用 `../lib/render.sh` 的同一批 helper —— 改这些 helper 必须四脚本一起看：
 
-- `cw_refuse_symlink`（`../lib/render.sh:62`）：所有受管写入面（渲染重定向、`cp` 安装、manifest/conf 重写）必须先过这道闸，拒绝符号链接目标（C2 安全边界）。使用点：渲染目标 `:103`、cp 源/目标 `:175-176`、受管脚本 `:201`；`update.sh:132`/`:194`/`:258-259`/`:441-442`、`setup.sh:146`/`:221`。
+- `cw_refuse_symlink`（`../lib/render.sh:62`）：所有受管写入面（渲染重定向、`cp` 安装、manifest/conf 重写）必须先过这道闸，拒绝符号链接目标（C2 安全边界）。使用点：渲染目标 `:103`、cp 源/目标 `:175-176`、受管脚本 `:201`；`update.sh:132`/`:194`/`:258-259`/`:451-452`、`setup.sh:146`/`:221`。
 - `cw_atomic_cp`（`:173`）/ `cw_chmod_scripts`（`:196`）：安装原子性与执行位（见下方修改清单第 4 条）。
 - `cw_conf_get`（`:226`）：**B1 安全边界** —— 替代 `source "$CONF"`，杜绝值内命令注入（`:213`）。语义：跳过注释行、取首个 `key=` 后引号剥离的值、键不存在返 1；**不能截断含空格值**（如 `SKILLS_DIR="My Skills"`）。
 - **`conf_get` 是刻意重复的独立副本**：`cw-greploop.sh:52` 与 `cw-update.sh:60` 各有一份（消费仓无 `lib/`，不能 source）。改 conf 读取逻辑 = `render.sh:226` + 这两处**三处一起改**，漏一处即行为漂移。

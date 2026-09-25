@@ -73,7 +73,7 @@ G4 归档   全部合并 → validate --strict → archive → 看板 Done → �
 ```bash
 cd /path/to/your-project
 /path/to/change-workflow/setup.sh --target . --yes
-# 检查 .change-workflow.conf → 只显式 git add 安装触碰的文件 + conf/manifest（禁 git add -A）→ 开 PR
+# 检查 .change-workflow.conf → 只显式 git add 安装触碰的文件 + AGENTS.md（索引段，仅首装追加）+ conf/manifest（禁 git add -A）→ 开 PR
 ```
 
 ## 升级（已有安装的仓库）

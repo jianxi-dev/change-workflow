@@ -48,8 +48,8 @@ cat .change-workflow.conf
 #    发现命令：
 gh project list --owner <OWNER> --format json
 
-# 3. 提交并开 PR：只显式添加安装触碰的受管文件 + conf/manifest（禁 git add -A，白名单约定）
-git add <受管文件…> .change-workflow.conf .change-workflow.manifest
+# 3. 提交并开 PR：只显式添加安装触碰的受管文件 + AGENTS.md（索引段，仅首装追加）+ conf/manifest（禁 git add -A，白名单约定）
+git add <受管文件…> AGENTS.md .change-workflow.conf .change-workflow.manifest
 git commit -m "chore: adopt change-workflow"
 git push -u origin <branch> && gh pr create
 ```
