@@ -291,7 +291,9 @@ cat <<EOF
 
 后续步骤：
   1. 检查 .change-workflow.conf（尤其 PROJECT_ID/OPT_* 若为空需手动补）
-  2. 提交：git add -A && git commit -m "chore: adopt change-workflow"
+  2. 提交：只显式 git add 本次安装触碰的受管文件 + .change-workflow.conf +
+     .change-workflow.manifest（**禁 git add -A**，白名单提交约定）
+     → git commit -m "chore: adopt change-workflow"
   3. 开 PR 合并（首个子票即可验证全流程）
   4. 可选：CI 需开启 workflow 写权限（Settings → Actions → Workflow permissions: Read and write）
 

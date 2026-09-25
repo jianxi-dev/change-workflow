@@ -73,7 +73,7 @@ G4 归档   全部合并 → validate --strict → archive → 看板 Done → �
 ```bash
 cd /path/to/your-project
 /path/to/change-workflow/setup.sh --target . --yes
-# 检查 .change-workflow.conf → git add -A && git commit → 开 PR
+# 检查 .change-workflow.conf → 只显式 git add 安装触碰的文件 + conf/manifest（禁 git add -A）→ 开 PR
 ```
 
 ## 升级（已有安装的仓库）
@@ -90,8 +90,10 @@ cd /path/to/your-project
 # 3. 执行升级
 /path/to/change-workflow/update.sh
 
-# 4. 检查并提交
-git diff && git add -A && git commit -m "chore(change-workflow): 升级到 x.y.z"
+# 4. 检查并提交：只显式添加升级触碰的受管文件 + conf/manifest（禁 git add -A，白名单约定）
+git diff
+git add <升级触碰的受管文件…> .change-workflow.conf .change-workflow.manifest
+git commit -m "chore(change-workflow): 升级到 x.y.z"
 ```
 
 **冲突保护机制**：安装/升级时会把每个受管文件的 sha256 记入 `.change-workflow.manifest`。升级时：
