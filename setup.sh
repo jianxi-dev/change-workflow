@@ -128,9 +128,9 @@ ask MODULE_LABELS "缺陷票模块标签（逗号分隔）" "module-a,module-b"
 IFS=',' read -r -a _mods <<< "$MODULE_LABELS"
 for m in "${_mods[@]}"; do m="$(echo "$m" | tr -d ' ')"; [[ -n "$m" ]] && mk_label "$m" "1D76DB" "模块：$m"; done
 
-ask CMD_TYPECHECK "typecheck 命令（留空跳过）" "pnpm -r typecheck"
-ask CMD_LINT      "lint 命令（留空跳过）"      "pnpm -r lint"
-ask CMD_TEST      "test 命令（留空跳过）"      "pnpm -r test"
+ask CMD_TYPECHECK "typecheck 命令（留空跳过）" ""
+ask CMD_LINT      "lint 命令（留空跳过）"      ""
+ask CMD_TEST      "test 命令（留空跳过）"      ""
 ask CMD_E2E       "e2e 命令（可空）"           ""
 ask SKILLS_DIR    "skill 安装目录"             ".opencode/skills"
 ask DOCS_DIR      "规范文档目录"               "docs/agents"

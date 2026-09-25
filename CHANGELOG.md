@@ -1,3 +1,36 @@
+## 1.4.2 — 2026-09-26
+
+### 修复：受管模板残留源项目（md-bundle）特有值
+
+**问题**：v1.4.1 及之前的受管模板/脚本/配置内嵌了源项目（一个编辑器应用）的特有值——
+`apps/web`、`packages/editor|renderer`、`pnpm -r …` 门禁命令、`@md-bundle/web`、
+`.spec.ts` 硬编码、md-bundle 标签表（landing/tabs/fsa/save/share + wave-4/5/6）、
+ADR 文件名 `0002-editing-paradigm-*` 等。消费仓安装后得到指向错误目标的值：
+接线归属指向不存在的目录、setup.sh 默认门禁命令在非 pnpm 仓直接失败。
+
+**改进**：
+
+- 模板全面去源项目化：`apps/web` → 「应用层」/`<E2E_DIR>` 占位符；`pnpm -r …` →
+  「本仓门禁命令（`.change-workflow.conf` 的 `CMD_*`）」；标签表/ADR 树 → 按本仓填写的
+  占位示例；incident 文档的命令与目录树改写为通用形态（教训保留）
+- `setup.sh`：CMD_TYPECHECK/LINT/TEST 默认值由 `pnpm -r …` 改为空（留空 = 跳过该步）；
+  `config.example.conf` 同步置空并注明「按本仓填写」
+- CI 回归锁：「无仓库特有值残留」步骤的禁串清单追加
+  `apps/web` / `packages/editor` / `packages/renderer` / `pnpm` / `@md-bundle`，
+  检查范围扩至 `setup.sh` + `config.example.conf`；`test/install-update-e2e.sh`
+  一致性用例同步镜像
+- `SKILL.md` 的 `allowed-tools` 移除 `pnpm:*`（工具包自身不依赖 pnpm，门禁命令来自配置）
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+ 通过 178 · 失败 0
+$ bash -n setup.sh update.sh lib/render.sh scripts/*.sh test/*.sh   # 全过
+```
+
+---
+
 ## 1.4.1 — 2026-09-25
 
 ### 修复：升级后 .bak 累积成 untracked 噪音

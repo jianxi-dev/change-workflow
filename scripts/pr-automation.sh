@@ -23,7 +23,7 @@
 #   跳过建分支; 支持未提交改动 + --files 白名单提交; PR 检测一致性校验
 #   (head==branch && base==main && state==OPEN) 后 create/edit 同步 title/risk。
 #
-# 质量保证(2026-09-12 起): push 前强制跑 pnpm -r typecheck/lint/test,
+# 质量保证(2026-09-12 起): push 前强制跑本仓门禁命令(.change-workflow.conf 的 CMD_*),
 #        任一失败即中止(防浪费 CI 轮次)。--skip-checks 为逃生舱,不推荐。
 #
 # 规则(见 docs/agents/):

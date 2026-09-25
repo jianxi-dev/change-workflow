@@ -55,7 +55,7 @@ gh issue view <票号> --json body --jq .body | grep -E "打开.*页面|dev serv
 
 ### QG-2 e2e 绑定
 
-**规则**：用户可见变更**必须**新增或扩展 `<E2E_DIR>/*.spec.ts`；否则须在票上显式标注 `no-ui-impact`。
+**规则**：用户可见变更**必须**新增或扩展 `<E2E_DIR>` 下的 e2e 用例；否则须在票上显式标注 `no-ui-impact`。
 
 **理由**：CI 确实跑 e2e，但该 change 期间**新增 e2e 为 0**——套件覆盖的是**旧行为**。于是「CI 绿」只等于「旧功能没坏」，与「新功能存在」**逻辑上无关**。绿色提供了**虚假信心**。
 
@@ -265,7 +265,7 @@ gh issue list --label ready-for-agent --state all --json number,state \
 ```
 在 `<dev 命令>` 打开的页面中，
 <具体操作> 之后，<可具体观测的结果>。
-验证：<E2E_DIR>/<feature>.spec.ts 通过。
+验证：<E2E_DIR> 下对应 e2e 用例通过。
 ```
 
 **反向验收判据**：若一条 AC 能在**不修改 `<APP_DIR>`** 的前提下被满足 → 说明票切错了（触发 QG-7）。
