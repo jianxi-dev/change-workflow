@@ -39,7 +39,7 @@ cd "$REPO_ROOT"
 
 # --- 载入项目配置（可选）-----------------------------------------------------
 # 目标项目根放置 .change-workflow.conf（由 setup.sh 生成）；缺失则用内置默认值。
-# 不 source conf（B1/RCE 边界）：conf 提交进消费仓且**不受管**（INSTALL.md:133），
+# 不 source conf（B1/RCE 边界）：conf 提交进消费仓且**不受管**（INSTALL.md:136），
 # 恶意 PR 可在其中追加 shell（如 CMD_TEST="$(touch pwned)"），source 即执行。
 # 白名单逐键解析（与 cw-update.sh 同款 conf_get），只取字面值、不求值。
 # 统一规范（F6+F8，与 lib/render.sh 的 cw_conf_get 及 cw-update.sh / cw-greploop.sh 的

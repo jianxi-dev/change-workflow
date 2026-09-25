@@ -11,7 +11,7 @@
 - B1：`update.sh` / `cw-greploop.sh` / `cw-update.sh` 全部改为白名单 `conf_get()`
   只读键值，`source "$CONF"` 彻底移除（红证：恶意 conf 不再创建哨兵文件）
 - C2：`cw_refuse_symlink`（`lib/render.sh:62`）覆盖全部受管写入面（渲染目标、cp 源/目标、
-  manifest/conf 重写），`cw_atomic_cp`（`:130`）temp+mv 原子写，符号链接一律拒绝
+  manifest/conf 重写），`cw_atomic_cp`（`:173`）temp+mv 原子写，符号链接一律拒绝
 
 ### 修复：状态机与假绿（A2/B2/C1/C4/A3/B3）
 
@@ -36,7 +36,7 @@
 - C3：仓库级锁（`.git/.change-workflow.lock`，`--dry-run` 不取锁）、manifest 原子写、
   chmod 失败即失败（不再 `|| true` 吞错）
 - D1：`REPO_ROOT` 含 `&`/`|`/`{{OWNER}}`/`$HOME` 全部字面输出
-- F1：`cw_chmod_scripts`（`lib/render.sh:148`）抽公共，替换 3 处逐字节重复循环
+- F1：`cw_chmod_scripts`（`lib/render.sh:196`）抽公共，替换 3 处逐字节重复循环
 - F2：9 个候选 skill 根清单两脚本逐字节一致（互指注释防漂移）
 
 ### 新增：e2e 回归锁（E1）
