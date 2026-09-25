@@ -134,9 +134,12 @@ set_version "1.0.0"
 "$B1/tk2/update.sh" --target "$PWD" >/dev/null 2>&1 || true
 ok "未修改文件已同步" "$(grep -c 'vNEXT 演进测试' docs/agents/domain.md)" "1"
 ok "冲突文件仍未覆盖" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
-# A5（R1）覆盖更新保持目标模式（曾 644→600），新建 .bak → 644（曾 600）
+# A5（R1）覆盖更新保持目标模式（曾 644→600）
 ok "覆盖后模式保持 644" "$(fmode docs/agents/domain.md)" "644"
-ok ".bak 模式 644" "$(fmode docs/agents/domain.md.bak)" "644"
+# 1.4.1：安全覆盖（current == baseline）不留 .bak —— 收尾一律清理（与其它文件是否冲突无关）。
+# 该 .bak 内容即基线，可由 git 追溯；留着只是消费仓每次升级累积的 untracked 噪音。
+# 仅 --force 覆盖的本地定制需要备份（唯一副本），见用例 6（含其模式回归锁）。
+ok "安全覆盖不留 .bak（已清理）" "$([[ ! -e docs/agents/domain.md.bak ]] && echo y)" "y"
 
 # ── 用例 6：--force 解决冲突 ─────────────────────────────────────────────────
 echo ""
@@ -145,6 +148,9 @@ set_version "1.0.0"
 "$B1/tk2/update.sh" --target "$PWD" --force >/dev/null 2>&1; ok "退出码" "$?" "0"
 ok "已覆盖" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "0"
 ok "备份含本地内容" "$(grep -c '## 本地定制' docs/agents/triage-labels.md.bak)" "1"
+# 承接 A5（R1）模式锁：.bak 改由 --force 路径产生，模式要求不变（曾 600）
+ok "force .bak 模式 644" "$(fmode docs/agents/triage-labels.md.bak)" "644"
+ok "force 备份不被清理" "$([[ -e docs/agents/triage-labels.md.bak ]] && echo y)" "y"
 set_version "1.0.0"
 "$B1/tk2/update.sh" --target "$PWD" >/dev/null 2>&1; ok "冲突解决后归一" "$?" "0"
 sanitize "$B1"

@@ -100,10 +100,10 @@ git commit -m "chore(change-workflow): 升级到 x.y.z"
 
 | 目标文件状态 | 动作 |
 |---|---|
-| 本地**未修改**（哈希 == 基线） | 安全覆盖（先备份 `.bak`） |
+| 本地**未修改**（哈希 == 基线） | 安全覆盖（备份 `.bak`，升级收尾清理冗余副本） |
 | 本地**已修改**（哈希 != 基线） | **不覆盖**，新版本写入 `<file>.new` 旁路文件，退出码 1 并列出清单 |
 | 文件不存在（新增规范） | 直接安装 |
 
-冲突处理三选一：人工合并 `diff <file> <file>.new` ／ 放弃本地改动 `mv <file>.new <file>` ／ 强制覆盖 `update.sh --force`（先备份 `.bak`）。
+冲突处理三选一：人工合并 `diff <file> <file>.new` ／ 放弃本地改动 `mv <file>.new <file>` ／ 强制覆盖 `update.sh --force`（备份 `.bak` 保留：它是本地定制的唯一副本）。
 
 详见 [INSTALL.md](INSTALL.md)；设计原理见 [DESIGN.md](DESIGN.md)。

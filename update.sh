@@ -15,7 +15,7 @@
 #
 # 冲突保护:
 #   以 .change-workflow.manifest 记录的**基线哈希**判定目标文件是否被本地修改。
-#   - 未修改（current == baseline）→ 安全覆盖（先备份）
+#   - 未修改（current == baseline）→ 安全覆盖（备份 .bak；收尾清理冗余副本）
 #   - 已修改（current != baseline）→ 写 <file>.new 旁路文件并报告，**不覆盖**
 #   - 目标不存在（新增文件）        → 直接安装
 #
@@ -337,12 +337,16 @@ baseline_of() {
   CW_P="$1" awk '{ sha=$1; rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == ENVIRON["CW_P"]) { print sha; exit } }' "$MANIFEST"
 }
 
-UPDATED=0; ADDED=0; CURRENT=0; CONFLICTED=0; LOCAL_KEPT=0
+UPDATED=0; ADDED=0; CURRENT=0; CONFLICTED=0; LOCAL_KEPT=0; BAK_CLEANED=0
 CONFLICT_LIST=()
 # --force 覆盖过的文件清单：force = 用户显式采用上游，基线必须归一为当前内容哈希。
 # 红证：LOCAL 文件被 --force 覆盖后 manifest 仍是 LOCAL，下次模板演进时该文件被
 # 「本地保留」静默跳过 —— 用户已放弃本地版，哨兵却永久生效（内容与基线双双失真）。
 FORCED_LIST=()
+# 1.4.1：安全覆盖（current == baseline）覆盖过的文件清单。其 .bak 内容 == 基线，可由 git
+# 追溯，故收尾清理 —— 否则消费仓每次升级都累积 untracked 噪音。
+# --force 覆盖的本地定制是唯一副本，不入此列（其 .bak 必须保留）。
+BAK_SAFE=()
 
 while IFS='|' read -r tpl_rel dst_rel; do
   [[ -n "$tpl_rel" ]] || continue
@@ -431,6 +435,7 @@ while IFS='|' read -r tpl_rel dst_rel; do
   if [[ "$current_sha" == "$baseline" ]]; then
     log "更新：${dst}"
     if [[ "$DRY_RUN" != "1" ]]; then cw_atomic_cp "${dst}" "${dst}.bak"; cw_atomic_cp "$TMP" "${dst}"; fi
+    BAK_SAFE+=("${dst}")
     UPDATED=$((UPDATED + 1)); rm -f "$TMP"; continue
   fi
 
@@ -505,9 +510,21 @@ if [[ "$DRY_RUN" != "1" ]]; then
       "$NEW_VERSION" "$EFFECTIVE_DATE" "$REPO_ROOT" >> "$CONF"
   fi
   upsert_conf TOOLKIT_SOURCE "$(toolkit_source)"
+
+  # 1.4.1：安全覆盖的 .bak 是冗余备份（内容即基线，可由 git 追溯），留着只是消费仓每次
+  # 升级累积的 untracked 噪音。与其它文件是否冲突无关 —— 每条 .bak 都对应一个已成功
+  # 安全覆盖的文件。只清 BAK_SAFE：--force 的 .bak 是本地定制唯一副本，必须保留。
+  for _cw_bak in "${BAK_SAFE[@]:-}"; do
+    [[ -n "$_cw_bak" ]] || continue
+    [[ -f "${_cw_bak}.bak" ]] || continue
+    rm -f "${_cw_bak}.bak"; BAK_CLEANED=$((BAK_CLEANED + 1))
+  done
 fi
 
 echo
+if [[ "$BAK_CLEANED" -gt 0 ]]; then
+  log "已清理冗余备份 ${BAK_CLEANED} 个（安全覆盖的 .bak，内容可由 git 追溯）"
+fi
 log "更新完成：更新 ${UPDATED} · 新增 ${ADDED} · 已最新 ${CURRENT} · 冲突 ${CONFLICTED} · 本地保留 ${LOCAL_KEPT}"
 if [[ "$CONFLICTED" -gt 0 ]]; then
   cat >&2 <<EOF
