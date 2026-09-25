@@ -74,7 +74,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 - **bash 3.2 兼容（硬）**：禁 `local -n`、`declare -A`、`mapfile`、`readarray`。CI 静态拦截在 `ci.yml:43`；`is_in_list` 曾因 `local -n` 静默失效（`CHANGELOG.md:365`）。
 - **渲染幂等铁律**：`render(x) == x` 必须对未做替换的文件成立 —— `cw_render` 用 `awk print` **无条件补结尾换行**，故每个受管模板必须自身以换行结尾（`ci.yml:80` 门禁；`CHANGELOG.md:211-232` 是一次「接管模式永不归一」的真实事故）。任何「渲染改变字节」的路径都会伪装成「本地定制」。
-- **模板头**：13 个模板（12 docs + SKILL.md）首行必须是 `<!-- change-workflow 工具包模板`，安装时剥除（`ci.yml:67`、`test:209`）。
+- **模板头**：13 个模板（12 docs + SKILL.md）首行必须是 `<!-- change-workflow 工具包模板`，安装时剥除（`ci.yml:67`、`test:210`）。
 - **模板内禁出现仓库特有值**：`jianxi-dev/md-bundle|mdpkg|clairis`、`/Users/mason`、`PVT_kwDO`、`PVTSSF_`（`ci.yml:92`）。
 - **注释写「为什么 + 历史教训」**，不是复述代码；`quality-gates.md` 每条规则固定四段：规则 / **理由** / 实证案例 / 如何验证（`DESIGN.md:52`）。shellcheck 抑制必须附中文理由（`setup.sh:40`）。
 - **输出格式**：`❌`+stderr+exit 1 错误；`⚠️` 警告；`==>` 进度（`log()`）；`[dry-run]` 预演标记；`✅` 成功。
@@ -133,7 +133,7 @@ shellcheck --severity=warning -x setup.sh update.sh lib/render.sh scripts/*.sh t
 
 - **本机 `bash` 只有 `/bin/bash` = 3.2.57**（无 Homebrew bash）。CI runner 是 bash 5 → **3.2 问题在 CI 永远绿，只在 macOS 炸**，故 CI 的「bash 3.2 兼容性（静态）」与 e2e 的裸 `$VAR` 检查**不可删**。
 - **三个已踩过的 shell 陷阱**（`test/install-update-e2e.sh` 内有对应写法）：
-  1. `$VAR` 紧邻全角字符 → 被吞进变量名 → `unbound variable`（应写 `${VAR}）`）。测试断言在 `test:206-218`。
+  1. `$VAR` 紧邻全角字符 → 被吞进变量名 → `unbound variable`（应写 `${VAR}）`）。测试断言在 `test:220-232`。
   2. `cmd | grep -q` 在 `set -o pipefail` 下：`grep -q` 命中即关管道 → 上游 SIGPIPE(141) → 判失败。改用 `case "$out" in *pat*`。
   3. `cmd; ok "$?"` 会被 `set -e` 在 `ok` 之前中止 → 必须 `rc=0; cmd || rc=$?`。
 - **`update.sh` 退出码 1 是正常语义**（有冲突/有差异），不是失败；`cw-update.sh` 经 `exec` 继承。`pr-automation.sh --help` 也退 1。risk-low auto-merge 不可用时 **fail-open 退 0**。

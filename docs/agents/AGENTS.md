@@ -57,7 +57,7 @@
 
 - 新增/删除一份模板：首行模板头与结尾换行必须满足（见上面硬规则）。
 - `cw_list_files` 是 glob，新增模板无需改受管清单（`../lib/render.sh:161-167`）。
-- 但要更新 e2e 模板头计数断言（`../test/install-update-e2e.sh:209` 期望 13）。
+- 但要更新 e2e 模板头计数断言（`../test/install-update-e2e.sh:210` 期望 13）。
 - 改任何一份模板：它同时是消费仓的受管文件；该文件若被消费仓本地改过（或 `manifest` 记 `LOCAL`），升级时不会覆盖，写 `<file>.new` 并退 1。
 - 已知 `LOCAL` 哨兵：md-bundle 的 `change-closure-signal.yml`、`incident-merge-local-workspace.md`、`quality-gates.md`；clairis 的 `domain.md`、`issue-tracker.md`、`triage-labels.md`。
 - 行为/规范变更：同步 `../VERSION` + `../CHANGELOG.md` 并发版。
