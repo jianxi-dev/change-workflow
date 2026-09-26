@@ -8,7 +8,7 @@
 ## OVERVIEW
 
 bash 工具包（无编译、无运行时依赖，需 `bash` + `gh` + `git` + `python3`）：把 agent 的**变更生命周期**编码为 G0-G4 强制 gate + fix-first 自愈回路，安装到任意 GitHub 仓库。
-本仓是**工具包源**；它的产物是「装进消费仓的 19 个受管文件」，不是可运行的 app。
+本仓是**工具包源**；它的产物是「装进消费仓的 20 个受管文件」，不是可运行的 app。
 
 消费仓：`md-bundle`（含架构图 `docs/diagrams/change-workflow.architecture.html`）、`mdpkg`、`clairis`。
 
@@ -24,7 +24,7 @@ change-workflow/
 ├── skills/change-workflow/   # 模板源 → 装到 <SKILLS_DIR>（默认 .opencode/skills）
 ├── docs/agents/              # 模板源 → 装到 <DOCS_DIR>（12 份规范）
 ├── workflows/                # 模板源 → 装到 .github/workflows/change-closure-signal.yml
-├── test/install-update-e2e.sh # 23 用例 / 194 断言（CI 第 9 步全量跑；唯一权威验证）
+├── test/install-update-e2e.sh # 25 用例 / 222 断言（CI 第 9 步全量跑；唯一权威验证）
 ├── test/rollout-check.sh     # 消费仓滚动验证（发布前本地门禁；CI 无消费仓检出，跑不了）
 ├── .opencode/                # openspec init 产物：6 个 opsx-* 命令 + 6 个 openspec-* 技能
 ├── openspec/                 # openspec 项目数据（config.yaml / changes / specs）
@@ -54,7 +54,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 | Symbol | Type | Location | Refs | Role |
 |---|---|---|---|---|
-| `cw_list_files` | fn | `lib/render.sh:153` | 11 | 19 个受管文件的**唯一清单**（7 硬编码 + 12 docs glob；globs 在 `:161-167`，跳过 `AGENTS.md`） |
+| `cw_list_files` | fn | `lib/render.sh:153` | 11 | 20 个受管文件的**唯一清单**（8 硬编码 + 12 docs glob；globs 在 `:162-168`，跳过 `AGENTS.md`） |
 | `cw_render` | fn | `lib/render.sh:90` | 11 | 模板 → 目标文件（剥头 + 替换占位符） |
 | `cw_sha` | fn | `lib/render.sh:108` | 9 | sha256（macOS/Linux 双实现） |
 | `cw_substitute` | fn | `lib/render.sh:29` | 2 | 占位符替换表 |
@@ -65,8 +65,8 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 | `is_in_list` | fn | `update.sh:168` | 3 | 数组遍历（**禁止 nameref** 的产物） |
 | `baseline_of` / `is_conflicted` | fn | `update.sh:334` / `:444` | 2 / 2 | 基线查询 / 冲突文件跳过基线重写 |
 | `needs_bootstrap` | fn | `update.sh:206` | 2 | 无基线 → 接管模式 |
-| `validate_whitelist` / `in_files` | fn | `scripts/pr-automation.sh:188` / `:181` | 2 / 3 | G2 显式白名单（禁 `git add -A`） |
-| `run_gate` / `usage` | fn | `scripts/pr-automation.sh:111` / `:106` | 4 / 7 | 四件套门禁 / 用法（**`--help` 退 1**） |
+| `validate_whitelist` / `in_files` | fn | `scripts/pr-automation.sh:225` / `:218` | 2 / 3 | G2 显式白名单（禁 `git add -A`） |
+| `run_gate` / `usage` | fn | `scripts/pr-automation.sh:112` / `:107` | 4 / 7 | 四件套门禁 / 用法（**`--help` 退 1**） |
 
 调用关系：`setup.sh`→source `lib/render.sh`(:19)；`update.sh`→source `lib/render.sh`(:28) + conf(:82-87)；`scripts/cw-update.sh`→读 conf(:93) → **exec** 缓存副本的 `update.sh`(:126/:128，退出码透传)；`pr-automation.sh` 与上述无 shell 关系，仅被 SKILL.md G2 文档化调用。
 
@@ -89,11 +89,11 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 - **禁止给接管模式下的「不同」文件写基线**：否则 `.new` 未处理就被冲掉（`update.sh:249-251`）。
 - **禁止把 `LOCAL` 哨兵重写回真实哈希**（`update.sh:486-491`；`test:273/:280` 回归锁）。
 - **禁止 `git reset --hard` / `git clean` / `git checkout -- <path>` 处理共享工作区**（`docs/agents/incident-uncommitted-work-loss.md:156-165`）；收尾后禁止切回任务前分支（`incident-merge-local-workspace.md:27-32`）。
-- **门禁不可豁免项**：QG-3/4/5、DQ-1/2/3/4/5/8；可豁免的 QG-1/QG-2 必须**票作者显式声明**，不得默认（`quality-gates.md:319-341`）。
-- 「测试通过」「已修复」「冒烟正常」是**结论不是证据**，不予采信（`quality-gates.md:315`）。
-- **1 task = 1 ticket = 1 分支 = 1 PR**，分支绝不复用（`pr-automation.sh:30`）；N 票同根因才能 1 PR 关 N 票且须逐票 `fixes #N`（DQ-6）。parent = 源 spec issue，其 PR 必须 `--refs-only`（`Refs #N`）。
-- 禁止 `pr-automation.sh --skip-checks`（逃生舱，`SKILL.md:189`）。
-- **禁止 `--target` 指向工具包源自身**（自我安装）：19 个受管文件里 17 个的模板源与安装目标同路径，渲染会**先截断再读取 → 文件归零**（实测 11913 字节 → 0）。由 `cw_render:98` 与 `cw_is_self_target:143` 双重拒绝。**本仓不是自己的消费者** —— 流程依据直接读 `docs/agents/` 与 `skills/change-workflow/SKILL.md`。
+- **门禁不可豁免项**：QG-3/4/5、DQ-1/2/3/4/5/8；可豁免的 QG-1/QG-2 必须**票作者显式声明**，不得默认（`quality-gates.md:328-343`）。
+- 「测试通过」「已修复」「冒烟正常」是**结论不是证据**，不予采信（`quality-gates.md:321`）。
+- **1 task = 1 ticket = 1 分支 = 1 PR**，分支绝不复用（`pr-automation.sh:31`）；N 票同根因才能 1 PR 关 N 票且须逐票 `fixes #N`（DQ-6）。parent = 源 spec issue，其 PR 必须 `--refs-only`（`Refs #N`）。
+- 禁止 `pr-automation.sh --skip-checks`（逃生舱，`SKILL.md:190`）。
+- **禁止 `--target` 指向工具包源自身**（自我安装）：20 个受管文件里 18 个的模板源与安装目标同路径，渲染会**先截断再读取 → 文件归零**（实测 11913 字节 → 0）。由 `cw_render:98` 与 `cw_is_self_target:143` 双重拒绝。**本仓不是自己的消费者** —— 流程依据直接读 `docs/agents/` 与 `skills/change-workflow/SKILL.md`。
 
 ## 本仓的开发方式（决策 2026-09-22）
 
@@ -112,7 +112,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 ## COMMANDS
 
 ```bash
-# 唯一权威验证：23 用例 / 194 断言（CI 第 9 步跑的就是它）
+# 唯一权威验证：25 用例 / 222 断言（CI 第 9 步跑的就是它）
 ./test/install-update-e2e.sh
 
 # 发布前本地门禁：本工具包 HEAD 装到每个消费仓都不冲突（CI 无消费仓检出，跑不了）
@@ -133,7 +133,7 @@ shellcheck --severity=warning -x setup.sh update.sh lib/render.sh scripts/*.sh t
 
 - **本机 `bash` 只有 `/bin/bash` = 3.2.57**（无 Homebrew bash）。CI runner 是 bash 5 → **3.2 问题在 CI 永远绿，只在 macOS 炸**，故 CI 的「bash 3.2 兼容性（静态）」与 e2e 的裸 `$VAR` 检查**不可删**。
 - **三个已踩过的 shell 陷阱**（`test/install-update-e2e.sh` 内有对应写法）：
-  1. `$VAR` 紧邻全角字符 → 被吞进变量名 → `unbound variable`（应写 `${VAR}）`）。测试断言在 `test:220-232`。
+  1. `$VAR` 紧邻全角字符 → 被吞进变量名 → `unbound variable`（应写 `${VAR}）`）。测试断言在 `test:230-242`。
   2. `cmd | grep -q` 在 `set -o pipefail` 下：`grep -q` 命中即关管道 → 上游 SIGPIPE(141) → 判失败。改用 `case "$out" in *pat*`。
   3. `cmd; ok "$?"` 会被 `set -e` 在 `ok` 之前中止 → 必须 `rc=0; cmd || rc=$?`。
 - **`update.sh` 退出码 1 是正常语义**（有冲突/有差异），不是失败；`cw-update.sh` 经 `exec` 继承。`pr-automation.sh --help` 也退 1。risk-low auto-merge 不可用时 **fail-open 退 0**。

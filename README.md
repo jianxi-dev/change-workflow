@@ -12,7 +12,7 @@ AI agent 常跳过工程规范：不建分支/issue 就开发、不拆票、误�
 |---|---|
 | `skills/change-workflow/SKILL.md` | 总编排 skill：G0-G4 五 gate + fix-first 自愈回路 + 缺陷机制 |
 | `scripts/pr-automation.sh` | issue 驱动分支/PR 自动化（`--resume-branch` 白名单收口、`--refs-only`、auto-merge fail-open） |
-| `scripts/cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` | 项目自升级 / G1 证据录制包装 / G2 Greptile 审查闭环包装（依赖缺失均降级） |
+| `scripts/cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` / `decisions-log.sh` | 项目自升级 / G1 证据录制包装 / G2 Greptile 审查闭环包装 / G3 决策日志（TSV，默认本地不入库；依赖缺失均降级） |
 | `scripts/cw-tickets-check.sh` | G0-POST 拆票自检（C1-C8 机检：对账/字段/AC 形态/禁入信号/DAG/豁免/规模/粒度；`--live` 对账已发子票） |
 | `workflows/change-closure-signal.yml` | CI 合并信号（Layer 1）：合并关闭 change 最后一张子票时打标 |
 | `docs/agents/*.md` | **12 份规范模板**（task-tracking / **quality-gates** / issue-tracker / project-board / triage-labels / defect-workflow / domain / incident-uncommitted-work-loss / incident-merge-local-workspace / evidence-capture / code-structure / pr-writing） |
@@ -30,6 +30,7 @@ AI agent 常跳过工程规范：不建分支/issue 就开发、不拆票、误�
 - **gate 失败 → fix-first 自愈**（自行修复，2 轮未通才升级用户）
 - **合并 → CI 信号 → 会话启动消费 → 自动 G4 收尾**（跨会话自动化）
 - **分支保护**：main 要求质量门禁 + 分支与 main 同步（strict）
+- **门禁引用纪律 + 验证时效**：PR body 逐条写 `QG-x: 具体决策`（空引用不予合并）；QG-5 结论标注 HEAD SHA，收口时 `--verified-sha` 拦截过期验证（rebase/追加提交后未重验 → 拒收）
 
 ## 质量门禁（QG / DQ）
 
@@ -39,6 +40,8 @@ AI agent 常跳过工程规范：不建分支/issue 就开发、不拆票、误�
 - **DQ-1..DQ-8（缺陷处理侧）**：triage 不可跳过 / 根因独立确认 / 先红后绿 / flaky 须机制解释 / 关闭附原始证据 / 同根因合并例外 / 多票同根因→升级规范 / 生命周期标签维护
 
 **最小充分集**：`QG-1 + QG-2 + QG-5`（拦截「功能不存在」）＋ `DQ-1 + DQ-3 + DQ-5`（拦截「假修复」）。
+
+**减法审计**（quality-gates.md §八）：每季度统计各门禁的实际捕获数，连续零捕获 → 合并/退役（最小充分集免退役）——防「门禁只增不减」的 process rot。
 
 ## 五个 gate
 
