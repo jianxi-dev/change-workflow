@@ -11,6 +11,7 @@
 #
 # --refs-only: PR body 关联用 `Refs #N`（parent/spec issue 场景，避免合并提前关闭）
 # auto-merge: risk-low 尝试启用；仓库未启用时 fail-open（提示手动合并，退出 0）
+# --verified-sha: 仅 --resume-branch 模式；QG-5 验证时效检查——与分支 HEAD 不一致（rebase/追加提交后未重验）即拒收退 1，未提供仅警告
 #
 # 流程: 校验仓库干净 → 基于 origin/main 建分支 → 本地验证四件套硬门禁
 #        → 显式 git add 白名单提交 → push → gh pr create(模板+风险标签)
@@ -104,7 +105,7 @@ LABEL_READY="${LABEL_READY:-ready-for-agent}"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 
 usage() {
-  sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 1
 }
 
@@ -119,7 +120,7 @@ run_gate() {
 }
 
 # --- 参数解析 ---------------------------------------------------------------
-ROLE="" ISSUE="" TITLE="" RISK="medium" SLUG="" RESUME_BRANCH="" SKIP_CHECKS="0" REFS_ONLY="0" FILES=()
+ROLE="" ISSUE="" TITLE="" RISK="medium" SLUG="" RESUME_BRANCH="" SKIP_CHECKS="0" REFS_ONLY="0" VERIFIED_SHA="" FILES=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -131,6 +132,7 @@ while [[ $# -gt 0 ]]; do
     --resume-branch) RESUME_BRANCH="$2"; shift 2 ;;
     --files)   FILES+=("$2"); shift 2 ;;
     --refs-only) REFS_ONLY="1"; shift ;;
+    --verified-sha) VERIFIED_SHA="$2"; shift 2 ;;
     --skip-checks) SKIP_CHECKS="1"; shift ;;
     --list-ready) gh issue list --label "$LABEL_READY" --state open --json number,title,labels \
                     --jq '.[] | "#\(.number) [\(.labels|map(.name)|join(","))] \(.title)"'; exit 0 ;;
@@ -150,6 +152,41 @@ case "$RISK" in
   medium) RISK_LABEL="$LABEL_RISK_MEDIUM" ;;
   high)   RISK_LABEL="$LABEL_RISK_HIGH" ;;
 esac
+
+# --- QG-5 验证时效检查（rebase 检测）----------------------------------------
+# 前置在 gh 校验之前：纯本地判定（git rev-parse），不依赖网络/凭证，越早拦截越省往返。
+# --verified-sha = 票上「QG-5 验证基于」的 SHA（完整或 ≥7 位短前缀）。分支在验证后
+# 发生 rebase/追加提交 → HEAD 被重写/前移 → 与记录不符 → 拒收：防止基于旧 SHA 的
+# 验证结论被静默带进合并（restack 会一次性作废全部判定）。仅 resume 模式有效
+# （fresh 模式尚无验证历史）；未提供 → 仅警告（降级不阻塞，risk-medium/high 应提供）。
+if [[ -n "$VERIFIED_SHA" ]]; then
+  if [[ -z "$RESUME_BRANCH" ]]; then
+    echo "❌ --verified-sha 仅用于 --resume-branch 模式（QG-5 时效检查）" >&2
+    exit 1
+  fi
+  VERIFIED_SHA="$(printf '%s' "$VERIFIED_SHA" | tr 'A-F' 'a-f')"
+  case "$VERIFIED_SHA" in
+    *[!0-9a-f]*)
+      echo "❌ --verified-sha 必须是十六进制 SHA: ${VERIFIED_SHA}" >&2
+      exit 1 ;;
+  esac
+  if [[ ${#VERIFIED_SHA} -lt 7 || ${#VERIFIED_SHA} -gt 40 ]]; then
+    echo "❌ --verified-sha 长度须为 7-40（完整或短 SHA）: ${VERIFIED_SHA}" >&2
+    exit 1
+  fi
+  CUR_SHA="$(git rev-parse --verify --quiet "refs/heads/${RESUME_BRANCH}" || true)"
+  if [[ -n "$CUR_SHA" ]]; then
+    case "$CUR_SHA" in
+      "$VERIFIED_SHA"*) : ;;
+      *)
+        echo "❌ QG-5 验证已过期：验证基于 ${VERIFIED_SHA}，分支 HEAD 现为 ${CUR_SHA}" >&2
+        echo "   （rebase/追加提交后未重验）→ 重跑 QG-5、更新票上「验证基于」SHA 后重新收口" >&2
+        exit 1 ;;
+    esac
+  fi
+elif [[ -n "$RESUME_BRANCH" ]]; then
+  echo "⚠️  未提供 --verified-sha：跳过 QG-5 验证时效检查（risk-medium/high 应提供）" >&2
+fi
 
 # --- 前置校验 ---------------------------------------------------------------
 [[ -n "$ISSUE" ]] && gh issue view "$ISSUE" --json number,title --jq '.number' >/dev/null 2>&1 \
@@ -291,6 +328,9 @@ $( [[ "$REFS_ONLY" == "1" ]] && echo "Refs #$ISSUE" || echo "Closes #$ISSUE" )
 ## 验证方式
 - [ ] 质量门禁（typecheck / lint / test，按 .change-workflow.conf 配置）
 $( [[ "$ROLE" == "fix" ]] && echo "- [ ] 复现步骤验证通过" )
+
+## 质量门禁引用
+(逐条写 QG-x / DQ-x: <它改变了哪个具体决策>；只提编号 = 空引用。无应用/豁免写「无」)
 
 ## 风险评估
 **风险等级**: $RISK

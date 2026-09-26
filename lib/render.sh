@@ -137,7 +137,7 @@ cw_tmp_mode_for() {
   chmod "${mode:-0644}" "$tmp"
 }
 
-# 目标仓是否为工具包源自身（自我安装）。工具包里 18 个受管文件有 16 个的模板源与安装目标
+# 目标仓是否为工具包源自身（自我安装）。工具包里 20 个受管文件有 18 个的模板源与安装目标
 # 同路径（docs/agents/*.md、scripts/*.sh），自我安装会清空模板，并把模板记成受管基线
 # （此后每次改模板都报冲突）。故 setup/update 在动任何东西之前一律拒绝。
 cw_is_self_target() {
@@ -158,6 +158,7 @@ cw_list_files() {
   echo "scripts/cw-evidence.sh|scripts/cw-evidence.sh"
   echo "scripts/cw-greploop.sh|scripts/cw-greploop.sh"
   echo "scripts/cw-tickets-check.sh|scripts/cw-tickets-check.sh"
+  echo "scripts/decisions-log.sh|scripts/decisions-log.sh"
   local f base
   for f in "$CW_ROOT"/docs/agents/*.md; do
     [[ -e "$f" ]] || continue

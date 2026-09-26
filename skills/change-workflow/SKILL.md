@@ -35,6 +35,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 | `cw-evidence.sh` | 脚本（G1 出口·QG-5 证据采集：按证据分层协议采集 before/after 成对产物，落 `.artifacts/<票号>/`；无 ffmpeg/GUI 走 headless 降级） |
 | `cw-greploop.sh` | 脚本（G2 可选·Greptile 审查闭环：PR 创建后 risk-medium/high 合并确认前调用；无 Greptile 降级为本地审查闭环并显式标注） |
 | `cw-tickets-check.sh` | 脚本（G0-POST 拆票自检：对账/字段/AC 形态/禁入信号/DAG/豁免/规模/粒度 C1-C8 机检，发布前门禁；`--live` 对账已发子票） |
+| `decisions-log.sh` | 脚本（G3 决策日志：每票追加一行 TSV——时间/阶段/决策/理由/证据指针/结果；默认落 `.artifacts/`，本地不入库） |
 | `gh` / `git` / `openspec` CLI | CLI 工具（被 skill/脚本调用） |
 
 ## 会话启动：消费合并信号（跨会话自动收尾）
@@ -169,7 +170,7 @@ flowchart TB
 - **G1 出口（顺序固定，全部通过才允许 commit）**：
   1. `code-review` 双轴（Standards + Spec）——每任务后必做，**须逐条对照 QG-4 检查测试是否驱动真实路径**
   2. `review`（pre-landing 结构审查）——仅 risk-medium/high 追加
-   3. **QG-5 独立验证**：验证者（orchestrator，非实施者）跑**自己的探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数）**粘贴到票上**；未附原始证据的「已完成」不予采信。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据；`cw-evidence.sh` 退出码：0=成功 / 1=参数或子命令错误 / 3=依赖缺失降级——3 是预期路径，按脚本打印的降级指引继续，不得视为失败放弃证据纪律
+   3. **QG-5 独立验证**：验证者（orchestrator，非实施者）跑**自己的探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数）**粘贴到票上**；未附原始证据的「已完成」不予采信。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据；`cw-evidence.sh` 退出码：0=成功 / 1=参数或子命令错误 / 3=依赖缺失降级——3 是预期路径，按脚本打印的降级指引继续，不得视为失败放弃证据纪律；并在票上标注**验证基于的 HEAD SHA**（`git rev-parse HEAD`，记作 `QG-5 验证基于 <sha>`——rebase/追加提交后该结论即过期，G2 据此拦截）
    4. 通过后 → G2
 
 > **QG-5 为何强制**（2026-09-20）：修复期抓出 **4 个「自测全绿但实际无效」**的交付，**4/4 全部由独立探针抓出，零例外**。自证无效。本地 e2e 单文件实测约 **16 秒**，成本极低。
@@ -187,6 +188,8 @@ flowchart TB
 - **auto-merge**：risk-low 尝试启用；仓库未启用时脚本 fail-open（提示 `gh pr merge <N> --squash`，CI 绿后执行）
 - **从头模式适用场景**：artifacts docs PR（文件就绪一次成型）；单文件快速改动
 - PR 模板必填项全填（impact/verification/risk）；禁止 `--skip-checks`
+- **门禁引用纪律**：本次应用/豁免的每条 QG/DQ 必须在 PR body 逐条写 `QG-x / DQ-x: <它改变了哪个具体决策>`（例：`QG-5: 用真实按键探针替代测试摘要`）；只写编号 = **空引用**，不予合并（豁免的显式声明见 `docs/agents/quality-gates.md` §七）
+- **验证时效（QG-5 过期拦截）**：`--resume-branch` 收口时传 `--verified-sha <票上「QG-5 验证基于」的 SHA>`；与分支 HEAD 不一致（rebase / 追加提交后未重验）→ 脚本**拒收退 1**，重跑 QG-5 后再收口；未提供 → 仅警告（risk-medium/high 应提供）
 - **可选审查闭环**（risk-medium/high 合并确认前）：可调用 `scripts/cw-greploop.sh` 跑 Greptile 审查闭环（触发 → 轮询 → 修复 → resolve → 重触发；退出 = 满分零未解决评论或达 max-iterations）；无 Greptile 时降级为本地审查闭环（code-review / review 输出 + 人工清单）并在 PR 上显式标注「审查闭环降级为人工」；`cw-greploop.sh` 退出码：0=协议已打印（不代表审查通过）/ 1=参数错误或 --pr 无法解析 / 3=降级——按降级策略继续
 
 ### G3 任务级收尾（每轮必做，非阻塞）｜执行：learn + sync-gbrain
@@ -194,6 +197,7 @@ flowchart TB
 - **时机**：push + PR 创建后立即执行，不等合并
 - **不阻塞下一 change**：下一 change 自 commit/push 完成后即可启动；learn/sync 是收尾动作而非前置 gate，可并行
 - **frontier 自动推进**：G3 后自动运行 `gh issue list --label ready-for-agent --state open --json number,title,body` 按 `[change=<名>/` 精确筛选 → 逐票解析 Blocked by 确认全部 closed → 取第一张可开工票自动进入其 G1（单 agent 会话内自动循环）；无票可做 → change 收口检查（completedTasks==totalTasks 且无残留且无未合并 PR）→ 自动进入 G4。标签名以 conf `LABEL_READY` 为准（默认 `ready-for-agent`），conf 值优先
+- **决策日志（可审计轨迹）**：每票收尾追加一行——`./scripts/decisions-log.sh add <阶段> <决策> <理由> <证据指针> <结果>`；TSV 默认落 `.artifacts/decisions.tsv`（本地、不入库；需留档的项目自行纳入版本控制）。隔夜/无人值守运行结束后按它审计「做了哪些决策、为什么」（列：时间/阶段/决策/理由/证据/结果）
 - **自动化边界**：单 agent 会话内自动（frontier 推进）；跨会话由「会话启动消费 `change-close-pending` 信号」覆盖（见上节）；唯一人工介入 = risk-medium/high PR 合并确认
 - **learn/sync 与发版解耦**：每轮交付后的知识闭环服务下一 change/会话；发版（`VERSION`+`CHANGELOG`+tag）不改代码，无需额外 sync
 - **文字质量**：learn 记录与收尾回复发布前过 `docs/agents/pr-writing.md`（T9 模糊归因在学习记录里危害最大，必须给出处）；如触发发版/PR，`cw-greploop.sh` 为可选调用（同 G2 降级策略）

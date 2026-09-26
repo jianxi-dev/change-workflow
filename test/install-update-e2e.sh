@@ -88,12 +88,13 @@ ok "cw-update 可执行" "$([[ -x scripts/cw-update.sh ]] && echo y)" "y"
 ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
 ok "cw-tickets-check 可执行" "$([[ -x scripts/cw-tickets-check.sh ]] && echo y)" "y"
+ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y"
 # A5（R1）模式保持回归锁：mktemp 恒 0600 曾随 mv 带进受管文件（首装 docs=600、脚本=711）。
 # 新建 → 0644；脚本 = 0644 + cw_chmod_scripts 的 +x → 755；manifest 新建 → 644。
 ok "docs 模式 644" "$(fmode docs/agents/domain.md)" "644"
 ok "脚本模式 755" "$(fmode scripts/cw-evidence.sh)" "755"
 ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
-ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "19"
+ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "20"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
 
@@ -103,7 +104,7 @@ echo "[2] 幂等（版本回退后重跑）"
 set_version "1.0.0"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out2" in *"已最新 19"*) r2=0 ;; *) r2=1 ;; esac
+case "$out2" in *"已最新 20"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
 # ── 用例 3：本地修改 → 冲突 ──────────────────────────────────────────────────
@@ -188,8 +189,9 @@ ok "pr-automation 可执行" "$([[ -x scripts/pr-automation.sh ]] && echo y)" "y
 ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
 ok "cw-tickets-check 可执行" "$([[ -x scripts/cw-tickets-check.sh ]] && echo y)" "y"
-# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 19 - 3 = 16
-ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "16"
+ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 20 - 3 = 17
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "17"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
@@ -357,7 +359,7 @@ ok "缺失+LOCAL 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo 
 ok "缺失+LOCAL 真实更新计本地保留" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "1"
 ok "缺失+LOCAL kept==^LOCAL" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11l="$(printf '%s' "$out11l" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL 五桶和==19" "$(( ${m11l:-0} ))" "19"
+ok "缺失+LOCAL 五桶和==20" "$(( ${m11l:-0} ))" "20"
 # 对抗轮7 回归锁：缺失 + LOCAL 哨兵 + --force —— force 优先于 LOCAL 哨兵（与等值/差异路径
 # 同原则），缺失分支必须归一：计 ADDED + 记 FORCED_LIST → manifest 重写走哈希归一分支。
 # 旧缺陷：缺失分支无 force 分流 → --force 仍走 LOCAL 保留分支 → 文件被「本地保留」永久
@@ -371,7 +373,7 @@ ok "缺失+LOCAL force 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] &&
 ok "缺失+LOCAL force 哨兵归一" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/pr-writing.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
 ok "缺失+LOCAL force kept==^LOCAL" "$(printf '%s' "$out11n" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11n="$(printf '%s' "$out11n" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL force 五桶和==19" "$(( ${m11n:-0} ))" "19"
+ok "缺失+LOCAL force 五桶和==20" "$(( ${m11n:-0} ))" "20"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
@@ -485,7 +487,7 @@ B8="$(mktemp -d)"
 CLEAN="$B8/clean"; new_repo "$CLEAN" || exit 1
 write_conf "1.0.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
-ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "19"
+ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "20"
 
 rc14a=0; out14a="$("$CW_ROOT/test/rollout-check.sh" "$CLEAN" 2>&1)" || rc14a=$?
 ok "干净仓退出码" "$rc14a" "0"
@@ -701,7 +703,7 @@ case "$out19" in *"无基线记录"*) r19=1 ;; *) r19=0 ;; esac
 ok "无「无基线记录」误报" "$r19" "0"
 set_version "1.0.0"
 out19b="$("$B13/tk2/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out19b" in *"已最新 19"*) r19b=0 ;; *) r19b=1 ;; esac
+case "$out19b" in *"已最新 20"*) r19b=0 ;; *) r19b=1 ;; esac
 ok "二次运行已最新" "$r19b" "0"
 # --accept-local 对空格路径生效：本地修改 → 冲突 → 接受 → 归一且哨兵粘住
 echo "## 本地定制" >> "My Docs/triage-labels.md"
@@ -960,6 +962,115 @@ ok "live 对账不符列出幽灵票" "$r23" "0"
 
 cd "$CW_ROOT"
 sanitize "$B17"
+
+# ── 用例 24：decisions-log 决策日志（G5 反哺）──────────────────────────────────
+# 契约（scripts/decisions-log.sh 头部注释）：
+#   0 = 成功（含 --help / show 无文件 / path）；1 = 用法或参数错误
+# 格式：TSV 六列 ts/phase/decision/why/evidence/result；tab/换行/CR 折为空格；
+#       首字符 =/+/-/@ 前缀 '（防表格公式注入）；默认落 ./.artifacts/decisions.tsv（cwd 相对，不入库）
+echo ""
+echo "[24] decisions-log 决策日志"
+B18="$(mktemp -d)"
+new_repo "$B18/repo" || exit 1
+DL_SH="$CW_ROOT/scripts/decisions-log.sh"
+TAB24="$(printf '\t')"
+
+rc=0; out24h="$("$DL_SH" --help 2>&1)" || rc=$?
+ok "decisions-log --help 退 0" "$rc" "0"
+case "$out24h" in *"用法"*) r24=0 ;; *) r24=1 ;; esac
+ok "decisions-log --help 输出用法" "$r24" "0"
+rc=0; "$DL_SH" >/dev/null 2>&1 || rc=$?
+ok "decisions-log 无参数退 1" "$rc" "1"
+rc=0; "$DL_SH" bogus >/dev/null 2>&1 || rc=$?
+ok "decisions-log 未知子命令退 1" "$rc" "1"
+rc=0; "$DL_SH" add G1 >/dev/null 2>&1 || rc=$?
+ok "decisions-log add 缺参数退 1" "$rc" "1"
+
+# show 无文件：友好提示 + 退 0（无日志不是错误）
+rc=0; "$DL_SH" show >/dev/null 2>&1 || rc=$?
+ok "decisions-log show 无文件退 0" "$rc" "0"
+
+# add：落 .artifacts/decisions.tsv（cwd 相对）；首写建 TSV 头
+rc=0; "$DL_SH" add G1 "选择真实按键探针" "自证无效" ".artifacts/probe.txt" "passed" >/dev/null 2>&1 || rc=$?
+ok "decisions-log add 退 0" "$rc" "0"
+ok "日志文件已创建" "$([[ -f .artifacts/decisions.tsv ]] && echo y)" "y"
+ok "首行 TSV 头" "$(head -1 .artifacts/decisions.tsv)" "$(printf 'ts\tphase\tdecision\twhy\tevidence\tresult')"
+ok "首写行数（头+1）" "$(wc -l < .artifacts/decisions.tsv | tr -d ' ')" "2"
+
+# 字段内含 tab 与换行：折为空格，行不分裂（行数仍为 头+2）
+rc=0; "$DL_SH" add G2 "$(printf '决策带\t制表符')" "$(printf '理由含\n换行')" "ev" "ok" >/dev/null 2>&1 || rc=$?
+ok "sanitize 不分裂行" "$(wc -l < .artifacts/decisions.tsv | tr -d ' ')" "3"
+case "$(tail -1 .artifacts/decisions.tsv)" in *"决策带 制表符"*"理由含 换行"*) r24=0 ;; *) r24=1 ;; esac
+ok "sanitize 折为空格" "$r24" "0"
+
+# 公式注入防护：首字符 = → 前缀 '（表格打开不执行公式）
+rc=0; "$DL_SH" add G3 '=SUM(A1)' "why" "ev" "res" >/dev/null 2>&1 || rc=$?
+case "$(tail -1 .artifacts/decisions.tsv)" in *"'=SUM(A1)"*) r24=0 ;; *) r24=1 ;; esac
+ok "公式前缀引号" "$r24" "0"
+
+# path / show / --file / env 覆盖
+rc=0; out24p="$("$DL_SH" path 2>&1)" || rc=$?
+ok "path 退 0" "$rc" "0"
+case "$out24p" in *".artifacts/decisions.tsv"*) r24=0 ;; *) r24=1 ;; esac
+ok "path 输出路径" "$r24" "0"
+rc=0; out24show="$("$DL_SH" show 2>&1)" || rc=$?
+ok "show 退 0" "$rc" "0"
+case "$out24show" in *"ts${TAB24}phase${TAB24}decision"*) r24=0 ;; *) r24=1 ;; esac
+ok "show 含 TSV 头" "$r24" "0"
+rc=0; "$DL_SH" --file "$B18/custom.tsv" add G4 "d" "w" "e" "r" >/dev/null 2>&1 || rc=$?
+ok "--file 覆盖已创建" "$([[ -f "$B18/custom.tsv" ]] && echo y)" "y"
+rc=0; DECISIONS_LOG="$B18/env.tsv" "$DL_SH" add G4 "d" "w" "e" "r" >/dev/null 2>&1 || rc=$?
+ok "env 覆盖已创建" "$([[ -f "$B18/env.tsv" ]] && echo y)" "y"
+
+cd "$CW_ROOT"
+sanitize "$B18"
+
+# ── 用例 25：pr-automation 验证时效护栏（G6 反哺）──────────────────────────────
+# 契约（pr-automation.sh 头部注释 + --verified-sha）：
+#   --verified-sha 仅 --resume-branch 模式有效；与分支 HEAD 前缀不匹配 → 退 1
+#   （QG-5 验证过期，禁止直接收口）；未提供 → 仅警告（降级不阻塞）。
+#   检查置于 gh 前置校验之前 → 不依赖网络/凭证即确定性命中。
+# 注意：pr-automation 以「脚本父目录」为仓库根（cd REPO_ROOT），故须把脚本
+#       复制进临时仓的 scripts/ 后再调用（与用例 15 的 greploop 复制同因）。
+echo ""
+echo "[25] pr-automation 验证时效护栏（G6）"
+B19="$(mktemp -d)"
+new_repo "$B19/repo" || exit 1
+mkdir -p scripts
+cp "$CW_ROOT/scripts/pr-automation.sh" scripts/pr-automation.sh
+chmod +x scripts/pr-automation.sh
+PA_SH="$PWD/scripts/pr-automation.sh"
+
+git checkout -q -b feat/probe
+git -c user.name=t -c user.email=t@t.invalid commit -q --allow-empty -m "probe"
+HEAD_SHA="$(git rev-parse HEAD)"
+
+# 过期：验证基于的 SHA 与分支 HEAD 不匹配（rebase/追加提交后未重验）→ 拒收退 1
+rc=0; out25a="$("$PA_SH" --role feat --issue 999 --resume-branch feat/probe --verified-sha 0000000000000000000000000000000000000000 2>&1)" || rc=$?
+ok "verified-sha 过期退 1" "$rc" "1"
+case "$out25a" in *"验证已过期"*) r25=0 ;; *) r25=1 ;; esac
+ok "过期时明示「验证已过期」" "$r25" "0"
+
+# 匹配：通过时效检查（随后在既有 gh 前置校验处失败，证明拦截来自下游而非时效）
+rc=0; out25b="$("$PA_SH" --role feat --issue 999 --resume-branch feat/probe --verified-sha "$HEAD_SHA" 2>&1)" || rc=$?
+case "$out25b" in *"验证已过期"*) r25b=1 ;; *) r25b=0 ;; esac
+ok "匹配放行（不再报过期）" "$r25b" "0"
+case "$out25b" in *"不存在或无法访问"*) r25c=0 ;; *) r25c=1 ;; esac
+ok "匹配后下游校验接管" "$r25c" "0"
+
+# 未提供：仅警告（降级不阻塞；下游校验失败属预期）
+rc=0; out25d="$("$PA_SH" --role feat --issue 999 --resume-branch feat/probe 2>&1)" || rc=$?
+case "$out25d" in *"未提供 --verified-sha"*) r25d=0 ;; *) r25d=1 ;; esac
+ok "未提供仅警告" "$r25d" "0"
+
+# 参数错误：非 hex 退 1；fresh 模式（无 resume）不得使用 --verified-sha
+rc=0; "$PA_SH" --role feat --issue 999 --resume-branch feat/probe --verified-sha "not-hex-zz" >/dev/null 2>&1 || rc=$?
+ok "非 hex 退 1" "$rc" "1"
+rc=0; "$PA_SH" --role feat --issue 999 --verified-sha "$HEAD_SHA" >/dev/null 2>&1 || rc=$?
+ok "fresh 模式拒收退 1" "$rc" "1"
+
+cd "$CW_ROOT"
+sanitize "$B19"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
