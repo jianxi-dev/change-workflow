@@ -34,5 +34,5 @@
 
 - [x] 5.1 本地逐条复现 CI 门禁全绿（9 步：语法/shellcheck/3.2 静态/占位符/模板头/换行/禁串/qa-ship 锁/e2e）
 - [x] 5.2 `./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis`——实测：三仓冲突 0、LOCAL 哨兵完整、覆盖 19/19（md-bundle 的 `quality-gates.md` 为 LOCAL 哨兵 → 计「本地保留」跳过，无 `.new`、无需手动合并——优于任务预期，原「出 .new」假设有误）
-- [ ] 5.3 `VERSION` + `CHANGELOG.md` 同步（结构：新增/修复 → 教训反思 → 验证（贴 e2e 通过数））
-- [ ] 5.4 显式 `git add` 目标文件提交（中文 Conventional Commit）；`git tag` 发布
+- [x] 5.3 `VERSION` + `CHANGELOG.md` 同步（结构：新增/修复 → 教训反思 → 验证（贴 e2e 通过数）；config.example.conf 版本漂移一并对齐 1.5.0）
+- [x] 5.4 显式 `git add` 目标文件提交（中文 Conventional Commit）×2（feat + docs-sync）；`git tag -a v1.5.0` 并推送 main/tag
