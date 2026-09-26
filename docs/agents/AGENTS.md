@@ -5,7 +5,7 @@
 ## OVERVIEW
 
 本目录 12 份 `*.md` 是规范模板（不是本仓文档），安装到消费仓的 `<DOCS_DIR>`（默认 `docs/agents`）。
-清单由 `../lib/render.sh:161-167` 的 glob 自动纳入 `cw_list_files`（该 glob 跳过 `AGENTS.md` 自身）；受管文件共 18 个 = 6 硬编码 + 12 份 docs（`../lib/render.sh:153`）。
+清单由 `../lib/render.sh:161-167` 的 glob 自动纳入 `cw_list_files`（该 glob 跳过 `AGENTS.md` 自身）；受管文件共 19 个 = 7 硬编码 + 12 份 docs（`../lib/render.sh:153`）。
 改本目录的文件名即改变消费仓的 `docs/agents` 布局。
 
 ## 12 份模板

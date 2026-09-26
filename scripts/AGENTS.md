@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-本目录是模板源：4 个受管脚本 `pr-automation.sh` / `cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` 都装到消费仓的 `scripts/`，清单唯一定义在 `../lib/render.sh:153` 的 `cw_list_files`。改这里的文件即改变所有消费仓的安装产物。
+本目录是模板源：5 个受管脚本 `pr-automation.sh` / `cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` / `cw-tickets-check.sh` 都装到消费仓的 `scripts/`，清单唯一定义在 `../lib/render.sh:153` 的 `cw_list_files`。改这里的文件即改变所有消费仓的安装产物。
 
 ## 文件与职责
 
@@ -25,6 +25,15 @@ G2 提交/PR 机械流水线。仓库内无 shell 调用它，仅被 `../skills/
 - 缓存已存在则 `git pull --ff-only`，否则 `git clone`（`:114-122`）。
 - `exec` 缓存副本的 `update.sh`（`:126`/`:128`），退出码透传；`--target` 之外的参数原样转发。
 - 退出码语义继承 `update.sh`：1 表示有冲突，是正常语义，不是失败。
+
+### cw-tickets-check.sh（733 行）
+
+G0-POST 拆票自检——发布前门禁（quiz 人工确认退役后的替代机制；把原手写对账命令脚本化）。
+
+- 草稿模式（默认）：校验 `.tickets-draft/<change>/` 下的票面草稿（每票一文件：标题 `[change=<名>/<task号>]` + 七字段）——C1 对账双射 / C2 七字段 / C3 QG-1 形态 / C4 禁入信号 / C5 Blocked by DAG（越界/自环/环）/ C6 豁免显式 / C7 规模钩子 / C8 粒度声明 + 票间 `What` 重叠（阈值常量 `OVERLAP_THRESHOLD_PCT=80`）。
+- `--live`：以 `gh issue list --state all` 对账已发子票（仅 C1）；与 `--drafts` 互斥。
+- 退出码：0 = 全部通过（含 `--help`）；1 = 违规或用法错误。python3 缺失 → fail-closed 退 1。
+- 契约锁：`../test/install-update-e2e.sh` 用例 23（含 gh 桩的 live 测试）；判据映射与设计说明见脚本头注。
 
 ## 参数与退出码
 
@@ -58,7 +67,7 @@ pr-automation.sh 参数表：
 
 ## 共享 helper（lib/render.sh）
 
-4 个脚本装到消费仓后**不依赖 `lib/`**，但 conf 读取与写入面共用 `../lib/render.sh` 的同一批 helper —— 改这些 helper 必须四脚本一起看：
+5 个脚本装到消费仓后**不依赖 `lib/`**，但 conf 读取与写入面共用 `../lib/render.sh` 的同一批 helper —— 改这些 helper 必须连带全部消费侧副本一起看：
 
 - `cw_refuse_symlink`（`../lib/render.sh:62`）：所有受管写入面（渲染重定向、`cp` 安装、manifest/conf 重写）必须先过这道闸，拒绝符号链接目标（C2 安全边界）。使用点：渲染目标 `:103`、cp 源/目标 `:175-176`、受管脚本 `:201`；`update.sh:132`/`:194`/`:258-259`/`:458-459`、`setup.sh:146`/`:221`。
 - `cw_atomic_cp`（`:173`）/ `cw_chmod_scripts`（`:196`）：安装原子性与执行位（见下方修改清单第 4 条）。
@@ -69,8 +78,8 @@ pr-automation.sh 参数表：
 ## 修改清单（新增/改动脚本必须连带）
 
 1. 新增/删除受管脚本 → 改 `../lib/render.sh:153` 的 `cw_list_files`。
-2. 同步 `../test/install-update-e2e.sh`：脚本语法检查循环（`:216`）与 Python 裸 `$VAR` 检查列表（`:223`）—— **新增任何脚本（含测试侧）都要加进这两处**：本仓的「`$VAR` 紧邻全角字符」陷阱只有这里拦得住（1.2.1 的 `test/rollout-check.sh` 与 `update.sh` 守卫都曾踩中）。
-3. 同步 `../.github/workflows/ci.yml` 的脚本清单（`:21`、`:35`、`:43` 三处）。
+2. 测试侧语法检查与裸 `$VAR` 清单已改为 `scripts/*.sh` glob（`../test/install-update-e2e.sh` 用例 9），新增脚本**自动纳入**，无需手工登记——本仓的「`$VAR` 紧邻全角字符」陷阱由这组检查拦截（1.2.1 的 `test/rollout-check.sh` 与 `update.sh` 守卫都曾踩中）。
+3. `../.github/workflows/ci.yml` 三处脚本清单（`:21`、`:35`、`:43`）同为 `scripts/*.sh` glob，新增脚本自动纳入，无需手改。
 4. 执行位：`cw_render` 用重定向写文件，装出来的新文件不带执行位；`../setup.sh` 与 `../update.sh`（两条更新路径）在渲染后**从 `cw_list_files` 派生**对 `scripts/*.sh` 统一 `chmod +x`（1.3.0 修复：清单即名单）。新增受管脚本只要进了 `cw_list_files` 就自动获得执行位，**不需要再登记第二份 chmod 名单** —— 硬编码名单曾两次漏加（1.2.0 与 1.3.0 均致消费仓 `./scripts/<name>.sh` 报 Permission denied），这正是「清单派生」要消灭的缺陷类；回归锁在 `../test/install-update-e2e.sh` 用例 1 的新增脚本 x 位断言。
 5. 行为变更 → 同步 `../VERSION` + `../CHANGELOG.md` 并发版。
 
@@ -78,5 +87,5 @@ pr-automation.sh 参数表：
 
 - `pr-automation.sh` 白名单路径若被 .gitignore 匹配，`git add` 失败后自动 fallback 到 `git add -f`（`:259-261`）；路径已由 `--files` 显式限定，不违反白名单原则。
 - `pr-automation.sh` 从头模式要求无已跟踪未提交改动（`:222-227`）；resume 模式允许脏工作区，但必须配 `--files`（`:210-220`）。
-- 4 个脚本的 `--help` 语义：`pr-automation.sh --help` 退 1，其余 3 个（`cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh`）均退 0（`cw-update.sh:35-37`）。
+- 5 个脚本的 `--help` 语义：`pr-automation.sh --help` 退 1，其余 4 个（`cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` / `cw-tickets-check.sh`）均退 0（`cw-update.sh:35-37`）。
 - `cw-update.sh` 除 `--target`、`--help` 外的参数原样转发给 `update.sh`（`:38`）。

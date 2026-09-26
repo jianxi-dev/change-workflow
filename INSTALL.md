@@ -133,7 +133,7 @@ mv <file>.new <file>        # 2. 放弃本地改动，采用新版本
 
 ### 受管文件
 
-`SKILL.md` / `pr-automation.sh` / `cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` / `change-closure-signal.yml` / `docs/agents/*.md`（12 份）。
+`SKILL.md` / `pr-automation.sh` / `cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` / `cw-tickets-check.sh` / `change-closure-signal.yml` / `docs/agents/*.md`（12 份）。
 **不受管**（升级不会触碰）：`.change-workflow.conf`、`AGENTS.md` 中的索引段、你新增的其它文档与脚本。
 
 > 注：`AGENTS.md` 的索引段只在首次安装时追加；升级不会重复追加，新增的门禁段落需人工补（参考工具包 `setup.sh` 中的 heredoc 内容）。
@@ -141,7 +141,7 @@ mv <file>.new <file>        # 2. 放弃本地改动，采用新版本
 ## 手动安装（不用 setup.sh）
 
 > ⚠️ **本工具包自身不是自己的消费者。** `--target` 指向工具包源目录会被 `setup.sh` /
-> `update.sh` 直接拒绝：18 个受管文件里 16 个的模板源与安装目标同路径，渲染会先截断再
+> `update.sh` 直接拒绝：19 个受管文件里 17 个的模板源与安装目标同路径，渲染会先截断再
 > 读取 → 清空模板。下面的手动安装同样**不适用于自我安装**（步骤 2 是同路径 `cp`，步骤 4
 > 是同文件渲染）。在本仓开发时，流程依据直接读 `docs/agents/` 与
 > `skills/change-workflow/SKILL.md` 即可。

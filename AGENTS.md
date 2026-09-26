@@ -8,7 +8,7 @@
 ## OVERVIEW
 
 bash 工具包（无编译、无运行时依赖，需 `bash` + `gh` + `git` + `python3`）：把 agent 的**变更生命周期**编码为 G0-G4 强制 gate + fix-first 自愈回路，安装到任意 GitHub 仓库。
-本仓是**工具包源**；它的产物是「装进消费仓的 18 个受管文件」，不是可运行的 app。
+本仓是**工具包源**；它的产物是「装进消费仓的 19 个受管文件」，不是可运行的 app。
 
 消费仓：`md-bundle`（含架构图 `docs/diagrams/change-workflow.architecture.html`）、`mdpkg`、`clairis`。
 
@@ -24,11 +24,11 @@ change-workflow/
 ├── skills/change-workflow/   # 模板源 → 装到 <SKILLS_DIR>（默认 .opencode/skills）
 ├── docs/agents/              # 模板源 → 装到 <DOCS_DIR>（12 份规范）
 ├── workflows/                # 模板源 → 装到 .github/workflows/change-closure-signal.yml
-├── test/install-update-e2e.sh # 22 用例 / 176 断言（CI 第 8 步全量跑；唯一权威验证）
+├── test/install-update-e2e.sh # 23 用例 / 194 断言（CI 第 9 步全量跑；唯一权威验证）
 ├── test/rollout-check.sh     # 消费仓滚动验证（发布前本地门禁；CI 无消费仓检出，跑不了）
 ├── .opencode/                # openspec init 产物：6 个 opsx-* 命令 + 6 个 openspec-* 技能
 ├── openspec/                 # openspec 项目数据（config.yaml / changes / specs）
-├── .github/workflows/ci.yml  # 本仓自身 CI（8 步）
+├── .github/workflows/ci.yml  # 本仓自身 CI（9 步）
 ├── config.example.conf       # conf 键值清单（不受管，升级不覆盖）
 └── VERSION / CHANGELOG.md    # 发版必须同步的两处
 ```
@@ -39,7 +39,7 @@ change-workflow/
 
 | 任务 | 位置 | 备注 |
 |---|---|---|
-| 新增/删除受管文件 | `lib/render.sh:153` `cw_list_files` | 连带改：模板、`test` 计数断言、`ci.yml:21/35/43` 脚本清单、`test/rollout-check.sh` |
+| 新增/删除受管文件 | `lib/render.sh:153` `cw_list_files` | 连带改：模板、`test` 计数断言；`ci.yml` 三处与 test 语法清单已为 `scripts/*.sh` glob（自动纳入），`rollout-check` 为动态计数无需改 |
 | 新增占位符 | `lib/render.sh:29-46` | 替换表唯一位置；`ci.yml:55` 校验一致性 |
 | 升级/冲突/基线语义 | `update.sh` | 语义教训见 `CHANGELOG.md:308-309` |
 | 安装流程 | `setup.sh` | 与 update 共用 `lib/render.sh`，勿各写一套 |
@@ -54,7 +54,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 | Symbol | Type | Location | Refs | Role |
 |---|---|---|---|---|
-| `cw_list_files` | fn | `lib/render.sh:153` | 11 | 18 个受管文件的**唯一清单**（6 硬编码 + 12 docs glob；globs 在 `:161-167`，跳过 `AGENTS.md`） |
+| `cw_list_files` | fn | `lib/render.sh:153` | 11 | 19 个受管文件的**唯一清单**（7 硬编码 + 12 docs glob；globs 在 `:161-167`，跳过 `AGENTS.md`） |
 | `cw_render` | fn | `lib/render.sh:90` | 11 | 模板 → 目标文件（剥头 + 替换占位符） |
 | `cw_sha` | fn | `lib/render.sh:108` | 9 | sha256（macOS/Linux 双实现） |
 | `cw_substitute` | fn | `lib/render.sh:29` | 2 | 占位符替换表 |
@@ -93,7 +93,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 - 「测试通过」「已修复」「冒烟正常」是**结论不是证据**，不予采信（`quality-gates.md:315`）。
 - **1 task = 1 ticket = 1 分支 = 1 PR**，分支绝不复用（`pr-automation.sh:30`）；N 票同根因才能 1 PR 关 N 票且须逐票 `fixes #N`（DQ-6）。parent = 源 spec issue，其 PR 必须 `--refs-only`（`Refs #N`）。
 - 禁止 `pr-automation.sh --skip-checks`（逃生舱，`SKILL.md:189`）。
-- **禁止 `--target` 指向工具包源自身**（自我安装）：18 个受管文件里 16 个的模板源与安装目标同路径，渲染会**先截断再读取 → 文件归零**（实测 11913 字节 → 0）。由 `cw_render:98` 与 `cw_is_self_target:143` 双重拒绝。**本仓不是自己的消费者** —— 流程依据直接读 `docs/agents/` 与 `skills/change-workflow/SKILL.md`。
+- **禁止 `--target` 指向工具包源自身**（自我安装）：19 个受管文件里 17 个的模板源与安装目标同路径，渲染会**先截断再读取 → 文件归零**（实测 11913 字节 → 0）。由 `cw_render:98` 与 `cw_is_self_target:143` 双重拒绝。**本仓不是自己的消费者** —— 流程依据直接读 `docs/agents/` 与 `skills/change-workflow/SKILL.md`。
 
 ## 本仓的开发方式（决策 2026-09-22）
 
@@ -112,7 +112,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 ## COMMANDS
 
 ```bash
-# 唯一权威验证：22 用例 / 176 断言（CI 第 8 步跑的就是它）
+# 唯一权威验证：23 用例 / 194 断言（CI 第 9 步跑的就是它）
 ./test/install-update-e2e.sh
 
 # 发布前本地门禁：本工具包 HEAD 装到每个消费仓都不冲突（CI 无消费仓检出，跑不了）
@@ -126,7 +126,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 for s in setup.sh update.sh lib/render.sh scripts/*.sh test/*.sh; do bash -n "$s" || echo "FAIL $s"; done
 shellcheck --severity=warning -x setup.sh update.sh lib/render.sh scripts/*.sh test/*.sh
 
-# 本地复现全部 CI 门禁（8 步逐条见 .github/workflows/ci.yml）
+# 本地复现全部 CI 门禁（9 步逐条见 .github/workflows/ci.yml）
 ```
 
 ## NOTES
