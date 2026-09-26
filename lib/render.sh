@@ -157,6 +157,7 @@ cw_list_files() {
   echo "workflows/change-closure-signal.yml|.github/workflows/change-closure-signal.yml"
   echo "scripts/cw-evidence.sh|scripts/cw-evidence.sh"
   echo "scripts/cw-greploop.sh|scripts/cw-greploop.sh"
+  echo "scripts/cw-tickets-check.sh|scripts/cw-tickets-check.sh"
   local f base
   for f in "$CW_ROOT"/docs/agents/*.md; do
     [[ -e "$f" ]] || continue

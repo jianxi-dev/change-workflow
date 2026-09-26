@@ -19,6 +19,9 @@
 ## 2. 拆票粒度
 
 - **一条 task 一票**：tasks.md 本身就是垂直切片粒度（每条约 1 commit），天然匹配。
+- **「过粗/过细」判定（声明制 + 机检）**：
+  - 下界（过细/重复）机检：每票须在票面以 `**粒度**` 字段声明其一——「用户可见交付物」或 expand–contract 序列角色（`expand` / `migrate` / `contract` / `integrate-verify`，豁免来源 to-tickets 的 wide refactor 例外条款）；票间 `What to build` 高度重叠（阈值 = `scripts/cw-tickets-check.sh` 的 `OVERLAP_THRESHOLD_PCT` 常量）视为过细/重复信号。由 `scripts/cw-tickets-check.sh`（C8）在发布前判定。
+  - 上界（过粗）维持定性：单票仍须适配单个 context window、约 1 commit；不设数值阈值，越界由声明制审计与下游捕获（G1 拒开工 / DQ-7 反查）兜底。
 - **Parent = 源 issue（to-tickets/to-spec 原语）**：每张子票统一引用其来源 spec issue（G0-PRE 由 to-spec 创建）作为 Parent，**不另设 wave/change 级 parent**；对账锚点即该 spec issue（§4）。
 - 标题前缀防刷屏：`[change=<change名>/<task号>]` 格式。
 
@@ -33,6 +36,7 @@ to-tickets 流程在本仓库一律发布为 GitHub issue（不使用本地 `.sc
 - **Blocked by**：阻塞它的其他 ticket 引用（无则 "None — can start immediately"）
 - **接线归属**（QG-3）：本票导出的新 API 由**哪张票**负责接进应用层，及其**具体接线位置**
 - 标签：`ready-for-agent` + 模块标签，或加 `no-ui-impact`（豁免 QG-1/QG-2）
+- **粒度**：`用户可见交付物` 或 expand–contract 角色之一（见 §2；G0-POST 机检 C8）
 
 ### 3.1 AC 质量门禁（QG-1 / QG-3）
 
@@ -66,6 +70,9 @@ to-tickets 拆出的每张子票统一引用其**来源 issue**（G0-PRE 由 to-
 **What to build**: 从用户视角描述端到端行为
 **Acceptance criteria**: 具体可验证的 AC 清单
 **Blocked by**: 阻塞它的其他子票引用（无则 "None — can start immediately"）
+**接线归属**: 新 API 由哪张票、在哪个位置接进应用层（无新增导出则显式写「无新增导出」）
+**标签**: ready-for-agent（豁免 QG-1/QG-2 时加 no-ui-impact）
+**粒度**: 用户可见交付物｜expand｜migrate｜contract｜integrate-verify
 ```
 
 - 子票标题统一 `[change=<名>/<task号>]` 前缀

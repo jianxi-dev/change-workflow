@@ -34,6 +34,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 | `pr-automation.sh` | 脚本（G2 机械动作：门禁/提交/push/PR） |
 | `cw-evidence.sh` | 脚本（G1 出口·QG-5 证据采集：按证据分层协议采集 before/after 成对产物，落 `.artifacts/<票号>/`；无 ffmpeg/GUI 走 headless 降级） |
 | `cw-greploop.sh` | 脚本（G2 可选·Greptile 审查闭环：PR 创建后 risk-medium/high 合并确认前调用；无 Greptile 降级为本地审查闭环并显式标注） |
+| `cw-tickets-check.sh` | 脚本（G0-POST 拆票自检：对账/字段/AC 形态/禁入信号/DAG/豁免/规模/粒度 C1-C8 机检，发布前门禁；`--live` 对账已发子票） |
 | `gh` / `git` / `openspec` CLI | CLI 工具（被 skill/脚本调用） |
 
 ## 会话启动：消费合并信号（跨会话自动收尾）
@@ -99,7 +100,7 @@ flowchart TB
 | `change-workflow` | 全流程 G0-G4 | 本 skill，总编排 | 发起 gate 检查、fix-first 自愈回路、按本表调用各 skill |
 | `to-spec` | G0-PRE 步骤 1 | 必调（非结构化输入统一先综合；结构化工单可直接读） | 输入 → 1 张 spec issue（Problem/Solution/User Stories/Out of Scope/Testing，ready-for-agent），供四要素映射与 propose 输入 |
 | `openspec-propose` | G0 阶段二 | 包装调用（必调） | 以归一化四要素生成 proposal/design/**tasks.md**（拆票前提；注入垂直切片约束） |
-| `to-tickets` | G0-POST（阶段三） | 必调 | 以 spec issue 为输入拆子票（1 task=1 ticket，AC/Blocked by，**Parent=spec issue #S**，沿用输入源阻塞边；含 quiz 用户确认） |
+| `to-tickets` | G0-POST（阶段三） | 必调 | 以 spec issue 为输入拆子票（1 task=1 ticket，AC/Blocked by，**Parent=spec issue #S**，沿用输入源阻塞边；票面经 `cw-tickets-check.sh` 自检全绿后自动发布，无 quiz 人工确认） |
 | `implement` | G1 | 必调（总编排，task-tracking §7.1 ✅） | 按 spec/tickets 实施，内嵌 tdd + 定期 typecheck/test，完成后调 code-review |
 | `tdd` | G1（implement 内嵌） | 必调（内嵌） | 测试先行（红→绿 + 垂直切片），锁定行为契约 |
 | `programming` | G1 | 可选叠加（task-tracking §7.1） | 代码规范对照（no any / 250 LOC 上限） |
@@ -137,7 +138,8 @@ flowchart TB
 **阶段三 G0-POST（issue 发布面）｜执行：必调 to-tickets skill**
 
 - 拆票逻辑与原则（垂直切片/Blocked by/frontier/expand-contract）**以 to-tickets SKILL.md 为准，本 skill 不复制**；此处仅保留仓库特化规则：**Parent 引用 = spec issue（to-tickets 原文「源 issue」语义，不另建 change parent）**、标题前缀 `[change=<名>/<task号>]`、标签 `ready-for-agent`、Blocked by 沿用输入源既有阻塞边
-- 调用 to-tickets 传参 spec issue 编号（fetch 读全文评论）：输入 = #S 全文 + tasks.md → **不重复切片**，职责：quiz 验收粒度（过粗/过细 → 先 `/opsx-update` 修订 tasks.md 再发）→ 确认 Blocked by → GitHub 建子票（1 task = 1 ticket，每票 What/AC/Blocked by/Parent=#S/ready-for-agent）→ 按依赖序发布
+- 调用 to-tickets 传参 spec issue 编号（fetch 读全文评论）：输入 = #S 全文 + tasks.md → **不重复切片**；票面草稿写入 `.tickets-draft/<change>/`（每票一文件：标题 `[change=<名>/<task号>]` + Parent/What to build/Acceptance criteria/Blocked by/接线归属/标签/粒度 七字段，建票后删除）→ **发布前自检**：`./scripts/cw-tickets-check.sh --change <名>`（C1-C8 机检，退 0 才放行）→ **三项书面自答**落款 spec issue 评论（Blocked by 语义真伪 / `What` 与 spec 相符性 / 总票数匹配度，须引用 spec 原文或脚本原始输出）→ 全绿**自动发布**（按依赖序 `gh issue create`，1 task = 1 ticket，每票 Parent=#S、标签 ready-for-agent）→ 建票后 `--live` 对账复核
+- 自检不通过 → fix-first 自愈：就地重切（`/opsx-update` 修订 tasks.md + 草稿）→ 重跑，循环到过；拆票环节零人工询问，升级仅限「gate 失败处理」既有三类
 - artifacts docs PR 先行：`pr-automation.sh --role feat --issue <parent> --slug <change>-artifacts --risk low --files openspec/changes/...`
 - **看板入列（Ready 列）——label 不会自动入列，需显式 gh project 操作**：
   ```bash
@@ -148,7 +150,7 @@ flowchart TB
   gh project item-edit --project-id <PROJECT_ID> --id "$ITEM" --field-id <STATUS_FIELD_ID> --single-select-option-id <READY_OPTION_ID>
   ```
   **看板常量从项目根 `.change-workflow.conf` 读取**（由 setup.sh 生成）：`PROJECT_ID` / `STATUS_FIELD_ID` / `OPT_READY` / `OPT_DONE` / `OPT_BACKLOG` / `OPT_IN_PROGRESS`
-- **对账自证**：`gh issue list --label ready-for-agent --state open --json number,title --jq '.[] | select(.title | startswith("[change=<change 名>/"))'` 数量 == tasks.md task 数（spec issue 标题不含该前缀天然排除）；逐条核对 task 编号 ↔ issue 标题；**禁止占位符原样传入命令**
+- **对账自证**：`./scripts/cw-tickets-check.sh --change <change 名> --live`（C1 双射脚本化：子票数 == tasks.md task 数、编号逐条对应；spec issue 标题不含该前缀天然排除）；**禁止占位符原样传入命令**
 
 ### G1 实施 gate｜执行：implement skill（总编排，task-tracking §7.1 ✅ 必用）
 

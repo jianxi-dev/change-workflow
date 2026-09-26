@@ -87,12 +87,13 @@ ok "cw-update 可执行" "$([[ -x scripts/cw-update.sh ]] && echo y)" "y"
 # 断言直接查 x 位，而不是脚本内部变量，确保「清单派生」这个修复真的落地。
 ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
+ok "cw-tickets-check 可执行" "$([[ -x scripts/cw-tickets-check.sh ]] && echo y)" "y"
 # A5（R1）模式保持回归锁：mktemp 恒 0600 曾随 mv 带进受管文件（首装 docs=600、脚本=711）。
 # 新建 → 0644；脚本 = 0644 + cw_chmod_scripts 的 +x → 755；manifest 新建 → 644。
 ok "docs 模式 644" "$(fmode docs/agents/domain.md)" "644"
 ok "脚本模式 755" "$(fmode scripts/cw-evidence.sh)" "755"
 ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
-ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "18"
+ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "19"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
 
@@ -102,7 +103,7 @@ echo "[2] 幂等（版本回退后重跑）"
 set_version "1.0.0"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out2" in *"已最新 18"*) r2=0 ;; *) r2=1 ;; esac
+case "$out2" in *"已最新 19"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
 # ── 用例 3：本地修改 → 冲突 ──────────────────────────────────────────────────
@@ -186,8 +187,9 @@ ok "退出码（有差异→1）" "$rc8" "1"
 ok "pr-automation 可执行" "$([[ -x scripts/pr-automation.sh ]] && echo y)" "y"
 ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
-# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 18 - 3 = 15
-ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "15"
+ok "cw-tickets-check 可执行" "$([[ -x scripts/cw-tickets-check.sh ]] && echo y)" "y"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 19 - 3 = 16
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "16"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
@@ -355,7 +357,7 @@ ok "缺失+LOCAL 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo 
 ok "缺失+LOCAL 真实更新计本地保留" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "1"
 ok "缺失+LOCAL kept==^LOCAL" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11l="$(printf '%s' "$out11l" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL 五桶和==18" "$(( ${m11l:-0} ))" "18"
+ok "缺失+LOCAL 五桶和==19" "$(( ${m11l:-0} ))" "19"
 # 对抗轮7 回归锁：缺失 + LOCAL 哨兵 + --force —— force 优先于 LOCAL 哨兵（与等值/差异路径
 # 同原则），缺失分支必须归一：计 ADDED + 记 FORCED_LIST → manifest 重写走哈希归一分支。
 # 旧缺陷：缺失分支无 force 分流 → --force 仍走 LOCAL 保留分支 → 文件被「本地保留」永久
@@ -369,7 +371,7 @@ ok "缺失+LOCAL force 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] &&
 ok "缺失+LOCAL force 哨兵归一" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/pr-writing.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
 ok "缺失+LOCAL force kept==^LOCAL" "$(printf '%s' "$out11n" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11n="$(printf '%s' "$out11n" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL force 五桶和==18" "$(( ${m11n:-0} ))" "18"
+ok "缺失+LOCAL force 五桶和==19" "$(( ${m11n:-0} ))" "19"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
@@ -483,7 +485,7 @@ B8="$(mktemp -d)"
 CLEAN="$B8/clean"; new_repo "$CLEAN" || exit 1
 write_conf "1.0.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
-ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "18"
+ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "19"
 
 rc14a=0; out14a="$("$CW_ROOT/test/rollout-check.sh" "$CLEAN" 2>&1)" || rc14a=$?
 ok "干净仓退出码" "$rc14a" "0"
@@ -699,7 +701,7 @@ case "$out19" in *"无基线记录"*) r19=1 ;; *) r19=0 ;; esac
 ok "无「无基线记录」误报" "$r19" "0"
 set_version "1.0.0"
 out19b="$("$B13/tk2/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out19b" in *"已最新 18"*) r19b=0 ;; *) r19b=1 ;; esac
+case "$out19b" in *"已最新 19"*) r19b=0 ;; *) r19b=1 ;; esac
 ok "二次运行已最新" "$r19b" "0"
 # --accept-local 对空格路径生效：本地修改 → 冲突 → 接受 → 归一且哨兵粘住
 echo "## 本地定制" >> "My Docs/triage-labels.md"
@@ -828,6 +830,136 @@ ok "workflow 提取：缺键走默认" "$out22d" "READY=[ready-for-agent] CLOSUR
 # 清理前退回仓库根：sanitize 会删掉当前 cwd，否则后续用例继承已删除的 cwd 报 getcwd 噪声
 cd "$CW_ROOT"
 sanitize "$B16"
+
+# ── 用例 23：cw-tickets-check 拆票自检（G0-POST 发布前门禁）───────────────────
+# 契约（scripts/cw-tickets-check.sh 头部注释）：
+#   0 = 全部通过（含 --help）；1 = 违规或用法错误
+# 输入：tasks.md + 票面草稿目录（每票一文件；首行标题 `[change=<名>/<task号>]`，
+#       正文七字段：Parent / What to build / Acceptance criteria / Blocked by / 接线归属 / 标签 / 粒度）
+# 锁定：对账不符拒收（C1）/ 禁入信号拒收（C3-C4）/ expand–contract 角色豁免放行（C8）/
+#       --live 对账（gh 桩，不联网）
+echo ""
+echo "[23] cw-tickets-check 拆票自检"
+B17="$(mktemp -d)"
+new_repo "$B17/repo" || exit 1
+TC_SH="$CW_ROOT/scripts/cw-tickets-check.sh"
+
+# 契约：--help 退 0；无参数（用法错误）退 1
+# 陷阱（bash 3.2 实测）：set -e 下【直调】未找到的命令 + `|| rc=$?` 会把 127 折叠为 1，
+# 「脚本缺失」与「正确拒收」不可区分；故本用例断言一律用命令替换形态（保留 127）或附输出断言。
+rc=0; out23h="$("$TC_SH" --help 2>&1)" || rc=$?
+ok "tickets-check --help 退 0" "$rc" "0"
+case "$out23h" in *"用法"*) r23=0 ;; *) r23=1 ;; esac
+ok "tickets-check --help 输出用法" "$r23" "0"
+rc=0; out23n="$("$TC_SH" 2>&1)" || rc=$?
+ok "tickets-check 无参数退 1" "$rc" "1"
+case "$out23n" in *"用法"*) r23=0 ;; *) r23=1 ;; esac
+ok "tickets-check 无参数输出用法" "$r23" "0"
+
+# 场景 A：对账不符 —— tasks 2 条、草稿仅 1 个 → C1 拒收（列出缺失编号）
+mkdir -p "$B17/a/drafts"
+cat > "$B17/a/tasks.md" <<'EOF'
+## 1. 阶段一
+
+- [ ] 1.1 第一条任务描述
+- [ ] 1.2 第二条任务描述
+EOF
+cat > "$B17/a/drafts/1.1.md" <<'EOF'
+[change=fixture/1.1] 第一条任务描述
+
+**Parent**: #1
+**What to build**: 在页面上可见的第一项增量
+**Acceptance criteria**:
+- 在 `npm run dev` 打开的页面中，操作后可见第一项结果。
+**Blocked by**: None — can start immediately
+**接线归属**: 无新增导出（纯页面增量）
+**标签**: ready-for-agent
+**粒度**: 用户可见交付物
+EOF
+rc=0; out23a="$("$TC_SH" --change fixture --tasks "$B17/a/tasks.md" --drafts "$B17/a/drafts" 2>&1)" || rc=$?
+ok "对账不符退 1" "$rc" "1"
+case "$out23a" in *"1.2"*) r23=0 ;; *) r23=1 ;; esac
+ok "对账不符列出缺失编号" "$r23" "0"
+
+# 场景 B：禁入信号 —— AC 全部为库层断言且未声明 no-ui-impact → C3/C4 拒收
+mkdir -p "$B17/b/drafts"
+cat > "$B17/b/tasks.md" <<'EOF'
+## 1. 阶段一
+
+- [ ] 1.1 库层任务描述
+EOF
+cat > "$B17/b/drafts/1.1.md" <<'EOF'
+[change=fixture/1.1] 库层任务描述
+
+**Parent**: #1
+**What to build**: 重构内部数据结构
+**Acceptance criteria**:
+- getBlocks() 返回块数组
+- 类型检查通过
+**Blocked by**: None — can start immediately
+**接线归属**: 不适用（无新增导出）
+**标签**: ready-for-agent
+**粒度**: 用户可见交付物
+EOF
+rc=0; out23b="$("$TC_SH" --change fixture --tasks "$B17/b/tasks.md" --drafts "$B17/b/drafts" 2>&1)" || rc=$?
+ok "禁入信号退 1" "$rc" "1"
+case "$out23b" in *"- [C3]"*|*"- [C4]"*) r23=0 ;; *) r23=1 ;; esac
+ok "禁入信号归属 C3/C4" "$r23" "0"
+
+# 场景 C：expand–contract 角色声明票 → 豁免通过（退 0）
+mkdir -p "$B17/c/drafts"
+cat > "$B17/c/tasks.md" <<'EOF'
+## 1. 阶段一
+
+- [ ] 1.1 宽重构第一步
+EOF
+cat > "$B17/c/drafts/1.1.md" <<'EOF'
+[change=fixture/1.1] 宽重构第一步
+
+**Parent**: #1
+**What to build**: 将旧数据形态 expand 为新结构（expand–contract 序列第一步）
+**Acceptance criteria**:
+- 新旧结构在构建产物中并存，存量用例全部通过
+**Blocked by**: None — can start immediately
+**接线归属**: 不适用（无新增导出）
+**标签**: ready-for-agent, no-ui-impact
+**粒度**: expand
+EOF
+rc=0; out23c="$("$TC_SH" --change fixture --tasks "$B17/c/tasks.md" --drafts "$B17/c/drafts" 2>&1)" || rc=$?
+ok "expand–contract 角色豁免退 0" "$rc" "0"
+case "$out23c" in *"全部通过"*) r23=0 ;; *) r23=1 ;; esac
+ok "expand–contract 角色豁免输出全过" "$r23" "0"
+
+# 场景 D：--live 对账（gh 桩；不联网）—— 匹配退 0 / 不符退 1
+mkdir -p "$B17/stub"
+cat > "$B17/stub/gh" <<'STUB'
+#!/usr/bin/env bash
+# 测试桩：忽略参数，按 GH_STUB_TITLES 输出 gh issue list 的 JSON 数组
+printf '['
+first=1; n=0
+while IFS= read -r t; do
+  [ -z "$t" ] && continue
+  n=$((n + 1))
+  [ "$first" -eq 1 ] || printf ','
+  first=0
+  printf '{"number":%d,"title":"%s"}' "$n" "$t"
+done <<< "${GH_STUB_TITLES:-}"
+printf ']\n'
+STUB
+chmod +x "$B17/stub/gh"
+rc=0; out23d="$("env" GH_STUB_TITLES='[change=fixture/1.1] 第一条任务描述' PATH="$B17/stub:$PATH" \
+  "$TC_SH" --change fixture --live --tasks "$B17/c/tasks.md" 2>&1)" || rc=$?
+ok "live 对账匹配退 0" "$rc" "0"
+case "$out23d" in *"全部通过"*) r23=0 ;; *) r23=1 ;; esac
+ok "live 对账匹配输出全过" "$r23" "0"
+rc=0; out23d2="$("env" GH_STUB_TITLES='[change=fixture/9.9] 幽灵票' PATH="$B17/stub:$PATH" \
+  "$TC_SH" --change fixture --live --tasks "$B17/c/tasks.md" 2>&1)" || rc=$?
+ok "live 对账不符退 1" "$rc" "1"
+case "$out23d2" in *"9.9"*) r23=0 ;; *) r23=1 ;; esac
+ok "live 对账不符列出幽灵票" "$r23" "0"
+
+cd "$CW_ROOT"
+sanitize "$B17"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""

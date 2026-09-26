@@ -146,6 +146,11 @@ grep -rn "<新导出名>" <APP_DIR>/src/ || echo "无引用 → 必须指定接�
 
 **如何验证**：反向验收判据——若一条 AC 能在**不修改 `<APP_DIR>`** 的前提下被满足，说明票切错了。
 
+```bash
+./scripts/cw-tickets-check.sh --change <名>
+# 发布前机检：退 0 才允许发布子票；C3/C4 检查 AC 可观测形态与禁入信号，C8 检查粒度声明与票间 What 重叠
+```
+
 ---
 
 ## 三、缺陷处理质量门禁（DQ-1..DQ-8）
@@ -268,7 +273,7 @@ gh issue list --label ready-for-agent --state all --json number,state \
 验证：<E2E_DIR> 下对应 e2e 用例通过。
 ```
 
-**反向验收判据**：若一条 AC 能在**不修改 `<APP_DIR>`** 的前提下被满足 → 说明票切错了（触发 QG-7）。
+**反向验收判据**：若一条 AC 能在**不修改 `<APP_DIR>`** 的前提下被满足 → 说明票切错了（触发 QG-7）（发布前由 `cw-tickets-check.sh` 的 C3/C4/C8 机检兜底）。
 
 ---
 
