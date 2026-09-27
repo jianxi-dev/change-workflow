@@ -1,3 +1,31 @@
+## 1.8.1 — 2026-09-27
+
+### 修复：Makefile target 改名 `update` → `cw-update` 避免通用名冲突
+
+**背景**：`make update` 是通用 target 名，消费仓将来自己加 Makefile 或有 `update` target 时会冲突。改为 `cw-update` / `cw-check` 更具体。
+
+**改动**（1 项）：
+
+- **Makefile 模板**：`update:` → `cw-update:`，`cw-check:` 不变。
+
+**连带**：无受管文件变更（仅 Makefile 内容）；e2e 226 断言全绿；rollout-check 4 消费仓 12/0。
+
+### 教训反思
+
+**通用 target 名是公共 Makefile 的冲突源**：`make update` 简洁但承担将来冲突风险。`cw-update` 稍长但语义明确、不会与其他 `update` 目标碰撞。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+   通过 226 · 失败 0
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis ../contentweave
+   消费仓 4 个 · 通过 12 · 失败 0
+$ bash -n 全受管 shell 脚本：OK
+```
+
+---
+
 ## 1.8.0 — 2026-09-27
 
 ### 新增：Makefile 快捷入口——消费仓 `make update` 一行升级

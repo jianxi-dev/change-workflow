@@ -1,6 +1,6 @@
-.PHONY: update cw-check help
+.PHONY: cw-update cw-check help
 
-update:  ## 更新 change-workflow 工具包
+cw-update:  ## 更新 change-workflow 工具包
 	./scripts/cw-update.sh
 
 cw-check:  ## 检查工具包是否有新版本
