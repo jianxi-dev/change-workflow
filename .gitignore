@@ -1,2 +1,3 @@
 # harness 运行时产物（OMO 会话/续跑状态），不属于仓库内容
 .omo/
+.gbrain-source

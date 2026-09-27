@@ -8,6 +8,10 @@ description: 变更生命周期总编排——保证 change 全流程（spec 归
 allowed-tools: Bash(gh:*|git:*|openspec:*)
 ---
 
+> **日常执行**：照 `agents-quick-reference.md` 四拍跑，细节回本文对应段。
+> **单一事实来源**：本文是完整参考；速查卡是入口，不替代本文。
+> **同步规则**：修改本文时同步检查速查卡是否需更新。
+
 # Change Workflow — 变更生命周期总编排
 
 本 skill 是仓库变更流程的**唯一执行入口**：把 `docs/agents/` 规范（task-tracking / issue-tracker / project-board / triage-labels / defect-workflow）与 openspec 生命周期编码为五个 gate（G0-G4），每个 gate 有显式执行 skill、checklist、自证命令；gate 失败进入 **fix-first 自愈回路**（默认自行修复，不等待用户）。配套脚本：`scripts/pr-automation.sh`（G2 机械动作）。
@@ -15,7 +19,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 ## 何时使用
 
 - 用户提出新需求/新功能 → 启动新 change（走 G0）
-- 接手进行中的 change/子票（分支已存在）→ 确认后继续
+- 接手进行中的 change/子票（分支已存在）→ 直接继续（不再逐步询问；自动接力见「会话启动」节）
 - 完成任务级/change 级收尾检测
 - 需要拆票、建 PR、归档 change
 
@@ -38,7 +42,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 | `decisions-log.sh` | 脚本（G3 决策日志：每票追加一行 TSV——时间/阶段/决策/理由/证据指针/结果；默认落 `.artifacts/`，本地不入库） |
 | `gh` / `git` / `openspec` CLI | CLI 工具（被 skill/脚本调用） |
 
-## 会话启动：消费合并信号（跨会话自动收尾）
+## 会话启动：自动收尾与自动接力
 
 每次会话启动时（任何 gate 之前）自动执行：
 
@@ -55,6 +59,12 @@ gh pr list --state merged --label change-close-pending --json number,title,body
 
 > 信号由 `.github/workflows/change-closure-signal.yml` 在合并时产生（Layer 1 确定性信号）；本节为 Layer 2a 消费端——保证「合并后无需人工提醒，agent 下次会话即自动收尾」。
 > 标签名可被消费仓 `.change-workflow.conf` 的 `LABEL_CLOSURE_PENDING` 改写（workflow 生产端按 conf 提取，**conf 值优先于本节字面值**）；未配置时才用默认 `change-close-pending`。同理，下文查询中的 `ready-for-agent` 可被 `LABEL_READY` 改写。
+
+**进行中 change 自动接力（零询问）**——与本信号消费同为会话启动自动动作：
+
+- 扫描：`gh issue list --label <LABEL_READY> --state open --json number,title,body`（标签名 conf 值优先）→ 按标题前缀 `[change=<名>/` 归组，得进行中 change 列表
+- 存在可开工票（该 change 内某票 Blocked by 全 closed）→ **直接进入该票 G1 实施循环，不询问用户**；多个 change 均有可开工票 → 取最近推进者（按子票/PR 最近更新时间），并在回复中用一句话说明选择理由
+- 无可开工票但存在未合并子票 PR 时按 §G3「阻塞等待」轮询；无进行中 change → 本步不做动作
 
 ## 编排路线图
 
@@ -127,7 +137,7 @@ flowchart TB
 
 1. **输入归一化**：先调 `to-spec` 综合产出 spec issue（需求定义面）→ 四要素映射写入 requirements.md（What/Why/Scope/Non-goals，引用 spec issue URL）——产出四要素后方可继续
 2. 读规范核对日期（见规范前置）
-3. 分支：本阶段**不建任何分支**；票级分支在 G1 起步创建；接手进行中单票（分支已存在）→ 确认后走 `--resume-branch`
+3. 分支：本阶段**不建任何分支**；票级分支在 G1 起步创建；接手进行中单票（分支已存在）→ 直接走 `--resume-branch`（零询问）
 
 **阶段二 调用 openspec-propose｜执行：openspec-propose skill（本 skill 包装）**
 
@@ -155,7 +165,13 @@ flowchart TB
 
 ### G1 实施 gate｜执行：implement skill（总编排，task-tracking §7.1 ✅ 必用）
 
-- **第 0 步·建票级分支**：`git checkout -b feat/<slug> origin/main`（基于当时 origin/main，含已合并前票代码；被 Blocked by 卡住的票不得提前开工）
+- **第 0 步·overlap 预检**（开工前，有重叠即停）：
+  ```bash
+  # 扫 open PR 改动文件
+  gh pr list --state open --json number,title,files --jq '.[] | {number, title, files: [.files[].path]}'
+  ```
+  与本票待改文件求交集；交集非空 → **停而报告**「与 #N 改同一文件（<文件列表>），等该 PR 合并后再开工」。文件级判定（同一文件即重叠），不做行级判定。
+- **第 0.5 步·建票级分支**：`git checkout -b feat/<slug> origin/main`（基于当时 origin/main，含已合并前票代码；被 Blocked by 卡住的票不得提前开工）
 - **第 0.5 步·QG 前置校验**（开工前，不合格即停）：
   - **QG-1**：AC 是否含浏览器可观测陈述（`打开页面 … 之后 …`）？否则拒开工，先补 AC
   - **QG-3**：本票导出的新 API 是否已指定接线票与接线位置？否则拒开工
@@ -170,7 +186,8 @@ flowchart TB
 - **G1 出口（顺序固定，全部通过才允许 commit）**：
   1. `code-review` 双轴（Standards + Spec）——每任务后必做，**须逐条对照 QG-4 检查测试是否驱动真实路径**；**闭环退出条件**：未解决项未清零 → 回到修复，循环至零问题或达上限（默认 10，与 `cw-greploop.sh --max-iterations` 同款）
   2. `review`（pre-landing 结构审查）——仅 risk-medium/high 追加
-   3. **QG-5 独立验证**：验证者（orchestrator，非实施者）跑**自己的探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数）**粘贴到票上**；未附原始证据的「已完成」不予采信。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据；`cw-evidence.sh` 退出码：0=成功 / 1=参数或子命令错误 / 3=依赖缺失降级——3 是预期路径，按脚本打印的降级指引继续，不得视为失败放弃证据纪律；并在票上标注**验证基于的 HEAD SHA**（`git rev-parse HEAD`，记作 `QG-5 验证基于 <sha>`——rebase/追加提交后该结论即过期，G2 据此拦截）
+   3. **QG-5 独立验证（验证分离）**：Atlas（执行者）完成 G1 实施后返回摘要（diff 统计 + 出口条件结果）；Sisyphus（编排器）**亲自跑 QG-5 探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数）**粘贴到票上**；未附原始证据的「已完成」不予采信。**两层验证互补**：Atlas 的 `lsp_diagnostics` 作为最低门槛（语法/类型），Sisyphus 的 QG-5 作为应用专属验证（业务逻辑）。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据；`cw-evidence.sh` 退出码：0=成功 / 1=参数或子命令错误 / 3=依赖缺失降级——3 是预期路径，按脚本打印的降级指引继续，不得视为失败放弃证据纪律；并在票上标注**验证基于的 HEAD SHA**（`git rev-parse HEAD`，记作 `QG-5 验证基于 <sha>`——rebase/追加提交后该结论即过期，G2 据此拦截）
+   3.5. **探针形态（活代码优先）**：QG-5 探针优先写成仓库既有测试基建中的可复跑用例（有 e2e 套件 → 探针写成/扩展 e2e，随代码维护、`CMD_E2E` 可复跑）；无测试基建或需特定驱动时，写轻量探针并遵循 `docs/agents/evidence-capture.md` 的证据约定。不为验证另建静态技能副本——试点结论：高频迭代仓中 `verify-*` 文档必然腐烂，且与 e2e 活代码平行漂移。
    4. 通过后 → G2
 
 > **QG-5 为何强制**（2026-09-20）：修复期抓出 **4 个「自测全绿但实际无效」**的交付，**4/4 全部由独立探针抓出，零例外**。自证无效。本地 e2e 单文件实测约 **16 秒**，成本极低。
@@ -197,9 +214,10 @@ flowchart TB
 
 - **时机**：push + PR 创建后立即执行，不等合并
 - **不阻塞下一 change**：下一 change 自 commit/push 完成后即可启动；learn/sync 是收尾动作而非前置 gate，可并行
-- **frontier 自动推进**：G3 后自动运行 `gh issue list --label ready-for-agent --state open --json number,title,body` 按 `[change=<名>/` 精确筛选 → 逐票解析 Blocked by 确认全部 closed → 取第一张可开工票自动进入其 G1（单 agent 会话内自动循环）；无票可做 → change 收口检查（completedTasks==totalTasks 且无残留且无未合并 PR）→ 自动进入 G4。标签名以 conf `LABEL_READY` 为准（默认 `ready-for-agent`），conf 值优先
+- **frontier 自动推进（任务级零询问）**：G3 后自动运行 `gh issue list --label ready-for-agent --state open --json number,title,body` 按 `[change=<名>/` 精确筛选 → 逐票解析 Blocked by 确认全部 closed → 取第一张可开工票**立即进入其 G1**；同一 change 内连续执行到无票可做——推进全程零询问，**禁止以「是否继续下一票」之类提问结束回合**（跨会话接力见「会话启动」节）。无票可做 → change 收口检查（completedTasks==totalTasks 且无残留且无未合并 PR）→ 自动进入 G4。标签名以 conf `LABEL_READY` 为准（默认 `ready-for-agent`），conf 值优先
+- **阻塞等待（有界轮询）**：frontier 为空的唯一原因是「前序票 PR 已创建未合并」（`gh pr list --state open` 命中本 change）→ 轮询该 PR 状态（`gh pr view <N> --json state`，间隔 20s、上限 10 分钟；risk-low 已由 G2 尝试 auto-merge）→ 合并后**自动继续**下一票；超上限或前票待人工合并（risk-medium/high）→ 停在合并确认点报告（合并完成后自动恢复，不询问「是否继续」）
 - **决策日志（可审计轨迹）**：每票收尾追加一行——`./scripts/decisions-log.sh add <阶段> <决策> <理由> <证据指针> <结果>`；TSV 默认落 `.artifacts/decisions.tsv`（本地、不入库；需留档的项目自行纳入版本控制）。隔夜/无人值守运行结束后按它审计「做了哪些决策、为什么」（列：时间/阶段/决策/理由/证据/结果）
-- **自动化边界**：单 agent 会话内自动（frontier 推进）；跨会话由「会话启动消费 `change-close-pending` 信号」覆盖（见上节）；唯一人工介入 = risk-medium/high PR 合并确认
+- **自动化边界**：任务级全程零询问（会话内连跑 + 跨会话自动接力 + 阻塞轮询等待）；唯一人工介入 = risk-medium/high PR 合并确认；跨 change 切换停一次——G4 收口后队列盘点并询问（见 §G4）
 - **learn/sync 与发版解耦**：每轮交付后的知识闭环服务下一 change/会话；发版（`VERSION`+`CHANGELOG`+tag）不改代码，无需额外 sync
 - **文字质量**：learn 记录与收尾回复发布前过 `docs/agents/pr-writing.md`（T9 模糊归因在学习记录里危害最大，必须给出处）；如触发发版/PR，`cw-greploop.sh` 为可选调用（同 G2 降级策略）
 
@@ -208,6 +226,7 @@ flowchart TB
 - 全部 tasks [x] + 关联 PR 全合并 → 主 spec `/opsx-sync`（合并后唯一时机，零差异确认）→ `validate --strict` → archive → 看板 Done → **关闭 spec issue #S**（`gh issue close --comment "change 已收口"`）→ gbrain 增量
 - **`validate --strict` 与 spec delta**：spec-driven schema 要求 change 至少一个 `specs/<capability>/spec.md` delta（`## ADDED/MODIFIED Requirements` + `#### Scenario:`）。**纯文档/基建 change（tasks-only）会 validate 失败** → 处置：补最小 delta（新建/复用 capability，把变更固化为 Requirement），或确认无 spec 语义后走非 strict
 - **仅 `/opsx-sync`（主 spec 同步）限合并后执行**；任务级 `sync-gbrain` 不受此限（push+PR 后立即）
+- **剩余队列盘点（收口后必做，change 边界提醒）**：archive 与关闭 spec issue #S 后运行 `gh issue list --state open --limit 100 --json number,title,labels` → 分类输出（① 其他 change 的 `ready-for-agent` 子票；② 决策/研讨类（wayfinder 类标签或「研讨/原型」前缀）；③ 其他 open issue）→ **列出剩余清单 + 给出下一项建议 + 询问是否继续**（零询问不跨 change，此处是全流程唯一停点）；清单为空 → 明确报告「无剩余 issue」
 
 ## gate 失败处理：fix-first 自愈回路（禁止停等用户、禁止跳过）
 

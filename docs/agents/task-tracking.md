@@ -219,7 +219,7 @@ gh pr list --state open --head <关联分支>            # 检查无未合并 PR
 **设计要点**：
 - 任务级闭环管"单 issue 是否交付"，change 级管"整个 change 是否收口"——两级串行，互不阻塞
 - 收尾全程自动：agent 检测到完成条件即执行，无需用户喊 `/opsx-sync` `/opsx-archive`
-- 唯一人工介入点：risk-medium/high 的 PR 合并确认（机制既有规则）
+- 人工介入点：risk-medium/high 的 PR 合并确认（机制既有规则）+ change 收口后的剩余队列盘点与继续确认（见 change-workflow SKILL.md §G3/G4）
 
 ---
 

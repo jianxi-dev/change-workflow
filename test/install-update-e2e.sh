@@ -1085,6 +1085,51 @@ ok "E2 有两列对比品相" "$(grep -c '两列对比' docs/agents/evidence-cap
 ok "E2 G2 有成对证据条款" "$(grep -c '成对证据' skills/change-workflow/SKILL.md)" "1"
 ok "E3 G1 有闭环退出条件" "$(grep -c '闭环退出条件' skills/change-workflow/SKILL.md)" "1"
 
+# ── 用例 27：QG-5 探针形态约定（活代码优先 / 禁静态技能副本）──
+# 背景：verify-* 静态验证技能方案经消费仓试点后撤销——高频迭代仓中特性地图/选择器
+#   必然腐烂且比无技能更糟（agent 会信任过期文档）；与 e2e 活代码平行漂移；pstack
+#   触发条件「无脚本化验证路径」在消费仓（均有 UI + e2e 基建）不满足。
+# 替代落点：SKILL.md 条款（编排层）+ evidence-capture.md 新节（规范层）。
+echo ""
+echo "[27] QG-5 探针形态约定"
+ok "SKILL 探针形态条款" "$(grep -c '探针形态（活代码优先）' skills/change-workflow/SKILL.md)" "1"
+ok "SKILL 零 verify 残留" "$(grep -c 'verify-md-bundle' skills/change-workflow/SKILL.md)" "0"
+ok "evidence-capture 探针形态节" "$(grep -c '探针形态（活代码优先）' docs/agents/evidence-capture.md)" "1"
+
+# ── 用例 28：任务级自动执行 + change 收口剩余队列盘点（v1.8.3）──
+# 背景：消费仓实测两处断点——① 同一 change 内每个任务完成后被询问「是否进行下一个任务」
+#   （SKILL 仅有「单 agent 会话内自动循环」弱约束，跨会话无任务级接力，且「接手进行中
+#   change → 确认后继续」反而主动要求询问）；② change 收口（G4）后无「剩余 issue 盘点」，
+#   不提醒 GitHub 中剩余工作。落点：SKILL.md（会话启动自动接力 / G3 零询问 / G4 盘点）
+#   + 速查卡同步。
+echo ""
+echo "[28] 任务级自动执行 + 剩余队列盘点"
+ok "SKILL 任务级零询问条款" "$(grep -c '任务级零询问' skills/change-workflow/SKILL.md)" "1"
+ok "SKILL 会话启动自动接力条款" "$(grep -c '进行中 change 自动接力' skills/change-workflow/SKILL.md)" "1"
+ok "SKILL G4 剩余队列盘点条款" "$(grep -c '剩余队列盘点' skills/change-workflow/SKILL.md)" "1"
+ok "速查卡零询问同步" "$(grep -c '零询问' skills/change-workflow/agents-quick-reference.md)" "1"
+ok "速查卡剩余盘点同步" "$(grep -c '剩余 open issue' skills/change-workflow/agents-quick-reference.md)" "1"
+
+# ── 用例 29：受管模板渲染非空（单行头回归锁）──
+# 背景：cw_strip_header 的闭合规则 /-->/ 只对「多行头」成立——单行头模板
+#   （形如 `<!-- change-workflow 工具包模板 -->`）在第 1 条规则被 next 掉后永不闭合 →
+#   全文件被吞、渲染产物 0 字节；且 0 字节与基线一致 → 升级判「已最新」静默存活
+#   （真实案例：消费仓速查卡空文件，2026-09-27）。修法：单行头自身含 --> 即完成剥离。
+echo ""
+echo "[29] 受管模板渲染非空（单行头回归）"
+B20="$(mktemp -d)"; mkdir -p "$B20/out"
+rc29=0
+while IFS='|' read -r tpl _dst; do
+  [ -f "$tpl" ] || continue
+  out29="$B20/out/$(basename "$tpl")"
+  ( source "$CW_ROOT/lib/render.sh"; cw_render "$tpl" "$out29" ) || rc29=1
+  [ -s "$out29" ] || { echo "  ⚠️ 空渲染: $tpl"; rc29=1; }
+done < <( source "$CW_ROOT/lib/render.sh"; cw_list_files )
+ok "全部受管模板渲染非空" "$rc29" "0"
+ok "速查卡渲染含四拍内容" "$(grep -c '^# 四拍速查卡' "$B20/out/agents-quick-reference.md" 2>/dev/null)" "1"
+ok "速查卡渲染剥头干净" "$(grep -c 'change-workflow 工具包模板' "$B20/out/agents-quick-reference.md" 2>/dev/null)" "0"
+sanitize "$B20"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="
