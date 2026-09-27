@@ -1072,6 +1072,19 @@ ok "fresh 模式拒收退 1" "$rc" "1"
 cd "$CW_ROOT"
 sanitize "$B19"
 
+# ── 用例 26：P0 轻量缺口修复（E2 呈现残留 / E2 PR 条款 / E3 闭环退出）──
+# 背景：Oracle 终审（2026-09-27）指出的三处文本级缺口：
+#   ① evidence-capture.md 残留上游 before-and-after CLI 引用（契约 §2.2：不装上游
+#      CLI，品相=两列对比表格）；② SKILL.md G2 缺「成对证据嵌入 PR 正文」显式条款；
+#   ③ SKILL.md G1 code-review 缺「闭环退出条件」语句（E3 字面落点）。
+# 断言基于渲染前模板文本（安装后剥头，安装流程由用例 1 覆盖）。
+echo ""
+echo "[26] P0 轻量缺口修复（E2/E3）"
+ok "E2 无上游 CLI 残留" "$(grep -c 'before-and-after.*CLI' docs/agents/evidence-capture.md)" "0"
+ok "E2 有两列对比品相" "$(grep -c '两列对比' docs/agents/evidence-capture.md)" "1"
+ok "E2 G2 有成对证据条款" "$(grep -c '成对证据' skills/change-workflow/SKILL.md)" "1"
+ok "E3 G1 有闭环退出条件" "$(grep -c '闭环退出条件' skills/change-workflow/SKILL.md)" "1"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="

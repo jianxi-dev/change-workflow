@@ -168,7 +168,7 @@ flowchart TB
 - commit 引用 `fixes #N` / `refs #N`
 - **任何「flaky」结论必须附复核证据**（重跑输出）；复核确认真实回归 → 进入缺陷处理机制（§7）
 - **G1 出口（顺序固定，全部通过才允许 commit）**：
-  1. `code-review` 双轴（Standards + Spec）——每任务后必做，**须逐条对照 QG-4 检查测试是否驱动真实路径**
+  1. `code-review` 双轴（Standards + Spec）——每任务后必做，**须逐条对照 QG-4 检查测试是否驱动真实路径**；**闭环退出条件**：未解决项未清零 → 回到修复，循环至零问题或达上限（默认 10，与 `cw-greploop.sh --max-iterations` 同款）
   2. `review`（pre-landing 结构审查）——仅 risk-medium/high 追加
    3. **QG-5 独立验证**：验证者（orchestrator，非实施者）跑**自己的探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数）**粘贴到票上**；未附原始证据的「已完成」不予采信。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据；`cw-evidence.sh` 退出码：0=成功 / 1=参数或子命令错误 / 3=依赖缺失降级——3 是预期路径，按脚本打印的降级指引继续，不得视为失败放弃证据纪律；并在票上标注**验证基于的 HEAD SHA**（`git rev-parse HEAD`，记作 `QG-5 验证基于 <sha>`——rebase/追加提交后该结论即过期，G2 据此拦截）
    4. 通过后 → G2
@@ -185,6 +185,7 @@ flowchart TB
 - **resume 硬规则**：① 分支**已有 commit** 时必须用 `--resume-branch`（从头模式会从 origin/main 重建分支，导致既有提交的文件 pathspec 丢失）；② `--slug` 与 `--resume-branch` **互斥**（不可同时传）；③ 白名单：`--files` 外的任何工作区改动（含 untracked）都会被拒绝——规划文件未入库时先 rebase main 使其 tracked
 - **parent/spec issue 的 PR 用 `--refs-only`**：PR body 用 `Refs #N` 而非 `Closes #N`，避免合并提前关闭 parent/spec issue 生命周期（G4 才收口）
 - **文字质量门禁**：commit message 与 PR 标题/正文在提交前过 `docs/agents/pr-writing.md`（去 AI 味：按 12 条 tells 清单跑两遍扫描，只处理本次写的文字，不改未触碰的既有 prose）；PR 创建后发现问题用 `gh pr edit` 仅改标题/正文（不动文件）
+- **成对证据（UI/行为变更）**：PR 正文 verification 段嵌入两列对比表格（| 修复前 | 修复后 |）或媒体链接，复用 QG-5 已采集的成对证据，不二次截图（规范：`docs/agents/evidence-capture.md`）
 - **auto-merge**：risk-low 尝试启用；仓库未启用时脚本 fail-open（提示 `gh pr merge <N> --squash`，CI 绿后执行）
 - **从头模式适用场景**：artifacts docs PR（文件就绪一次成型）；单文件快速改动
 - PR 模板必填项全填（impact/verification/risk）；禁止 `--skip-checks`

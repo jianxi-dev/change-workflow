@@ -117,7 +117,7 @@ ls .artifacts/<task-name>/ | grep -E "before|after"
 
 **产出**：PNG 文件，按序号命名，附 `assertions.md` 列出每张截图对应的断言。
 
-**贴票/PR**：使用 `before-and-after` CLI 生成对比 Markdown 嵌入 PR。
+**贴票/PR**：以两列对比表格（| 修复前 | 修复后 |）或媒体链接嵌入 PR 正文 verification 段——复用 E1 录制产物，不二次截图；不引入上游 CLI 与上传链（含敏感画面的流程标 untested 不录，见 §五）。
 
 ---
 
@@ -184,7 +184,7 @@ gh issue view <票号> --json body --jq .body | grep -iE "transcript|tool.call|a
 | 降级场景 | 替代方案 | 证据形态 |
 |---|---|---|
 | 无 GUI | Playwright 脚本化截图 + `assertions.md` | PNG + 文本 |
-| 无 ffmpeg | `before-and-after` CLI 或 per-turn 截图 | PNG 对 |
+| 无 ffmpeg | per-turn 成对截图 | PNG 对 |
 | 无 computer-use | `cua-driver` 驱动 + 文件协议标注 | 截图 + `assertions.md` |
 | 无 UI（纯 API） | 脚本化探针 + 测量数字 | `probe-output.txt` |
 
