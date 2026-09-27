@@ -94,7 +94,7 @@ ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y
 ok "docs 模式 644" "$(fmode docs/agents/domain.md)" "644"
 ok "脚本模式 755" "$(fmode scripts/cw-evidence.sh)" "755"
 ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
-ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "20"
+ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "22"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
 
@@ -104,7 +104,7 @@ echo "[2] 幂等（版本回退后重跑）"
 set_version "1.0.0"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out2" in *"已最新 20"*) r2=0 ;; *) r2=1 ;; esac
+case "$out2" in *"已最新 22"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
 # ── 用例 3：本地修改 → 冲突 ──────────────────────────────────────────────────
@@ -190,8 +190,8 @@ ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
 ok "cw-tickets-check 可执行" "$([[ -x scripts/cw-tickets-check.sh ]] && echo y)" "y"
 ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y"
-# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 20 - 3 = 17
-ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "17"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 21 - 3 = 18
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "19"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
@@ -359,7 +359,7 @@ ok "缺失+LOCAL 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo 
 ok "缺失+LOCAL 真实更新计本地保留" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "1"
 ok "缺失+LOCAL kept==^LOCAL" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11l="$(printf '%s' "$out11l" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL 五桶和==20" "$(( ${m11l:-0} ))" "20"
+ok "缺失+LOCAL 五桶和==22" "$(( ${m11l:-0} ))" "22"
 # 对抗轮7 回归锁：缺失 + LOCAL 哨兵 + --force —— force 优先于 LOCAL 哨兵（与等值/差异路径
 # 同原则），缺失分支必须归一：计 ADDED + 记 FORCED_LIST → manifest 重写走哈希归一分支。
 # 旧缺陷：缺失分支无 force 分流 → --force 仍走 LOCAL 保留分支 → 文件被「本地保留」永久
@@ -373,7 +373,7 @@ ok "缺失+LOCAL force 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] &&
 ok "缺失+LOCAL force 哨兵归一" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/pr-writing.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
 ok "缺失+LOCAL force kept==^LOCAL" "$(printf '%s' "$out11n" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11n="$(printf '%s' "$out11n" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL force 五桶和==20" "$(( ${m11n:-0} ))" "20"
+ok "缺失+LOCAL force 五桶和==22" "$(( ${m11n:-0} ))" "22"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
@@ -487,7 +487,7 @@ B8="$(mktemp -d)"
 CLEAN="$B8/clean"; new_repo "$CLEAN" || exit 1
 write_conf "1.0.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
-ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "20"
+ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "22"
 
 rc14a=0; out14a="$("$CW_ROOT/test/rollout-check.sh" "$CLEAN" 2>&1)" || rc14a=$?
 ok "干净仓退出码" "$rc14a" "0"
@@ -703,7 +703,7 @@ case "$out19" in *"无基线记录"*) r19=1 ;; *) r19=0 ;; esac
 ok "无「无基线记录」误报" "$r19" "0"
 set_version "1.0.0"
 out19b="$("$B13/tk2/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out19b" in *"已最新 20"*) r19b=0 ;; *) r19b=1 ;; esac
+case "$out19b" in *"已最新 22"*) r19b=0 ;; *) r19b=1 ;; esac
 ok "二次运行已最新" "$r19b" "0"
 # --accept-local 对空格路径生效：本地修改 → 冲突 → 接受 → 归一且哨兵粘住
 echo "## 本地定制" >> "My Docs/triage-labels.md"

@@ -152,6 +152,7 @@ cw_is_self_target() {
 # 目录类占位符（__SKILLS_DIR__ / __DOCS_DIR__）由调用方按 conf 替换。
 cw_list_files() {
   echo "skills/change-workflow/SKILL.md|__SKILLS_DIR__/change-workflow/SKILL.md"
+  echo "skills/change-workflow/agents-quick-reference.md|__SKILLS_DIR__/change-workflow/agents-quick-reference.md"
   echo "scripts/pr-automation.sh|scripts/pr-automation.sh"
   echo "scripts/cw-update.sh|scripts/cw-update.sh"
   echo "workflows/change-closure-signal.yml|.github/workflows/change-closure-signal.yml"
@@ -159,6 +160,7 @@ cw_list_files() {
   echo "scripts/cw-greploop.sh|scripts/cw-greploop.sh"
   echo "scripts/cw-tickets-check.sh|scripts/cw-tickets-check.sh"
   echo "scripts/decisions-log.sh|scripts/decisions-log.sh"
+  echo "Makefile|Makefile"
   local f base
   for f in "$CW_ROOT"/docs/agents/*.md; do
     [[ -e "$f" ]] || continue

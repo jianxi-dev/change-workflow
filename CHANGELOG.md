@@ -1,3 +1,154 @@
+## 1.8.0 — 2026-09-27
+
+### 新增：Makefile 快捷入口——消费仓 `make update` 一行升级
+
+**背景**：消费仓运行 `./scripts/cw-update.sh` 路径长、首次要等 clone 缓存，用户常不知道命令在哪。加 Makefile 提供 `make update` / `make cw-check` / `make help` 三个快捷入口。
+
+**改进**（1 项）：
+
+- **Makefile 模板**：新增受管文件 `Makefile`（`make update` → `./scripts/cw-update.sh`，`make cw-check` → `./scripts/cw-update.sh --check`，`make help` → 列出可用命令）。受管文件数 20 → 21。
+
+**连带**：`lib/render.sh` cw_list_files 加 `Makefile|Makefile`；test 断言 21 → 22；e2e 226 断言全绿；rollout-check 3 消费仓 9/0。
+
+### 教训反思
+
+**快捷入口是消费仓体验的关键**：`./scripts/cw-update.sh` 虽然自包含，但路径长、首次慢。Makefile 把更新操作从「知道路径」变成「知道命令」，降低使用门槛。
+
+**受管文件新增必须同步测试断言**：cw_list_files 加一行，test 中 4 处 "21" 断言必须同步改 "22"，否则 CI 红。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+   通过 226 · 失败 0
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+   消费仓 3 个 · 通过 9 · 失败 0
+$ bash -n 全受管 shell 脚本：OK
+```
+
+---
+
+## 1.7.3 — 2026-09-27
+
+### 新增：verify-md-bundle 验证技能生成器——QG-5 探针可复跑基建
+
+**背景**：QG-5 探针每次随手写、不可复跑；同一功能在不同票上探针质量随心情波动。pstack 的 `create-verification-skill` 把验证做成一等基建：采访代码库 → 生成 `verify-<app>` → 交付前自证。md-bundle 有真实页面，适合作为首个试点。
+
+**改进**（1 项）：
+
+- **verify-md-bundle 技能**：在 md-bundle 的 `.opencode/skills/verify-md-bundle/` 创建验证技能（SKILL.md + 5 个特性文件）——Launch（`pnpm dev` → 端口 4173）/ Doctor（进程存活 + 端口占用 + 页面可加载）/ Drive（Playwright + 真实 data-testid）/ Evidence（截图 + DOM 快照 → `.artifacts/<票号>/`）/ Cleanup（杀进程 + 保留证据）/ Helpers（无）。特性地图覆盖：文件打开、编辑、导出、预览、分享。`SKILL.md` G1 出口加「验证技能调用」条款：对 md-bundle 仓，Sisyphus 优先调用 `verify-md-bundle` 技能跑探针。
+
+**连带**：无受管文件变更（纯文档规则）；e2e 226 断言全绿；rollout-check 3 消费仓 9/0。
+
+### 教训反思
+
+**验证技能是验证基建化的有效模式**：从「随手写」到「可复跑基建」，消除「心情波动」。特性地图是验证技能的「知识库」，需要随应用演进而维护（P2 维护循环）。
+
+**仅对 md-bundle 生成 verify-***：纯库仓收益低，保持轻量探针。md-bundle 有真实页面，QG-5 探针可固化。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 226 · 失败 0
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+  消费仓 3 个 · 通过 9 · 失败 0
+$ bash -n 全受管 shell 脚本：OK
+```
+
+---
+
+## 1.7.2 — 2026-09-27
+
+### 新增：验证分离——G1 出口编排器独立跑 QG-5
+
+**背景**：SKILL.md:183 声称「验证者（orchestrator，非实施者）」，但单会话模型下该规则**无机制保障**——同一 agent 既实施又验证。Omo 的 Atlas 已有委派机制（Sisyphus → Atlas），但 Atlas 既执行又验证（自证），没有解决验证者≠实施者。
+
+**改进**（1 项）：
+
+- **验证分离**：`SKILL.md` G1 出口 QG-5 段重写为「验证分离」机制——Atlas（执行者）完成 G1 实施后返回摘要（diff 统计 + 出口条件结果）；Sisyphus（编排器）**亲自跑 QG-5 探针**，不依赖 Atlas 的自证。**两层验证互补**：Atlas 的 `lsp_diagnostics` 作为最低门槛（语法/类型），Sisyphus 的 QG-5 作为应用专属验证（业务逻辑）。Sisyphus 持有跨票 SHA 视图，收口时 `--verified-sha` 拦截过期验证。
+
+**连带**：无受管文件变更（纯文档规则）；e2e 226 断言全绿；rollout-check 3 消费仓 9/0。
+
+### 教训反思
+
+**验证分离是验证者≠实施者的机制保障**：E3 的闭环退出条件只解决了「验证要验证到什么程度」，没有解决「谁来验证」。验证分离通过「Atlas 实施 + Sisyphus 亲自跑 QG-5」真正分离了验证者≠实施者。
+
+**两层验证互补是正确的设计**：Atlas 的 lsp_diagnostics 抓语法/类型错误（静态、与业务无关），Sisyphus 的 QG-5 抓业务逻辑错误（动态、与业务相关）。两层验证互补，不冲突。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 226 · 失败 0
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+  消费仓 3 个 · 通过 9 · 失败 0
+$ bash -n 全受管 shell 脚本：OK
+```
+
+---
+
+## 1.7.1 — 2026-09-27
+
+### 新增：E4 overlap 预检——G1 开工前并行冲突拦截
+
+**背景**：软件工厂续篇（`AI-doc/软件工厂-精华反哺CW.md` §二 E4）指出 CW 有 `Blocked by` 依赖序，但没有「扫 open PR 改动文件、重叠即停」的预检。两个并行 change 改同一文件时，当前机制无法阻止冲突——只有 merge 时才发现。
+
+**改进**（1 项）：
+
+- **overlap 预检**：`SKILL.md` G1 实施 gate 开头新增「第 0 步·overlap 预检」——扫 open PR 的 `--name-only`，与本票待改文件求交集；交集非空 → 停而报告「与 #N 改同一文件（<文件列表>），等该 PR 合并后再开工」。文件级判定（同一文件即重叠），不做行级判定。纯 `gh` 命令，无新脚本、无新依赖。
+
+**连带**：无受管文件变更（纯文档规则）；e2e 226 断言全绿；rollout-check 3 消费仓 9/0。
+
+### 教训反思
+
+**文件级判定是正确的第一版**：行级判定需要 diff 分析，复杂且可能误报。文件级已经能覆盖大多数冲突场景，且确定性强。如果未来出现「同一文件不同区域」的真实冲突，再考虑行级增强。
+
+**停报而非自动解决**：自动 rebase/merge 可能引入新问题。停报让人决策，符合「唯一人工介入 = risk-medium/high PR 合并确认」原则。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 226 · 失败 0
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+  消费仓 3 个 · 通过 9 · 失败 0
+$ bash -n 全受管 shell 脚本：OK
+```
+
+---
+
+## 1.7.0 — 2026-09-27
+
+### 新增：E5 四拍速查卡——对抗 G8 process rot
+
+**背景**：软件工厂续篇（`AI-doc/软件工厂-精华反哺CW.md` §二 E5）指出 SKILL.md 已膨胀至 280 行且持续增长（G8 风险）。agent 日常执行时不需要每次读完 280 行——他们需要一张「四拍速查卡」快速定位当前阶段的关键动作与出口条件。软件工厂用单文件 `AGENTS.md`（Isolate → Build → Prove → Ship）证明：把纪律压成一张纸，轻量、易读、易移植。
+
+**改进**（1 项）：
+
+- **四拍速查卡**：新增受管文件 `skills/change-workflow/agents-quick-reference.md`（79 行，≤80 行上限）——G0 规一 → G1 实施 → G2 提交 → G3/G4 收尾，每拍含关键动作 + 出口条件 + 「详见 SKILL.md §」引用；附质量门禁索引表（QG-1..7 / DQ-1..8 各一句话，两列表格）。`SKILL.md` 顶部（frontmatter 之后）加 3 行指引段：「日常执行照速查卡跑，细节回本文对应段」「单一事实来源：本文是完整参考」「同步规则：修改本文时同步检查速查卡」。不删除 SKILL.md 任何内容——速查卡是入口，SKILL.md 仍是完整参考。
+
+**连带**：受管文件 20→21（+1 技能模板）；`lib/render.sh` 的 `cw_list_files` 加入 `agents-quick-reference.md`；e2e 受管文件计数断言 20→21（8 处）；`docs/agents/AGENTS.md` 模板行数表无需改（速查卡不在 `docs/agents/` glob 内）。
+
+### 教训反思
+
+**速查卡与完整参考的双层结构是抗 process rot 的有效模式**：SKILL.md 280 行中大量是「为什么」和「历史教训」——这些是设计文档，不是执行指令。速查卡只需要「做什么 + 出口条件 + 去哪查」。80 行限制迫使信息密度最大化，避免速查卡变成第二个 SKILL.md。
+
+**同步规则必须显式声明**：速查卡只写关键动作，不复制详细规则；详细规则只在 SKILL.md 维护，速查卡通过「详见 SKILL.md §」引用。修改 SKILL.md 时同步检查速查卡——这个规则必须写在指引段里，否则内容漂移是必然的。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 226 · 失败 0        # 受管文件计数 20→21，全部断言更新
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+  消费仓 3 个 · 通过 9 · 失败 0    # 三仓冲突 0 · LOCAL 哨兵完整 · 覆盖 21/21
+$ bash -n 全受管 shell 脚本：OK
+$ shellcheck --severity=warning：无警告
+```
+
+---
+
 ## 1.6.0 — 2026-09-27
 
 ### 新增：pstack 反哺 P0——引用纪律 / 决策日志 / 验证时效 / 减法审计
