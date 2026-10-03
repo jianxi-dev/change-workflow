@@ -13,7 +13,7 @@
 | 文件 | 行数 | 主题 |
 |---|---|---|
 | `task-tracking.md` | 226 | OpenSpec tasks → GitHub issue 的发布与跟踪（1 task=1 ticket、Parent=spec issue、对账自证） |
-| `quality-gates.md` | 402 | 票内容与完成判据的单一事实来源（QG-1..7 + DQ-1..8） |
+| `quality-gates.md` | 402 | 票内容与完成判据的单一事实来源（QG-1..8 + DQ-1..8） |
 | `issue-tracker.md` | 53 | 声明 GitHub Issues 为 tracker 及 `gh` 操作约定 |
 | `project-board.md` | 88 | Projects V2 看板常量（PROJECT_ID/STATUS_FIELD_ID/OPT_*）与入列 API |
 | `triage-labels.md` | 23 | 5 个 canonical triage 角色 → 本仓标签字符串的映射 |
@@ -21,7 +21,7 @@
 | `domain.md` | 38 | 探索前领域文档消费规则（术语表、ADR 冲突必须显式声明） |
 | `incident-uncommitted-work-loss.md` | 301 | 未提交代码被破坏性回滚覆盖的事故复盘 + 共享工作区保护 |
 | `incident-merge-local-workspace.md` | 45 | 合并收尾切错分支致本地工作流失效的事故复盘与强制规则 |
-| `evidence-capture.md` | 280 | 证据驱动测试规范（证据分层 before/after + 5 类证据：视频/截图/测量数字/transcript/headless 降级；挂 QG-5/DQ-3/DQ-5） |
+| `evidence-capture.md` | 280 | 证据驱动测试规范（证据分层 before/after + 6 类证据：视频/截图/测量数字/transcript/headless 降级/视觉探针；挂 QG-5/DQ-3/DQ-5） |
 | `code-structure.md` | 95 | 服务层架构约束（actions 管 why/when、service 管 how + 四反模式 + 迁移清单；挂 G1 与 code-review Standards 轴） |
 | `pr-writing.md` | 164 | PR 与提交文字规范（去 AI 味：12 条 AI tells + 两遍扫描法 + add soul；挂 G2/G3/G4） |
 
@@ -41,16 +41,16 @@
 
 本目录最重要的一份是 `quality-gates.md`：
 
-- QG-1..QG-7 在第二节，约 `:38-148`。
+- QG-1..QG-8 在第二节，约 `:38-215`。
 - DQ-1..DQ-8 在第三节，约 `:151-257`。
 - 最小充分集（`:393` 附近）= QG-1+QG-2+QG-5（拦「功能不存在」）＋ DQ-1+DQ-3+DQ-5（拦「假修复」）。
 - 豁免表在 `:328-343`：不可豁免 QG-3/4/5、DQ-1/2/3/4/5/8；可豁免的 QG-1/QG-2 必须由票作者显式声明，不得默认。
-- 挂载点 `:389`：QG-7/QG-3 → G0；QG-1..QG-5 → G1 出口；QG-6 → G1 循环；DQ-1..8 → SKILL 缺陷处理章节。
+- 挂载点 `:389`：QG-7/QG-3 → G0；QG-1..QG-5 → G1 出口；QG-6 → G1 循环；QG-8 → G4 收尾前置；DQ-1..8 → SKILL 缺陷处理章节。
 - 减法审计在 §八（约 `:353-383`）：季度捕获统计表 + 零捕获合并/退役；最小充分集免退役。
 
 新增 3 份规范与门禁的挂接：
 
-- `evidence-capture.md`：证据分层与 5 类证据（视频/截图/测量数字/transcript/headless 降级）——QG-5（独立验证+原始证据）与 DQ-3（先红后绿）/DQ-5（关闭附原始证据）的取证细则。
+- `evidence-capture.md`：证据分层与 6 类证据（视频/截图/测量数字/transcript/headless 降级/视觉探针）——QG-5（独立验证+原始证据）与 DQ-3（先红后绿）/DQ-5（关闭附原始证据）的取证细则。
 - `code-structure.md`：服务层架构约束（actions 管 why/when、service 管 how）——G1 出口的 code-review Standards 轴判据。
 - `pr-writing.md`：PR 与提交文字规范（12 条 AI tells + 两遍扫描法）——G2/G3/G4 的文字质量判据。
 

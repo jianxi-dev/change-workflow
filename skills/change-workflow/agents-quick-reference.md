@@ -15,9 +15,10 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 
 **关键动作**：
 1. to-spec 综合产出 spec issue → 四要素映射写入 requirements.md
-2. openspec-propose 生成 proposal/design/tasks.md（垂直切片约束）
-3. to-tickets 拆子票（1 task=1 ticket，Parent=#S，标签 ready-for-agent）
-4. cw-tickets-check.sh 自检全绿 → 自动发布
+2. 需求输入门（L-1）：来源可追溯 / 空白显式化 / 一手证据 / 冲突显式 / 验收锚点
+3. openspec-propose 生成 proposal/design/tasks.md（垂直切片约束）
+4. to-tickets 拆子票（1 task=1 ticket，Parent=#S，标签 ready-for-agent）
+5. cw-tickets-check.sh 自检全绿 → 自动发布
 
 **出口条件**：tasks.md 就绪 + 子票全发布 + 看板入列 Ready（详见 SKILL.md §G0）
 
@@ -54,7 +55,7 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 **关键动作**：
 1. G3：learn 沉淀 → sync-gbrain 刷新索引 → decisions-log.sh 决策日志
 2. frontier 自动推进下一张可开工票（零询问：会话内连跑 + 跨会话自动接力；被未合并前票阻塞 → 轮询等待）
-3. G4：全部合并 → opsx-sync → validate --strict → archive → 看板 Done → 关 spec issue
+3. G4：全部合并 → 收尾生命周期黑盒巡检 + 发现闭环门（QG-8）→ opsx-sync → validate --strict → archive → 看板 Done → 关 spec issue
 4. G4 收口后：盘点剩余 open issue（分类清单 + 下一项建议 + 询问是否继续）
 
 **出口条件**：change 归档 + spec issue 关闭 + 看板 Done + 剩余清单已盘点（详见 SKILL.md §G3/G4）
@@ -63,13 +64,14 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 
 | 编号 | 一句话 |
 |---|---|
-| QG-1 | AC 须含浏览器可观测陈述 |
+| QG-1 | AC 三分类：存在 / 生命周期 / 保真 |
 | QG-2 | 用户可见变更必须新增/扩展 e2e |
 | QG-3 | 新 API 必须指定接线票与位置 |
-| QG-4 | 测试必须驱动真实链路 |
-| QG-5 | 验证者跑自己的探针 + 原始证据 |
+| QG-4 | 测试驱动真实链路 + 断言强度阶梯（渲染类 ≥ 文本相等 / 可取消类 ≥ 状态往返） |
+| QG-5 | 验证者跑自己的探针 + 原始证据 + 视觉探针（交互票多态截图） |
 | QG-6 | ≥6 票时每 ≤4 票做集成 checkpoint |
 | QG-7 | 每条 task 须能回答「用户能看到什么」 |
+| QG-8 | 发现闭环门：findings 须转 tracked issue / 规格 |
 | DQ-1 | triage 不可跳过（brief 评论必须存在） |
 | DQ-2 | 根因须独立确认，票面方向是假设 |
 | DQ-3 | 先红后绿（复现证据强制） |

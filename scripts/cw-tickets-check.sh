@@ -448,8 +448,9 @@ check_c2() {
 # ---- C3 QG-1 形态 ------------------------------------------------------------
 # 未声明 no-ui-impact 的票，AC 块必须匹配 ERE 打开.*页面|dev server|\.spec\.ts
 # （quality-gates.md §四 的 QG-1 谓词，逐字复用）。
+# 三分类 AC 关键词：存在/生命周期/保真 → 必含 取消/残留/空态/严格等于/不含
 check_c3() {
-  echo "==> C3 QG-1 形态（AC 可观测）"
+  echo "==> C3 QG-1 形态（AC 可观测 + 三分类）"
   local viol=0 i ac hits
   for i in "${!DRAFT_FILES[@]}"; do
     if [[ "${D_BODY[$i]}" != *"no-ui-impact"* ]]; then
@@ -459,10 +460,16 @@ check_c3() {
         add_violation "- [C3] ${D_NUM[$i]} AC 无可观测形态（QG-1: 打开.*页面|dev server|.spec.ts）"
         viol=$((viol + 1))
       fi
+      # 三分类关键词机检：生命周期（取消/残留/空态）+ 保真（严格等于/不含）
+      hits="$(printf '%s\n' "$ac" | grep -E '取消|残留|空态|严格等于|不含' || true)"
+      if [[ -z "$hits" ]]; then
+        add_violation "- [C3] ${D_NUM[$i]} AC 缺三分类关键词（QG-1: 取消|残留|空态|严格等于|不含）"
+        viol=$((viol + 1))
+      fi
     fi
   done
   if [[ $viol -eq 0 ]]; then
-    echo "  ✅ AC 形态符合 QG-1"
+    echo "  ✅ AC 形态符合 QG-1（含三分类）"
   else
     echo "  ❌ ${viol} 项违规" >&2
   fi
@@ -473,8 +480,9 @@ check_c3() {
 #     无一 bullet 可观测、且 ≥1 条命中 类型检查|单测|单元测试|返回|导出。
 # (b) 导出新 API 却无接线归属（QG-3）: 正文任一行命中导出正则且该行未声明豁免，
 #     则接线归属须非空且不是占位值（无/none/n/a/—/-/待定/tbd，大小写不敏感）。
+# (c) 三分类 AC 缺失：未声明 no-ui-impact 时，AC 缺生命周期/保真关键词（取消/残留/空态/严格等于/不含）
 check_c4() {
-  echo "==> C4 禁入信号（库层断言 / 导出无接线）"
+  echo "==> C4 禁入信号（库层断言 / 导出无接线 / 三分类缺失）"
   local viol=0 i ac bullets obs lib line hits wiring wiring_lc
   for i in "${!DRAFT_FILES[@]}"; do
     if [[ "${D_BODY[$i]}" != *"no-ui-impact"* ]]; then
@@ -487,6 +495,12 @@ check_c4() {
           add_violation "- [C4] ${D_NUM[$i]} AC 全部为库层断言（未声明 no-ui-impact）"
           viol=$((viol + 1))
         fi
+      fi
+      # (c) 三分类 AC 缺失机检
+      hits="$(printf '%s\n' "$ac" | grep -E '取消|残留|空态|严格等于|不含' || true)"
+      if [[ -z "$hits" ]]; then
+        add_violation "- [C4] ${D_NUM[$i]} AC 缺三分类关键词（生命周期/保真：取消|残留|空态|严格等于|不含）"
+        viol=$((viol + 1))
       fi
     fi
     # (b) 导出正则扫描正文每行；豁免串来自 quality-gates.md QG-3 的「无新增导出」惯例

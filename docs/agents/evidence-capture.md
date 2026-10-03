@@ -13,7 +13,7 @@
 > 生效日期：{{EFFECTIVE_DATE}}
 > 配套：`docs/agents/quality-gates.md`（QG-5 / DQ-3 / DQ-5 定义）、`docs/agents/defect-workflow.md`（缺陷闭环）、`.opencode/skills/change-workflow/SKILL.md`（G0-G4 gate 编排——本文件的挂载点）
 
-本规范定义**证据分层协议**、**5 类证据规范**与**探针形态约定**，每条规则固定四段：规则 / 理由 / 实证案例 / 如何验证。
+本规范定义**证据分层协议**、**6 类证据规范**与**探针形态约定**，每条规则固定四段：规则 / 理由 / 实证案例 / 如何验证。
 
 ---
 
@@ -60,7 +60,7 @@ gh issue view <票号> --json body --jq .body | grep -iE "before|after|修复前
 
 ---
 
-## 三、5 类证据规范
+## 三、6 类证据规范
 
 ### 3.1 视频录制（UI 多步流程）
 
@@ -118,6 +118,63 @@ ls .artifacts/<task-name>/ | grep -E "before|after"
 **产出**：PNG 文件，按序号命名，附 `assertions.md` 列出每张截图对应的断言。
 
 **贴票/PR**：以两列对比表格（| 修复前 | 修复后 |）或媒体链接嵌入 PR 正文 verification 段——复用 E1 录制产物，不二次截图；不引入上游 CLI 与上传链（含敏感画面的流程标 untested 不录，见 §六）。
+
+---
+
+### 3.2.1 状态覆盖矩阵（交互类 UI 变更强制）
+
+#### 规则
+
+交互类 UI 变更（浮层 / 插入 / 可取消 / 可关闭 / 空态）的截图证据必须覆盖**状态覆盖矩阵**——六态中适用项，**至少 4 态**：
+
+| 态 | 命名示例 | 断言要点 |
+|---|---|---|
+| 打开 | `01-open-menu.png` | 浮层/菜单/面板可见，焦点正确 |
+| 切换 | `02-switch-tab.png` | 标签/模式切换，内容随之变化 |
+| 取消 | `03-cancel-insert.png` | 操作取消，回初始态，**无残留文本/浮层/菜单** |
+| 外部点击 | `04-click-outside.png` | 点击外部关闭，回初始态，**无残留** |
+| 空态 | `05-empty-state.png` | 列表/编辑器为空时的引导/占位可见 |
+| 关闭 | `06-close-panel.png` | 显式关闭动作，资源释放，回初始态 |
+
+**机读清单约定**：每态产出一条记录到 `.artifacts/<task>/state-coverage.json`：
+
+```json
+{
+  "task": "1.3",
+  "states": [
+    {"state": "open", "screenshot": "01-open-menu.png", "assertion": "passed"},
+    {"state": "switch", "screenshot": "02-switch-tab.png", "assertion": "passed"},
+    {"state": "cancel", "screenshot": "03-cancel-insert.png", "assertion": "passed"},
+    {"state": "click-outside", "screenshot": "04-click-outside.png", "assertion": "passed"},
+    {"state": "empty", "screenshot": "05-empty-state.png", "assertion": "passed"},
+    {"state": "close", "screenshot": "06-close-panel.png", "assertion": "passed"}
+  ]
+}
+```
+
+**机检命令**：
+```bash
+ls .artifacts/<task>/state-coverage.json && jq '.states | length' .artifacts/<task>/state-coverage.json
+# 态数 <4 = 违规
+```
+
+#### 理由
+
+editor-v2 实证：D4 菜单点外部不关、D5 空态菜单驻留、D6 取消残留 `/`——均因**单层截图**无法捕获。单层截图只能证明「某一时刻存在」，无法证明「取消后回初始」「外部点击后关闭」「空态有引导」。状态覆盖矩阵把「多态证据」绑定到 **QG-4 第 4 级状态往返断言**的副产物（而非独立手工产物），使「是否多态」可机检（扫 spec 断言 + 扫清单态数）。
+
+#### 实证案例
+
+editor-v2 D4/D5/D6：仅单层截图（打开态）→ 无法拦截取消残留、外部点击不关、空态无引导。补齐六态截图 + 状态往返断言后，三条缺陷在 e2e 层即可暴露。
+
+#### 如何验证
+
+```bash
+# 机检态数 + 断言结果
+jq '.states[] | select(.assertion=="failed")' .artifacts/<task>/state-coverage.json
+# 有失败 = 违规
+jq '.states | length' .artifacts/<task>/state-coverage.json
+# <4 = 违规
+```
 
 ---
 
@@ -210,6 +267,35 @@ ls .artifacts/<task-name>/ | grep -E "assertions\.md|\.png|probe-output"
 
 ---
 
+### 3.6 视觉探针（交互类 UI 变更强制）
+
+#### 规则
+
+交互类 UI 变更的验证，**必须包含视觉探针**——关键态截图 + 人工/多模态复核。视觉探针是 QG-5 探针类型的第 5 项（见 `quality-gates.md` QG-5 探针类型清单）。
+
+- **单层截图对交互票明确不足**——必须配合状态覆盖矩阵（§3.2.1，≥4 态）使用
+- 视觉探针的截图由 **QG-4 第 4 级状态往返断言驱动产生**（副产物），而非独立手工产物
+- `state-coverage.json` 与 e2e spec 状态断言**双管**机检（见 §3.2.1 机检命令）
+
+#### 理由
+
+editor-v2 实证：D2 callout「注释 注释」、D3 围栏 `\`js`、D6 取消残留 `/`——均为「元素存在」级断言 + 单层截图无法拦截。视觉探针把「人眼可辨真伪」纳入证据链：截图覆盖六态 + 人工/多模态复核文本/像素真伪，堵住保真盲区。
+
+#### 实证案例
+
+editor-v2 D2：仅单层截图（打开态）→ 无法发现标题重复。补齐状态覆盖矩阵（打开/切换/取消/外部点击/空态/关闭）+ 视觉复核「标头文本严格等于『注释』」→ 即时暴露。
+
+#### 如何验证
+
+```bash
+# 机检：状态覆盖矩阵态数 + 断言结果（同 §3.2.1）
+jq '.states | length' .artifacts/<task>/state-coverage.json
+# <4 = 违规
+# 人工/多模态复核记录须贴票（PR body verification 段或票评论）
+```
+
+---
+
 ## 四、探针形态（活代码优先）
 
 ### 规则
@@ -248,9 +334,10 @@ gh issue view <票号> --json body --jq .body | grep -E "原始输出|before|aft
 
 本规范是 QG-5 的**证据采集层**。QG-5 要求「验证者自己的探针的原始输出粘贴到票上」，本规范定义**如何采集这些原始输出**：
 
-- 验证者须按 §三 的 5 类规范之一采集证据
+- 验证者须按 §三 的 6 类规范之一采集证据（视频/截图/测量数字/transcript/headless/视觉探针）
 - 证据须包含 before/after 成对（§二）
-- 视频/截图/测量数字/transcript 摘录须粘贴到票上
+- 交互类 UI 变更须含**状态覆盖矩阵**（§3.2.1，≥4 态 + `state-coverage.json`）与**视觉探针**（§3.6）
+- 视频/截图/测量数字/transcript 摘录/视觉探针复核记录须粘贴到票上
 
 ### DQ-3（先红后绿）
 
@@ -264,7 +351,7 @@ DQ-3 要求「修复前必须先有可复现的失败证据」。本规范定义
 
 DQ-5 要求「验证者跑自己的探针，原始输出粘贴到票上」。本规范定义**探针输出的形态**：
 
-- UI 行为 → 视频或截图
+- UI 行为 → 视频或截图（交互类须含状态覆盖矩阵 + 视觉探针）
 - 非 UI 行为 → 测量数字
 - agent 行为 → transcript 摘录
 - 降级环境 → headless 路径产物

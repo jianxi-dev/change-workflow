@@ -6,7 +6,7 @@
 
 > 适用范围：把 OpenSpec change 的 tasks 发布为 GitHub issue，打通"spec → 开发 → 完成跟踪"全链路。
 > 生效日期：2026-09-12
-> 配套：`docs/agents/quality-gates.md`（**QG-1..QG-7 质量门禁——票的 AC 与完成判据**）、`docs/agents/issue-tracker.md`（issue 操作）、`docs/agents/triage-labels.md`（状态标签）、`docs/agents/defect-workflow.md`（缺陷流程）
+> 配套：`docs/agents/quality-gates.md`（**QG-1..QG-8 质量门禁——票的 AC 与完成判据**）、`docs/agents/issue-tracker.md`（issue 操作）、`docs/agents/triage-labels.md`（状态标签）、`docs/agents/defect-workflow.md`（缺陷流程）
 
 ---
 

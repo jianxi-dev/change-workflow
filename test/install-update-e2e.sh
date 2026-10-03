@@ -1130,6 +1130,144 @@ ok "速查卡渲染含四拍内容" "$(grep -c '^# 四拍速查卡' "$B20/out/ag
 ok "速查卡渲染剥头干净" "$(grep -c 'change-workflow 工具包模板' "$B20/out/agents-quick-reference.md" 2>/dev/null)" "0"
 sanitize "$B20"
 
+# ── 用例 30：quality-gates.md 保真/生命周期/发现闭环门禁契约锁 ──
+# 背景：本变更把 QG-1 升级为三分类 AC（存在/生命周期/保真）、QG-4 增断言强度阶梯、
+#   QG-5 增视觉探针+禁伪手动 QA、新增 QG-8 发现闭环门、§四替换为三分类模板、
+#   §五补三条反例、§七收紧 no-ui-impact、§八加 expected capture。
+# 断言基于渲染前模板文本（安装后剥头，安装流程由用例 1 覆盖）。
+echo ""
+echo "[30] quality-gates.md 保真/生命周期/发现闭环门禁契约锁"
+# QG-1 三分类关键词：标题行含"三分类"且含"存在/生命周期/保真"
+ok "QG-1 三分类 AC 关键词" "$(grep -c '三分类.*存在.*生命周期.*保真\|存在.*生命周期.*保真.*三分类' docs/agents/quality-gates.md)" "1"
+# QG-1 生命周期六态列举：任一行含六态关键词（2 行：QG-1 规则 + §四模板）
+ok "QG-1 生命周期六态列举" "$(grep -c '打开.*切换.*取消.*外部点击.*空态.*关闭' docs/agents/quality-gates.md)" "2"
+# QG-1 保真文本相等要求：文件中出现"文本相等"或"严格等于"（9 行）
+ok "QG-1 保真文本相等要求" "$(grep -c '文本相等\|严格等于' docs/agents/quality-gates.md)" "9"
+# QG-4 断言强度阶梯：表格含五层级关键词（存在/可见/文本相等/状态往返/视觉 分布在表格多行）
+ok "QG-4 断言强度阶梯" "$(python3 << 'PYEOF'
+import sys
+t = open('docs/agents/quality-gates.md').read()
+kws = ['存在','可见','文本相等','状态往返','视觉']
+print(1 if all(k in t for k in kws) else 0)
+PYEOF
+)" "1"
+# QG-4 渲染类至少文本相等：含"渲染/装饰/插入/浮层"且含"文本相等"（2 行，顺序不固定）
+ok "QG-4 渲染类至少文本相等" "$(python3 << 'PYEOF'
+import sys
+t = open('docs/agents/quality-gates.md').read()
+print(sum(1 for line in t.splitlines() if '渲染' in line and '装饰' in line and '插入' in line and '浮层' in line and '文本相等' in line))
+PYEOF
+)" "2"
+# QG-4 可取消类须状态往返：含"可取消/可关闭"且含"状态往返"（2 行，顺序不固定）
+ok "QG-4 可取消类须状态往返" "$(python3 << 'PYEOF'
+import sys
+t = open('docs/agents/quality-gates.md').read()
+print(sum(1 for line in t.splitlines() if '可取消' in line and '可关闭' in line and '状态往返' in line))
+PYEOF
+)" "2"
+# QG-5 视觉探针条款：文件中出现"视觉探针"（6 行）
+ok "QG-5 视觉探针条款" "$(grep -c '视觉探针' docs/agents/quality-gates.md)" "6"
+# QG-5 元素存在非证据：含"元素存在"且含"不是有效证据"（1 行）
+ok "QG-5 元素存在非证据" "$(grep -c '元素存在.*不是有效证据\|元素存在.*非.*有效证据' docs/agents/quality-gates.md)" "1"
+# QG-5 禁伪造手动 QA：含"伪造手动 QA"或"qa-*.spec.ts"（2 行）
+ok "QG-5 禁伪造手动 QA" "$(grep -c '伪造.*手动 QA\|qa-.*\.spec\.ts' docs/agents/quality-gates.md)" "2"
+# QG-8 发现闭环门条目：含"QG-8"且含"发现闭环门"（2 行：标题 + 豁免表）
+ok "QG-8 发现闭环门条目" "$(grep -c 'QG-8.*发现闭环门\|### QG-8 发现闭环门' docs/agents/quality-gates.md)" "2"
+# §四 三分类 AC 模板：含"三行"且含"存在/生命周期/保真"（1 行）
+ok "§四 三分类 AC 模板" "$(grep -c '三行.*存在.*生命周期.*保真\|存在.*生命周期.*保真.*三行' docs/agents/quality-gates.md)" "1"
+# §五 callout 重复反例：含"callout"且含"重复"或"注释 注释"（7 行）
+ok "§五 callout 重复反例" "$(grep -c 'callout.*重复\|注释.*注释' docs/agents/quality-gates.md)" "7"
+# §五 围栏反引号反例：含"围栏"且含"反引号"或"fenced code"且含"反引号"（6 行）
+ok "§五 围栏反引号反例" "$(grep -c '围栏.*反引号\|fenced.*code.*反引号' docs/agents/quality-gates.md)" "6"
+# §五 取消残留反例：含"取消"且含"残留"（11 行）
+ok "§五 取消残留反例" "$(grep -c '取消.*残留' docs/agents/quality-gates.md)" "11"
+# §七 no-ui-impact 浮层不豁免：含"浮层/插入/渲染"且含"不得豁免"且含"生命周期"且含"保真"（1 行）
+ok "§七 no-ui-impact 浮层不豁免" "$(grep -c '浮层.*插入.*渲染.*不得豁免.*生命周期.*保真\|浮层/插入/渲染.*不得.*豁免.*生命周期.*保真' docs/agents/quality-gates.md)" "1"
+# §八 expected capture 行：表格中有 4 行包含 expected capture 内容（QG-1/QG-4/QG-5/QG-8）
+ok "§八 expected capture 行" "$(python3 << 'PYEOF'
+import sys
+lines = open('docs/agents/quality-gates.md').readlines()
+in_table = False
+c = 0
+header_seen = False
+for line in lines:
+    if 'expected capture' in line and '|' in line:
+        in_table = True
+        header_seen = True
+        continue
+    if in_table and line.strip().startswith('|'):
+        if not header_seen:
+            header_seen = True
+            continue
+        parts = line.split('|')
+        if len(parts) > 5:
+            val = parts[5].strip()
+            if val not in ('—', '', '---'):
+                c += 1
+    if in_table and '零捕获处置' in line:
+        break
+print(c)
+PYEOF
+)" "4"
+
+# ── 用例 31：evidence-capture.md 状态覆盖矩阵 + 视觉探针契约锁 ──
+echo ""
+echo "[31] evidence-capture.md 状态覆盖矩阵 + 视觉探针契约锁"
+# §3.2 状态覆盖矩阵小节：含"状态覆盖矩阵"（8 行）
+ok "§3.2 状态覆盖矩阵小节" "$(grep -c '状态覆盖矩阵' docs/agents/evidence-capture.md)" "8"
+# 六态命名示例：任一行含六态关键词（1 行）
+ok "六态命名示例" "$(grep -c '打开.*切换.*取消.*外部点击.*空态.*关闭' docs/agents/evidence-capture.md)" "1"
+# ≥4 态规则：含"至少 4 态"或"≥4 态"（3 行）
+ok "≥4 态规则" "$(grep -c '至少 4 态\|≥4 态' docs/agents/evidence-capture.md)" "3"
+# state-coverage.json 约定：含"state-coverage.json"（7 行）
+ok "state-coverage.json 约定" "$(grep -c 'state-coverage\.json' docs/agents/evidence-capture.md)" "7"
+# 机检命令：含"机检"且含"state-coverage"或反向（1 行）
+ok "机检命令" "$(grep -c '机检.*state-coverage\|state-coverage.*机检' docs/agents/evidence-capture.md)" "1"
+# §三 视觉探针小节：含"视觉探针"且为小节标题（### 3.6 或类似）（1 行）
+ok "§三 视觉探针小节" "$(grep -c '### 3.6 视觉探针\|### 视觉探针' docs/agents/evidence-capture.md)" "1"
+# 交互票单层截图不足：含"单层截图"且含"交互"且含"不足"（1 行）
+ok "交互票单层截图不足" "$(grep -c '单层截图.*交互.*不足\|交互票.*单层.*不足' docs/agents/evidence-capture.md)" "1"
+# 多态证据为状态往返副产物：含"状态往返"且含"副产物"（2 行）
+ok "多态证据为状态往返副产物" "$(grep -c '状态往返.*副产物\|副产物.*状态往返' docs/agents/evidence-capture.md)" "2"
+
+# ── 用例 32：SKILL.md 需求输入门 + 收尾巡检 + QG-8 契约锁 ──
+echo ""
+echo "[32] SKILL.md 需求输入门 + 收尾巡检 + QG-8 契约锁"
+# G0-PRE 需求输入门前置检查：含"需求输入门"且含"契约门"或"L-1"（2 行：mermaid + G0-PRE 步骤 2）
+ok "G0-PRE 需求输入门前置检查" "$(grep -c '需求输入门.*契约门\|需求输入门.*L-1' skills/change-workflow/SKILL.md)" "2"
+# 需求输入门五条契约：含五个关键词（2 行：mermaid + G0-PRE 步骤 2）
+ok "需求输入门五条契约" "$(grep -c '来源可追溯.*空白显式化.*一手证据.*冲突显式.*验收锚点' skills/change-workflow/SKILL.md)" "2"
+# G1 出口 QG-5 多态截图同步：含"多态截图"且含"视觉探针"（1 行）
+ok "G1 出口 QG-5 多态截图同步" "$(grep -c '多态截图.*视觉探针\|视觉探针.*多态截图' skills/change-workflow/SKILL.md)" "1"
+# G4 收尾生命周期黑盒巡检：含"生命周期黑盒巡检"或"黑盒巡检"且含"六态"（1 行）
+ok "G4 收尾生命周期黑盒巡检" "$(grep -c '生命周期黑盒巡检\|黑盒巡检.*六态' skills/change-workflow/SKILL.md)" "1"
+# G4 发现闭环门 QG-8 前置：含"发现闭环门"且含"QG-8"（1 行）
+ok "G4 发现闭环门 QG-8 前置" "$(grep -c '发现闭环门.*QG-8\|QG-8.*发现闭环' skills/change-workflow/SKILL.md)" "1"
+# 编排图输入源补需求输入门：mermaid 图中出现 2 次"需求输入门"
+ok "编排图输入源补需求输入门" "$(grep -c '需求输入门' skills/change-workflow/SKILL.md)" "2"
+
+# ── 用例 33：cw-tickets-check.sh C3/C4 三分类 AC 机检契约锁 ──
+echo ""
+echo "[33] cw-tickets-check.sh C3/C4 三分类 AC 机检契约锁"
+# C3 校验取消/残留/空态关键词：C3 函数中含这些关键词（4 行）
+ok "C3 校验取消/残留/空态关键词" "$(sed -n '/^check_c3()/,/^check_c4()/p' scripts/cw-tickets-check.sh | grep -c '取消\|残留\|空态')" "4"
+# C3 校验严格等于/不含关键词：C3 函数中含这些关键词（4 行）
+ok "C3 校验严格等于/不含关键词" "$(sed -n '/^check_c3()/,/^check_c4()/p' scripts/cw-tickets-check.sh | grep -c '严格等于\|不含')" "4"
+# C4 同步禁入信号三分类：C4 函数中含"生命周期"或"保真"（1 行）
+ok "C4 同步禁入信号三分类" "$(sed -n '/^check_c4()/,/^check_c5()/p' scripts/cw-tickets-check.sh | grep -c '生命周期\|保真')" "1"
+
+# ── 用例 34：跨文件门禁引用一致性契约锁 ──
+# 背景：新增 QG-8 后，其它受管模板/速查卡对 QG 范围与证据类数的引用会漂移
+#   （本变更复核实测：task-tracking.md 写 QG-1..QG-7、速查卡 QG 索引缺 QG-8、
+#   AGENTS.md 写 5 类证据）。此锁防止再次漂移。
+echo ""
+echo "[34] 跨文件门禁引用一致性契约锁"
+ok "速查卡含 QG-8 索引" "$(grep -c '^| QG-8 |' skills/change-workflow/agents-quick-reference.md)" "1"
+ok "速查卡 QG-1 三分类" "$(grep -c 'QG-1 | AC 三分类' skills/change-workflow/agents-quick-reference.md)" "1"
+ok "task-tracking 引用 QG-1..QG-8" "$(grep -c 'QG-1\.\.QG-8' docs/agents/task-tracking.md)" "1"
+# 当前态无 QG-1..QG-7 残留；历史叙述豁免（quality-gates.md DQ-7 案例 / defect-workflow.md 案例）
+ok "无当前态 QG-1..QG-7 残留" "$(grep -rl 'QG-1\.\.QG-7' docs/agents skills 2>/dev/null | grep -vE 'quality-gates\.md|defect-workflow\.md' | wc -l | tr -d ' ')" "0"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="
