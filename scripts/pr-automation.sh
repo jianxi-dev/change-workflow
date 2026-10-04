@@ -305,6 +305,30 @@ else
   echo "==> 跳过提交(无 --files 参数)。分支上已有 commit; 直接 push + PR 检测"
 fi
 
+# --- ui-surface 票证据 manifest 校验（IC-2/IC-5）------------------------------
+# fail-open: gh 不可用/标签取不到/jq 不可用 → 跳过（不阻断既有流程）。
+# ui-surface 判定: gh issue label 含 ui-surface（IC-5 label 通道）。
+# 判据: .artifacts/<ISSUE>/state-coverage.json 缺失或态数 <4 → 退 1。
+if command -v gh >/dev/null 2>&1; then
+  ISSUE_LABELS="$(gh issue view "$ISSUE" --json labels --jq '.labels[].name' 2>/dev/null || true)"
+  if [[ "$ISSUE_LABELS" == *"ui-surface"* ]]; then
+    MANIFEST=".artifacts/${ISSUE}/state-coverage.json"
+    if [[ ! -f "$MANIFEST" ]]; then
+      echo "❌ ui-surface 票 #${ISSUE} 缺少证据 manifest: ${MANIFEST}（IC-2: ui-surface 票须提交 state-coverage.json，≥4 态）" >&2
+      exit 1
+    fi
+    STATE_COUNT="$(jq '.states | length' "$MANIFEST" 2>/dev/null || true)"
+    if [[ ! "$STATE_COUNT" =~ ^[0-9]+$ ]]; then
+      echo "⚠️  无法解析态数（jq 不可用或 manifest 非法），跳过 ui-surface 校验（fail-open）" >&2
+    elif [[ "$STATE_COUNT" -lt 4 ]]; then
+      echo "❌ ui-surface 票 #${ISSUE} 证据 manifest 态数不足: ${STATE_COUNT} < 4（IC-2: 状态覆盖矩阵 ≥4 态）" >&2
+      exit 1
+    else
+      echo "    [ui-surface] 证据 manifest 校验通过（${STATE_COUNT} 态）"
+    fi
+  fi
+fi
+
 echo "==> 4/6 推送分支"
 git push -u origin "$BRANCH"
 

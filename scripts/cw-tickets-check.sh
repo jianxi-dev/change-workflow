@@ -528,6 +528,101 @@ check_c4() {
   fi
 }
 
+# ---- C3/C4 conformance.json 锚点机检（IC-1）-----------------------------------
+# 规格双形态的机制层（design.md D1）: 人读 AC 之外，change 目录须有机读锚点
+# conformance.json。本函数在 C3/C4 关键词检查之外补四项机检（IC-1 冻结契约）:
+#   完备性    —— 每 requirement ≥1 anchor
+#   无孤儿    —— anchor id（A-<n>.<m>）回指存在的 requirement（R-<n>）
+#   可断言性  —— assert 非空且含具体值 token（数字 / 引号串 / #hex / 状态迁移关键词）
+#   来源非空  —— source 非空
+# conformance.json 不存在 → 跳过（不违规）；存在但解析失败 → 违规（fail-closed）。
+# 路径: openspec/changes/<change>/conformance.json，无 openspec 的消费仓
+#       回退 docs/requirements/<change>/conformance.json（IC-1）。
+check_conformance() {
+  echo "==> C3/C4 conformance.json 锚点机检（IC-1）"
+  local conf_json="" cand py_file="" line viol=0
+  for cand in "openspec/changes/${CHANGE}/conformance.json" "docs/requirements/${CHANGE}/conformance.json"; do
+    if [[ -f "$cand" ]]; then conf_json="$cand"; break; fi
+  done
+  if [[ -z "$conf_json" ]]; then
+    echo "  ⚠️  未找到 conformance.json（openspec/changes/${CHANGE}/ 或 docs/requirements/${CHANGE}/），跳过机检"
+    return 0
+  fi
+  py_file="$(mktemp)"
+  cat > "$py_file" <<'PY'
+import json, re, sys
+
+path = sys.argv[1]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except Exception as e:
+    print("[C3/C4] conformance.json 解析失败: %s（%s）" % (path, e))
+    sys.exit(0)
+
+reqs = data.get("requirements")
+if not isinstance(reqs, list):
+    print("[C3/C4] conformance.json 缺 requirements 数组: %s" % path)
+    sys.exit(0)
+
+# 无孤儿判定: anchor id 形如 A-<n>.<m>，<n> 必须对应存在的 requirement R-<n>
+req_nums = set()
+for r in reqs:
+    rid = r.get("id") or ""
+    m = re.match(r"^R-(\d+)$", rid)
+    if m:
+        req_nums.add(m.group(1))
+
+# 可断言性: assert 须含具体值 token（数字 / 引号串 / #hex / 状态迁移关键词）
+STATE_KEYWORDS = ("→", "->", "变为", "进入", "迁移到", "切换到", "回到", "恢复")
+
+def has_token(s):
+    if not s:
+        return False
+    if re.search(r"[0-9]", s):
+        return True
+    if '"' in s or "'" in s:
+        return True
+    if re.search(r"#[0-9a-fA-F]{3,8}", s):
+        return True
+    for kw in STATE_KEYWORDS:
+        if kw in s:
+            return True
+    return False
+
+for r in reqs:
+    rid = r.get("id") or "(缺 id)"
+    anchors = r.get("anchors")
+    if not isinstance(anchors, list) or len(anchors) == 0:
+        print("[C3/C4] 完备性: requirement %s 无 anchor（每 requirement ≥1 anchor）" % rid)
+        continue
+    for a in anchors:
+        aid = a.get("id") or "(缺 id)"
+        m = re.match(r"^A-(\d+)\.\d+$", aid)
+        if not m:
+            print("[C3/C4] 无孤儿: anchor %s id 非法（须为 A-<n>.<m>，且 <n> 对应存在的 requirement）" % aid)
+        elif m.group(1) not in req_nums:
+            print("[C3/C4] 无孤儿: anchor %s 回指不存在的 requirement R-%s" % (aid, m.group(1)))
+        assert_val = a.get("assert")
+        if not assert_val or not has_token(str(assert_val)):
+            print("[C3/C4] 可断言性: anchor %s 的 assert 空或不含具体值 token（数字/引号串/#hex/状态迁移关键词）" % aid)
+        source_val = a.get("source")
+        if not source_val or not str(source_val).strip():
+            print("[C3/C4] 来源非空: anchor %s 的 source 为空" % aid)
+PY
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    add_violation "$line"
+    viol=$((viol + 1))
+  done < <(python3 "$py_file" "$conf_json" 2>/dev/null)
+  rm -f "$py_file"
+  if [[ $viol -eq 0 ]]; then
+    echo "  ✅ conformance.json 锚点机检通过（完备/无孤儿/可断言/来源非空）"
+  else
+    echo "  ❌ ${viol} 项违规" >&2
+  fi
+}
+
 # ---- C5 Blocked by DAG -------------------------------------------------------
 # 值整体为 None/无/—/- 或含 can start immediately → 无依赖；否则提取
 # [0-9]+\.[0-9]+ token。越界（不在票集）/自环（指向自己）逐条记违规；
@@ -722,6 +817,7 @@ else
   check_c2
   check_c3
   check_c4
+  check_conformance
   check_c5
   check_c6
   check_c7

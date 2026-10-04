@@ -37,9 +37,16 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 | `to-spec` / `openspec-propose` / `to-tickets` / `implement` / `tdd` / `code-review` / `review` / `learn` / `sync-gbrain` / `triage` | skill（执行者） |
 | `pr-automation.sh` | 脚本（G2 机械动作：门禁/提交/push/PR） |
 | `cw-evidence.sh` | 脚本（G1 出口·QG-5 证据采集：按证据分层协议采集 before/after 成对产物，落 `.artifacts/<票号>/`；无 ffmpeg/GUI 走 headless 降级） |
+| `cw-evidence.sh record-state` | 子命令（G1 出口·证据 manifest 录制：创建/合并 `.artifacts/<票号>/state-coverage.json`，每态 `{state, screenshot, assertion}`；exit-3 须附机器可核验理由） |
 | `cw-greploop.sh` | 脚本（G2 可选·Greptile 审查闭环：PR 创建后 risk-medium/high 合并确认前调用；无 Greptile 降级为本地审查闭环并显式标注） |
 | `cw-tickets-check.sh` | 脚本（G0-POST 拆票自检：对账/字段/AC 形态/禁入信号/DAG/豁免/规模/粒度 C1-C8 机检，发布前门禁；`--live` 对账已发子票） |
 | `decisions-log.sh` | 脚本（G3 决策日志：每票追加一行 TSV——时间/阶段/决策/理由/证据指针/结果；默认落 `.artifacts/`，本地不入库） |
+| 双形态规格 | 规格的人读层（proposal/design/AC 自然语言）+ 机读层（`conformance.json` 锚点），双向链接；人读层不可丢 |
+| 验收锚点 | 机读锚点：含具体期望值 + 来源 + 断言类型（`exact`/`state-machine`/`perceptual`）；无具体值/来源不得成锚点 |
+| 一致性制品 | 原型 `baseline/*.png` + `conformance.json` + e2e 断言骨架；G0 程序化生成，哈希锁锁定 |
+| baseline | 原型基准截图，实现前锁定、禁篡改；哈希变即核验失败 |
+| T1 / T2 / T3 | CI 三层自动核验：T1 确定量 / T2 感知 / T3 状态机 |
+| 跨模型验证分离 | 判者 ≠ 写者，靠不同模型家族对同一 diff + 同一 baseline 独立判定（consensus），非人工 |
 | `gh` / `git` / `openspec` CLI | CLI 工具（被 skill/脚本调用） |
 
 ## 会话启动：自动收尾与自动接力
@@ -147,6 +154,8 @@ flowchart TB
 - **切片约束注入**（切片只切一次）：propose 生成 tasks.md 时要求每条 task 满足 to-tickets 垂直切片原则（贯穿 schema→API→UI→test 全层 / 独立可演示可验证 / 适配单个 context window / prefactor 单独成条；过大或横向的 task 在 propose 阶段即切细）
 - **QG-7 判据（强制前置）**：每条 task 必须能回答「**这张票做完，用户能否在页面上看到点东西？**」不能 → 该 task 切错了，就地重切后再进入阶段三
 - **QG-3 前置**：tasks.md 中每条导出新 API 的 task，必须写明**接线归属**（由哪条 task 负责接进应用层，及具体接线位置）；无归属的接线工作不得留白
+- **锚点门（M0 机检，四项缺一拒收）**：规格须为**双形态**——人读层（proposal/design/AC 自然语言）+ 机读层（`conformance.json` 锚点），双向链接。机检四项：**完备性**（每 requirement ≥1 anchor）/ **无孤儿**（anchor 回指存在 requirement）/ **可断言性**（`assert` 非空且含具体值 token）/ **来源非空**（原型 §/截图#/决策#/一手观察）。违规 → fix-first：补锚点后重验，不得进入拆票
+- **一致性制品生成（M0'，实现前必做）**：有原型的 change，G0 从原型结构化表**程序化生成**一致性制品——`conformance.json` + `baseline/*.png`（每定义态基准截图）+ e2e 断言骨架；并**锁定制品哈希**。实现阶段只消费、禁篡改 baseline（哈希变即核验失败）。无原型时锚点来源须为显式决策或一手观察，否则 G0 拒收
 
 **阶段三 G0-POST（issue 发布面）｜执行：必调 to-tickets skill**
 
@@ -188,8 +197,9 @@ flowchart TB
 - **G1 出口（顺序固定，全部通过才允许 commit）**：
   1. `code-review` 双轴（Standards + Spec）——每任务后必做，**须逐条对照 QG-4 检查测试是否驱动真实路径**；**闭环退出条件**：未解决项未清零 → 回到修复，循环至零问题或达上限（默认 10，与 `cw-greploop.sh --max-iterations` 同款）
   2. `review`（pre-landing 结构审查）——仅 risk-medium/high 追加
-  3. **QG-5 独立验证（验证分离）**：Atlas（执行者）完成 G1 实施后返回摘要（diff 统计 + 出口条件结果）；Sisyphus（编排器）**亲自跑 QG-5 探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数 / **多态截图 state-coverage.json / 视觉探针复核记录**）**粘贴到票上**；未附原始证据的「已完成」不予采信。**两层验证互补**：Atlas 的 `lsp_diagnostics` 作为最低门槛（语法/类型），Sisyphus 的 QG-5 作为应用专属验证（业务逻辑）。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据；`cw-evidence.sh` 退出码：0=成功 / 1=参数或子命令错误 / 3=依赖缺失降级——3 是预期路径，按脚本打印的降级指引继续，不得视为失败放弃证据纪律；并在票上标注**验证基于的 HEAD SHA**（`git rev-parse HEAD`，记作 `QG-5 验证基于 <sha>`——rebase/追加提交后该结论即过期，G2 据此拦截）
+  3. **QG-5 独立验证（验证分离）**：Atlas（执行者）完成 G1 实施后返回摘要（diff 统计 + 出口条件结果）；Sisyphus（编排器）**亲自跑 QG-5 探针**，把**原始输出**（标准输出 / DOM 快照 / 计算样式值 / 解析错误数 / **多态截图 state-coverage.json / 视觉探针复核记录**）**粘贴到票上**；未附原始证据的「已完成」不予采信。**两层验证互补**：Atlas 的 `lsp_diagnostics` 作为最低门槛（语法/类型），Sisyphus 的 QG-5 作为应用专属验证（业务逻辑）。证据采集按 `docs/agents/evidence-capture.md` 的证据分层协议（before/after 成对）执行，可调用 `scripts/cw-evidence.sh` 按证据类型分层采集；无 ffmpeg / 无 GUI 时走 headless 降级路径（脚本化截图 + `assertions.md` / 探针测量数字 / transcript 摘录），降级不改变 QG-5 门禁判据；`cw-evidence.sh` 退出码：0=成功 / 1=参数或子命令错误 / 3=依赖缺失降级——3 是预期路径，按脚本打印的降级指引继续，不得视为失败放弃证据纪律；**exit-3 收紧**：降级须附机器可核验理由（缺什么工具/命令 + 环境探测输出），无理由的降级视为违规；并在票上标注**验证基于的 HEAD SHA**（`git rev-parse HEAD`，记作 `QG-5 验证基于 <sha>`——rebase/追加提交后该结论即过期，G2 据此拦截）
   3.5. **探针形态（活代码优先）**：QG-5 探针优先写成仓库既有测试基建中的可复跑用例（有 e2e 套件 → 探针写成/扩展 e2e，随代码维护、`CMD_E2E` 可复跑）；无测试基建或需特定驱动时，写轻量探针并遵循 `docs/agents/evidence-capture.md` 的证据约定。不为验证另建静态技能副本——试点结论：高频迭代仓中 `verify-*` 文档必然腐烂，且与 e2e 活代码平行漂移。
+  3.6. **证据 manifest 校验（ui-surface 票必做）**：ui-surface 票（label `ui-surface` ∪ diff 触及 UI 路径）须产出 `.artifacts/<票号>/state-coverage.json`（≥4 态，每态 `{state, screenshot, assertion ∈ passed|failed|untested}`），用 `cw-evidence.sh record-state` 录制；G1 出口校验 manifest 结构与关联，不合格 → fix-first 补录
   4. 通过后 → G2
 
 > **QG-5 为何强制**（2026-09-20）：修复期抓出 **4 个「自测全绿但实际无效」**的交付，**4/4 全部由独立探针抓出，零例外**。自证无效。本地 e2e 单文件实测约 **16 秒**，成本极低。
@@ -210,6 +220,7 @@ flowchart TB
 - PR 模板必填项全填（impact/verification/risk）；禁止 `--skip-checks`
 - **门禁引用纪律**：本次应用/豁免的每条 QG/DQ 必须在 PR body 逐条写 `QG-x / DQ-x: <它改变了哪个具体决策>`（例：`QG-5: 用真实按键探针替代测试摘要`）；只写编号 = **空引用**，不予合并（豁免的显式声明见 `docs/agents/quality-gates.md` §七）
 - **验证时效（QG-5 过期拦截）**：`--resume-branch` 收口时传 `--verified-sha <票上「QG-5 验证基于」的 SHA>`；与分支 HEAD 不一致（rebase / 追加提交后未重验）→ 脚本**拒收退 1**，重跑 QG-5 后再收口；未提供 → 仅警告（risk-medium/high 应提供）
+- **CI 三层自动核验（全自动无人）**：ui-surface 票的 PR 触发 `evidence-check.yml`，CI 跑三层核验——**T1 确定量**（计算样式/DOM/文本 vs `conformance.json`）/ **T2 感知**（实现截图 vs baseline 像素/感知 diff + 多模态结构化判定）/ **T3 状态机**（六态往返 + 无残留）。核验在 CI 执行、断言已提交，**不依赖人工观察**；验证分离靠**跨模型自动复核**（判者 ≠ 写者，consensus），非人工审批
 - **可选审查闭环**（risk-medium/high 合并确认前）：可调用 `scripts/cw-greploop.sh` 跑 Greptile 审查闭环（触发 → 轮询 → 修复 → resolve → 重触发；退出 = 满分零未解决评论或达 max-iterations）；无 Greptile 时降级为本地审查闭环（code-review / review 输出 + 人工清单）并在 PR 上显式标注「审查闭环降级为人工」；`cw-greploop.sh` 退出码：0=协议已打印（不代表审查通过）/ 1=参数错误或 --pr 无法解析 / 3=降级——按降级策略继续
 
 ### G3 任务级收尾（每轮必做，非阻塞）｜执行：learn + sync-gbrain
@@ -229,6 +240,7 @@ flowchart TB
 - **`validate --strict` 与 spec delta**：spec-driven schema 要求 change 至少一个 `specs/<capability>/spec.md` delta（`## ADDED/MODIFIED Requirements` + `#### Scenario:`）。**纯文档/基建 change（tasks-only）会 validate 失败** → 处置：补最小 delta（新建/复用 capability，把变更固化为 Requirement），或确认无 spec 语义后走非 strict
 - **仅 `/opsx-sync`（主 spec 同步）限合并后执行**；任务级 `sync-gbrain` 不受此限（push+PR 后立即）
 - **收尾生命周期黑盒巡检（G4 前置）**：按六态清单真机走查 `打开→插入→编辑→切换→取消→关闭→空态→错误`，发现问题即**不允许收尾**（转缺陷处理机制，修复后重巡）
+- **一致性制品收尾校验**：G4 收尾前校验一致性制品在位且 baseline 哈希与 G0 锁一致；哈希不一致 → 核验失败，须经独立模型复核后重新锁定，不得收尾
 - **发现闭环门（QG-8）前置**：任何报告 / findings / 实测发现中记录的缺陷，须转 tracked issue 或规格条目，否则该 change **不得标记完成**（机检：findings 行数 vs issue 数）
 - **剩余队列盘点（收口后必做，change 边界提醒）**：archive 与关闭 spec issue #S 后运行 `gh issue list --state open --limit 100 --json number,title,labels` → 分类输出（① 其他 change 的 `ready-for-agent` 子票；② 决策/研讨类（wayfinder 类标签或「研讨/原型」前缀）；③ 其他 open issue）→ **列出剩余清单 + 给出下一项建议 + 询问是否继续**（零询问不跨 change，此处是全流程唯一停点）；清单为空 → 明确报告「无剩余 issue」
 

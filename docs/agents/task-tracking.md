@@ -33,6 +33,7 @@ to-tickets 流程在本仓库一律发布为 GitHub issue（不使用本地 `.sc
 - **Parent**：源 spec issue（to-spec 创建的规格票）引用
 - **What to build**：从用户视角描述端到端行为
 - **Acceptance criteria**：具体可验证的 AC 清单（**须满足 QG-1**，见下）
+- **验收锚点**：每条 AC 绑定的机读锚点 id（`conformance.json` 的 `A-<n>.<m>`；含具体期望值 + 来源 + 断言类型）；无锚点或不可断言 → 拒票（见 `quality-gates.md`「规格双形态与验收锚点」）
 - **Blocked by**：阻塞它的其他 ticket 引用（无则 "None — can start immediately"）
 - **接线归属**（QG-3）：本票导出的新 API 由**哪张票**负责接进应用层，及其**具体接线位置**
 - 标签：`ready-for-agent` + 模块标签，或加 `no-ui-impact`（豁免 QG-1/QG-2）

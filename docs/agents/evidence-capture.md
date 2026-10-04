@@ -397,3 +397,41 @@ gh issue view <票号> --json body --jq .body | grep -iE "commit|branch|deployme
 | transcript 摘录 | 工具调用日志 | 否 |
 
 **禁止以「环境不支持」为由跳过证据采集**。若所有降级路径均不可用，票保持 OPEN 并标注 `untested` + 原因。
+
+**降级须附机器可核验理由**：`cw-evidence.sh` 降级（exit 3）MUST 记录缺什么工具 / 命令及其环境探测输出，MUST NOT 默认放行。本地已具备 Playwright（`npx`）+ chromium + ffmpeg 时，「无截图环境」不构成降级理由。
+
+---
+
+## 八、一致性制品与 baseline（保真核验）
+
+### 规则
+
+有原型的 change，G0 MUST 从原型结构化表**程序化生成**一致性制品，并在实现前**锁定哈希**：
+
+| 制品 | 内容 | 生成方式 |
+|---|---|---|
+| `conformance.json` | 验收锚点集（具体期望值 + 来源 + 断言类型 `exact`/`state-machine`/`perceptual`） | 解析原型结构化表 / 人读规格，**不由实现者手填** |
+| `baseline/*.png` | 每个定义态的原型基准截图（golden） | 从外部原型采集（截图 + 来源 URL + 时间戳） |
+| e2e 断言骨架 | 由锚点机械展开 | 生成器 |
+
+实现阶段 MUST 只消费、MUST NOT 篡改 baseline（哈希变即核验失败）。CI MUST 在 ui-surface 票上运行三层核验：**T1 确定量**（计算样式 / DOM / 文本 vs `conformance.json`）/ **T2 感知**（实现截图 vs baseline 的像素 / 感知 diff + 多模态结构化判定）/ **T3 状态机**（六态往返 + 无残留）。三层 MUST 自动执行，MUST NOT 依赖人工观察。
+
+**机读清单入库**：`.artifacts/<票号>/state-coverage.json` 是**受控交付物**（入库，供 CI 结构校验）；截图 PNG 不入库（体积大；只上传 PR 后由多模态自动复核）。
+
+### 理由
+
+实测偏差**全部可枚举**（图标名 / 几何 / 色值 / 状态迁移），非审美——编码成机读制品即可机械核验。此前失败因规格只停散文、门禁无机检。baseline 由实现者反填是唯一真风险，故锚点须程序化解析 + 带来源 + 哈希锁。
+
+### 实证案例
+
+md-bundle `editor-fidelity`：16/16 勾选、CI 全绿、归档，用户见约 20 处偏差；**10/11 票零证据产物**（#327–#336 无 `.artifacts`），QG-5 证据写成「测试通过数 + 文字描述」（QG-5 自认无效形式）。
+
+### 如何验证
+
+```bash
+# 一致性制品在位 + baseline 哈希锁
+ls openspec/changes/<change>/conformance.json
+# 证据 manifest（ui-surface 票；≥4 态）
+jq '.states | length' .artifacts/<票号>/state-coverage.json
+# CI 三层核验：evidence-check.yml（ui-surface 触发）
+```
