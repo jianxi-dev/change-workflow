@@ -1,3 +1,34 @@
+## 1.12.0 — 2026-10-05
+
+### 新增/修复
+
+**新增：conf 驱动 `{{APP_DIR}}` 占位符（消除路径本地化被迫 LOCAL 冻结）**
+
+- `lib/render.sh:cw_substitute` 新增 `{{APP_DIR}}` 替换行：`out="${out//\{\{APP_DIR\}\}/${APP_DIR:-<APP_DIR>}}"`；缺省渲染回字面 `<APP_DIR>`，对未配置仓零变化。
+- 模板 `docs/agents/{quality-gates,evidence-capture}.md`：正文所有 `<APP_DIR>` → `{{APP_DIR}}`；模板头说明改为「`{{APP_DIR}}` 由 `.change-workflow.conf` 的 `APP_DIR` 键渲染（缺省保留字面 `<APP_DIR>` 记号）；其余尖括号仍是通用记号」。
+- `config.example.conf`：目录约定区新增 `APP_DIR="<APP_DIR>"`，注释说明设为实际源码目录（如 `apps/web`）后模板中的 `{{APP_DIR}}` 渲染为该值。
+- `update.sh`：conf 读取白名单 14→15 键（加 `APP_DIR`），同步注释「15 个键」。
+- `setup.sh`：新增 `APP_DIR` 交互提示（默认 `<APP_DIR>`），写入 conf；`set -euo pipefail` 下未设时不报错（靠 `${APP_DIR:-<APP_DIR>}`）。
+- `test/install-update-e2e.sh`：新增用例 1b（先红后绿）——设 `APP_DIR=apps/web` 渲染含 `apps/web` 且 `{{APP_DIR}}` 为 0；未设时含 `<APP_DIR>` 且 `{{APP_DIR}}` 为 0；既有「无残留占位符」断言继续通过。
+
+### 教训反思
+
+**路径本地化本应由 conf 表达，而非手工替换**：md-bundle 的 `quality-gates.md` 因手工把 `<APP_DIR>` 替换为 `apps/web`，与模板逐字节不同 → 只能标 `LOCAL` → 该文件**永远吃不到后续新规**（现被冻在 v1.11.0）。本 change 把「路径本地化」纳入渲染管线，文件与基线一致、可持续升级，消费仓可摘 `LOCAL` 恢复正常升级通道。
+
+**占位符设计要「缺省即现状」**：`${APP_DIR:-<APP_DIR>}` 让未配置仓的渲染产物保持原样（字面 `<APP_DIR>`），不引入破坏性变更；这也是「渲染幂等」铁律的体现——`render(x) == x` 对未做替换的文件必须成立。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 317 · 失败 0（37 用例；新增用例 1b「APP_DIR 渲染」8 条断言）
+
+$ bash -n / shellcheck --severity=warning -x / bash 3.2 静态：全绿
+$ 占位符一致性 / 模板头 / 结尾换行 / 无仓库特有值：全绿
+```
+
+---
+
 ## 1.11.1 — 2026-10-05
 
 ### 新增/修复

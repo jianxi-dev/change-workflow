@@ -1,11 +1,11 @@
 <!-- change-workflow 工具包模板 —— 由 setup.sh 安装到目标项目 docs/agents/。
-     示例值（模块列表 / 看板 ID / 质量门禁命令）请按目标项目调整；
-     占位符 {{REPO}} / {{PROJECT_ID}} / {{STATUS_FIELD_ID}} / {{OPT_*}} 由 setup.sh 自动替换。
+      示例值（模块列表 / 看板 ID / 质量门禁命令）请按目标项目调整；
+      占位符 {{REPO}} / {{PROJECT_ID}} / {{STATUS_FIELD_ID}} / {{OPT_*}} / {{APP_DIR}} 由 setup.sh 自动替换。
 
-     本文件中的「实证案例」全部来自真实交付失败（原始仓库 {{REPO}} 的 editor-v2 change 与
-     其后 10 张缺陷票）。案例中的具体路径/文件名为该仓库特有，作为**证据**保留；
-     规则本身与仓库无关，可直接沿用。
-     <APP_DIR> / <E2E_DIR> 等尖括号为通用占位，安装后请按 `CMD_*` / `DOCS_DIR` 约定替换为实际目录。 -->
+      本文件中的「实证案例」全部来自真实交付失败（原始仓库 {{REPO}} 的 editor-v2 change 与
+      其后 10 张缺陷票）。案例中的具体路径/文件名为该仓库特有，作为**证据**保留；
+      规则本身与仓库无关，可直接沿用。
+      `{{APP_DIR}}` 由 `.change-workflow.conf` 的 `APP_DIR` 键渲染（缺省保留字面 `<APP_DIR>` 记号）；其余尖括号仍是通用记号。 -->
 
 # 开发与测试质量门禁（QG / DQ）
 
@@ -24,7 +24,7 @@
 
 ## 一、背景
 
-一次真实交付失败促成本规范：某 change 的 9 个 PR 中，**8 个对 `<APP_DIR>/src` 零改动、对 e2e 零改动**，整个 change 期间新增 e2e 为 0。12 张票全部打勾，typecheck / lint / 单测 / CI **全绿**——而用户打开页面**看不到任何变化**。
+一次真实交付失败促成本规范：某 change 的 9 个 PR 中，**8 个对 `{{APP_DIR}}/src` 零改动、对 e2e 零改动**，整个 change 期间新增 e2e 为 0。12 张票全部打勾，typecheck / lint / 单测 / CI **全绿**——而用户打开页面**看不到任何变化**。
 
 随后的缺陷修复阶段又暴露**缺陷处理过程自身**的问题：修复期出现的 4 个「自测全绿但实际无效」交付全部由独立探针抓出（4/4，零例外）；一张缺陷票（`#187`）**全程未经 triage 就被修复**；一张缺陷票的**「修复方向」与真实根因不符**（票面指向「拆分下载预算」，实测真根因是陈旧断言）。
 
@@ -117,7 +117,7 @@ git diff --name-only origin/{{DEFAULT_BRANCH}}...<分支> | grep "\.spec\.ts"
 **如何验证**：
 ```bash
 git diff origin/{{DEFAULT_BRANCH}}...<分支> -- <库入口文件> | grep "^+export"
-grep -rn "<新导出名>" <APP_DIR>/src/ || echo "无引用 → 必须指定接线票"
+grep -rn "<新导出名>" {{APP_DIR}}/src/ || echo "无引用 → 必须指定接线票"
 ```
 
 ---
@@ -226,7 +226,7 @@ ls .artifacts/<task>/state-coverage.json && jq '.states | length' .artifacts/<ta
 
 **实证案例**：12 张票按架构层横切——块模型 → 装饰引擎 → 命令注册表 → AI Provider → 章节树 → 工具栏。每层单独「完成」时用户看到的是**零**。
 
-**如何验证**：反向验收判据——若一条 AC 能在**不修改 `<APP_DIR>`** 的前提下被满足，说明票切错了。
+**如何验证**：反向验收判据——若一条 AC 能在**不修改 `{{APP_DIR}}`** 的前提下被满足，说明票切错了。
 
 ```bash
 ./scripts/cw-tickets-check.sh --change <名>
@@ -373,7 +373,7 @@ gh issue list --label ready-for-agent --state all --json number,state \
 【保真】<关键文本/像素> 严格等于 <预期值>；<关键元素> 不含 <伪影文本>；验证：<E2E_DIR> 下对应 e2e 用例通过（含文本相等 / 状态往返 / 视觉探针断言）。
 ```
 
-**反向验收判据**：若一条 AC 能在**不修改 `<APP_DIR>`** 的前提下被满足 → 说明票切错了（触发 QG-7）（发布前由 `cw-tickets-check.sh` 的 C3/C4/C8 机检兜底）。
+**反向验收判据**：若一条 AC 能在**不修改 `{{APP_DIR}}`** 的前提下被满足 → 说明票切错了（触发 QG-7）（发布前由 `cw-tickets-check.sh` 的 C3/C4/C8 机检兜底）。
 
 ---
 

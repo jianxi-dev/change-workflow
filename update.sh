@@ -78,9 +78,9 @@ CONF=".change-workflow.conf"
 [[ -f "$CONF" ]] || { echo "❌ 未找到 $CONF —— 请先运行 setup.sh 安装" >&2; exit 1; }
 # 从 conf 读取键值（B1）：不用 `source "$CONF"` —— conf 是仓库内文件，值可被任意改动，
 # source 会把 `TOOLKIT_SOURCE="$(touch /tmp/pwned; echo x)"` 这类值当命令执行。
-# 只读白名单内的 14 个键，其余键（TOOLKIT_SOURCE/CHANGE_WORKFLOW_HOME/LABEL_* 等）不读不写。
+# 只读白名单内的 15 个键，其余键（TOOLKIT_SOURCE/CHANGE_WORKFLOW_HOME/LABEL_* 等）不读不写。
 for _cw_key in TOOLKIT_VERSION EFFECTIVE_DATE REPO_ROOT REPO OWNER DEFAULT_BRANCH \
-               SKILLS_DIR DOCS_DIR PROJECT_ID STATUS_FIELD_ID \
+               SKILLS_DIR DOCS_DIR APP_DIR PROJECT_ID STATUS_FIELD_ID \
                OPT_BACKLOG OPT_READY OPT_IN_PROGRESS OPT_DONE; do
   _cw_val="$(cw_conf_get "$CONF" "$_cw_key")" || _cw_val=""
   printf -v "$_cw_key" '%s' "$_cw_val"

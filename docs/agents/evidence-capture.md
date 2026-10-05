@@ -1,11 +1,11 @@
 <!-- change-workflow 工具包模板 —— 由 setup.sh 安装到目标项目 docs/agents/。
       示例值（模块列表 / 看板 ID / 质量门禁命令）请按目标项目调整；
-      占位符 {{REPO}} / {{PROJECT_ID}} / {{STATUS_FIELD_ID}} / {{OPT_*}} 由 setup.sh 自动替换。
+      占位符 {{REPO}} / {{PROJECT_ID}} / {{STATUS_FIELD_ID}} / {{OPT_*}} / {{APP_DIR}} 由 setup.sh 自动替换。
 
       本文件中的「实证案例」全部来自真实交付失败（原始仓库 {{REPO}} 的 editor-v2 change 与
       其后 10 张缺陷票）。案例中的具体路径/文件名为该仓库特有，作为**证据**保留；
       规则本身与仓库无关，可直接沿用。
-      <APP_DIR> / <E2E_DIR> 等尖括号为通用占位，安装后请按 `CMD_*` / `DOCS_DIR` 约定替换为实际目录。 -->
+      `{{APP_DIR}}` 由 `.change-workflow.conf` 的 `APP_DIR` 键渲染（缺省保留字面 `<APP_DIR>` 记号）；其余尖括号仍是通用记号。 -->
 
 # 证据驱动测试规范（Evidence Capture）
 

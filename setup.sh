@@ -134,6 +134,7 @@ ask CMD_TEST      "test 命令（留空跳过）"      ""
 ask CMD_E2E       "e2e 命令（可空）"           ""
 ask SKILLS_DIR    "skill 安装目录"             ".opencode/skills"
 ask DOCS_DIR      "规范文档目录"               "docs/agents"
+ask APP_DIR       "实际源码目录（如 frontend/src，留空保留记号）" "<APP_DIR>"
 cw_check_rel_dir "$SKILLS_DIR" "SKILLS_DIR"
 cw_check_rel_dir "$DOCS_DIR" "DOCS_DIR"
 
@@ -176,6 +177,7 @@ CMD_TEST="$CMD_TEST"
 CMD_E2E="$CMD_E2E"
 SKILLS_DIR="$SKILLS_DIR"
 DOCS_DIR="$DOCS_DIR"
+APP_DIR="$APP_DIR"
 OPENSPEC_ENABLED="$(command -v openspec >/dev/null && echo true || echo false)"
 EOF
 fi

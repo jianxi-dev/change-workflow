@@ -14,6 +14,7 @@
 # 依赖环境变量（通常 source .change-workflow.conf 后可用）：
 #   REPO OWNER DEFAULT_BRANCH PROJECT_ID STATUS_FIELD_ID
 #   OPT_BACKLOG OPT_READY OPT_IN_PROGRESS OPT_DONE REPO_ROOT EFFECTIVE_DATE
+#   APP_DIR
 # =============================================================================
 
 # 工具包根目录（本文件所在目录的上级）。所有模板路径以此为基准，不依赖调用方的 CWD。
@@ -41,6 +42,7 @@ cw_substitute() {
     out="${out//\{\{OPT_READY\}\}/${OPT_READY:-}}"
     out="${out//\{\{OPT_IN_PROGRESS\}\}/${OPT_IN_PROGRESS:-}}"
     out="${out//\{\{OPT_DONE\}\}/${OPT_DONE:-}}"
+    out="${out//\{\{APP_DIR\}\}/${APP_DIR:-<APP_DIR>}}"
     printf '%s\n' "$out"
   done
 }

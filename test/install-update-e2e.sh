@@ -100,6 +100,62 @@ ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills
 # 回归锁：pr-automation.sh auto-merge 不再按风险分档（全风险尝试 auto-merge）
 ok "pr-automation auto-merge 无风险分档" "$(grep -c 'RISK.*==.*low.*||.*RISK.*==.*medium' scripts/pr-automation.sh)" "0"
 
+# ── 用例 1b：APP_DIR 渲染（conf 驱动路径本地化）──────────────────────────────────
+echo ""
+echo "[1b] APP_DIR 渲染（conf 驱动路径本地化）"
+B1b="$(mktemp -d)"; new_repo "$B1b/repo" || { echo "无法建立测试仓库"; exit 1; }
+# 1b-1: 设置 APP_DIR=apps/web → 渲染产物含 apps/web、无 {{APP_DIR}}
+cat > .change-workflow.conf <<EOF
+TOOLKIT_VERSION="1.0.0"
+EFFECTIVE_DATE="2026-01-01"
+REPO="acme/demo"
+OWNER="acme"
+DEFAULT_BRANCH="main"
+PROJECT_ID="PVT_demo"
+STATUS_FIELD_ID="PVTSSF_demo"
+OPT_BACKLOG="b1"
+OPT_READY="r1"
+OPT_IN_PROGRESS="p1"
+OPT_DONE="d1"
+SKILLS_DIR=".opencode/skills"
+DOCS_DIR="docs/agents"
+APP_DIR="apps/web"
+EOF
+touch .change-workflow.manifest
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1; ok "1b-1 退出码" "$?" "0"
+# quality-gates.md 正文有 4 处 {{APP_DIR}}；evidence-capture.md 正文无 {{APP_DIR}}（仅模板头，渲染时剥离）
+ok "1b-1 quality-gates 含 apps/web (4处)" "$(grep -c 'apps/web' docs/agents/quality-gates.md)" "4"
+ok "1b-1 quality-gates 无 {{APP_DIR}}" "$(grep -c '{{APP_DIR}}' docs/agents/quality-gates.md)" "0"
+ok "1b-1 evidence-capture 无 apps/web (正文无占位符)" "$(grep -c 'apps/web' docs/agents/evidence-capture.md)" "0"
+ok "1b-1 evidence-capture 无 {{APP_DIR}}" "$(grep -c '{{APP_DIR}}' docs/agents/evidence-capture.md)" "0"
+# 1b-2: 未设 APP_DIR（留空） → 渲染产物含字面 <APP_DIR>、无 {{APP_DIR}}
+B1b2="$(mktemp -d)"; new_repo "$B1b2/repo" || { echo "无法建立测试仓库"; exit 1; }
+cat > .change-workflow.conf <<EOF
+TOOLKIT_VERSION="1.0.0"
+EFFECTIVE_DATE="2026-01-01"
+REPO="acme/demo"
+OWNER="acme"
+DEFAULT_BRANCH="main"
+PROJECT_ID="PVT_demo"
+STATUS_FIELD_ID="PVTSSF_demo"
+OPT_BACKLOG="b1"
+OPT_READY="r1"
+OPT_IN_PROGRESS="p1"
+OPT_DONE="d1"
+SKILLS_DIR=".opencode/skills"
+DOCS_DIR="docs/agents"
+APP_DIR=""
+EOF
+touch .change-workflow.manifest
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1; ok "1b-2 退出码" "$?" "0"
+ok "1b-2 quality-gates 含 <APP_DIR> (4处)" "$(grep -c '<APP_DIR>' docs/agents/quality-gates.md)" "4"
+ok "1b-2 quality-gates 无 {{APP_DIR}}" "$(grep -c '{{APP_DIR}}' docs/agents/quality-gates.md)" "0"
+ok "1b-2 evidence-capture 无 <APP_DIR> (正文无占位符)" "$(grep -c '<APP_DIR>' docs/agents/evidence-capture.md)" "0"
+ok "1b-2 evidence-capture 无 {{APP_DIR}}" "$(grep -c '{{APP_DIR}}' docs/agents/evidence-capture.md)" "0"
+sanitize "$B1b"; sanitize "$B1b2"
+# 回到主测试仓库（用例 1 的目录），供后续用例继续使用
+cd "$B1/repo"
+
 # ── 用例 2：幂等 ─────────────────────────────────────────────────────────────
 echo ""
 echo "[2] 幂等（版本回退后重跑）"
