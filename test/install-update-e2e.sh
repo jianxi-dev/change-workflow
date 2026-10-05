@@ -97,8 +97,8 @@ ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
 ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "24"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
-# 回归锁：pr-automation.sh auto-merge 条件须包含 medium（risk-low/medium 自动合并，仅 high 人工）
-ok "pr-automation auto-merge 含 medium" "$(grep -c 'RISK.*==.*low.*||.*RISK.*==.*medium' scripts/pr-automation.sh)" "1"
+# 回归锁：pr-automation.sh auto-merge 不再按风险分档（全风险尝试 auto-merge）
+ok "pr-automation auto-merge 无风险分档" "$(grep -c 'RISK.*==.*low.*||.*RISK.*==.*medium' scripts/pr-automation.sh)" "0"
 
 # ── 用例 2：幂等 ─────────────────────────────────────────────────────────────
 echo ""
@@ -1314,7 +1314,7 @@ ok "conformance 未知子命令退 1" "$rc" "1"
 
 # 36.4 scaffold 生成 anchors.md 骨架（含 1 注释示例行）；已存在拒退 1
 mkdir -p "$B36/change"
-rc=0; out36s="$("$CC_SH" scaffold "$B36/change" 2>&1)" || rc=$?
+rc=0; "$CC_SH" scaffold "$B36/change" >/dev/null 2>&1 || rc=$?
 ok "scaffold 退 0" "$rc" "0"
 ok "anchors.md 已生成" "$([[ -f "$B36/change/anchors.md" ]] && echo y)" "y"
 ok "anchors.md 含示例行" "$(grep -c '^# 示例' "$B36/change/anchors.md" 2>/dev/null || echo 0)" "1"
@@ -1335,7 +1335,7 @@ cat > "$B36/change/anchors.md" <<'EOF'
 | A-1.1 | state-machine | 菜单含 f3 项 | menu.items contains "f3" | prototype#13-slash |
 | A-1.2 | perceptual | 三栏渲染与原型一致 | screenshot(state=cols-3) ≈ baseline/cols-3.png | prototype#00-overview |
 EOF
-rc=0; out36g="$("$CC_SH" generate "$B36/change" 2>&1)" || rc=$?
+rc=0; "$CC_SH" generate "$B36/change" >/dev/null 2>&1 || rc=$?
 ok "generate 退 0" "$rc" "0"
 ok "conformance.json 已生成" "$([[ -f "$B36/change/conformance.json" ]] && echo y)" "y"
 ok "conformance.json 含 A-1.1" "$(grep -c 'A-1.1' "$B36/change/conformance.json" 2>/dev/null || echo 0)" "1"

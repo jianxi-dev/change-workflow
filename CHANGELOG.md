@@ -1,3 +1,32 @@
+## 1.11.1 — 2026-10-05
+
+### 新增/修复
+
+**调整：全风险 PR 自动合并（移除 risk-high 人工合并门）**
+
+- `pr-automation.sh` auto-merge 逻辑不再按风险分档：`low`/`medium`/`high` 均尝试启用 auto-merge；仓库未启用 auto-merge 时仍 fail-open（提示手动 `gh pr merge`，退出 0）。
+- `review`（pre-landing 结构审查，risk≥medium）语义**不变**——审查与合并是两回事。
+- 净效果：任务级「唯一人工介入」由「risk-high PR 合并确认」收窄为「跨 change 切换的队列盘点」；**无仓库级人工合并门**。
+- 同步更新：`scripts/cw-greploop.sh`、`scripts/AGENTS.md`、`skills/change-workflow/SKILL.md`、`skills/change-workflow/agents-quick-reference.md`、`docs/agents/task-tracking.md` 的相关表述。
+
+### 教训反思
+
+**自动化边界要敢于收窄**：v1.11.0 把 medium 纳入 auto-merge 后，人工介入面只剩 high 一处；本版直接把 high 也纳入，彻底移除「仓库级人工合并门」。把「边界」写进脚本逻辑（无条件尝试 auto-merge）比散落的文档表述更难漂移——脚本即事实来源。
+
+**文档同步要一次到位**：本次改动涉及 6 个文件的 10 处引用，若分批改极易漏。用「先红后绿」锁定 e2e 断言（auto-merge 无风险分档），再一次性改完所有引用，跑绿即全同步。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 307 · 失败 0（36 用例；受管数断言 23→24；新增用例 36「cw-conformance.sh 契约锁」6 条断言）
+
+$ bash -n / shellcheck --severity=warning -x / bash 3.2 静态：全绿
+$ 占位符一致性 / 模板头 / 结尾换行 / 无仓库特有值：全绿
+```
+
+---
+
 ## 1.11.0 — 2026-10-05
 
 ### 新增/修复

@@ -13,7 +13,7 @@ G2 提交/PR 机械流水线。仓库内无 shell 调用它，仅被 `../skills/
 - 显式白名单提交：只提交 `--files` 指定路径，禁止 `git add -A`（`:296`）。`--files` 之外的改动（含 untracked）拒绝并退 1（`:240-244`、`:249-254`）。
 - `--refs-only`：commit message 用 `refs #N`（`:303`），PR body 用 `Refs #N`（`:320`）。用于 parent/spec issue，防合并提前关闭。
 - 分支绝不复用（`:31`）；分支名 `feat/<slug>` / `fix/<slug>`，基于 `origin/main`（`:31-32`）。
-- risk-low/medium 且 auto-merge 不可用 → fail-open 退 0（`:13`、`:388-392`）。
+- （全风险）auto-merge 不可用 → fail-open 退 0（`:13`、`:388-392`）。
 - 四件套门禁函数 `run_gate`（`:112`）；`--skip-checks` 是逃生舱，`../skills/change-workflow/SKILL.md:190` 明确禁止。
 - `--verified-sha`（仅 `--resume-branch` 生效）：QG-5 验证时效检查——与分支 HEAD 不一致（rebase / 追加提交后未重验）→ 拒收退 1；未提供仅警告（降级不阻塞）。检查块 `:156-189` 置于 gh 前置校验之前：纯本地判定（`git rev-parse`），不依赖网络/凭证。
 

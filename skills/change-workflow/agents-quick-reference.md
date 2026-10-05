@@ -49,7 +49,7 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 2. 验证时效：--verified-sha 拦截过期验证
 3. 成对证据：UI 变更嵌入 before/after 对比
 4. 文字质量：commit/PR 过 pr-writing.md（去 AI 味）
-5. auto-merge：risk-low/medium 尝试启用
+5. auto-merge：全风险尝试启用
 6. **CI 三层自动核验**（`evidence-check.yml`）：T1 确定量 / T2 感知 / T3 状态机，全自动无人
 
 **出口条件**：PR 创建 + 门禁引用完整 + 成对证据嵌入（详见 SKILL.md §G2）
