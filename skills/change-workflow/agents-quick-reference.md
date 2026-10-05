@@ -21,6 +21,8 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 5. cw-tickets-check.sh 自检全绿 → 自动发布
 6. **锚点门**：规格双形态（人读叙述 + 机读 `conformance.json` 锚点）机检四项——完备 / 无孤儿 / 可断言 / 来源非空
 7. **一致性制品**：G0 从原型程序化生成 `conformance.json` + `baseline/*.png` + e2e 骨架，**实现前锁哈希**
+8. **生成器调用**：`cw-conformance.sh generate <change>` → `lock <change>`（有/无原型分支均执行）
+9. **制品校验（G0-POST）**：`cw-conformance.sh verify <change>`（重投影语义比对 + lock 哈希核验）
 
 **出口条件**：tasks.md 就绪 + 子票全发布 + 看板入列 Ready（详见 SKILL.md §G0）
 
@@ -47,7 +49,7 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 2. 验证时效：--verified-sha 拦截过期验证
 3. 成对证据：UI 变更嵌入 before/after 对比
 4. 文字质量：commit/PR 过 pr-writing.md（去 AI 味）
-5. auto-merge：risk-low 尝试启用
+5. auto-merge：risk-low/medium 尝试启用
 6. **CI 三层自动核验**（`evidence-check.yml`）：T1 确定量 / T2 感知 / T3 状态机，全自动无人
 
 **出口条件**：PR 创建 + 门禁引用完整 + 成对证据嵌入（详见 SKILL.md §G2）
@@ -89,7 +91,7 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 ## 机制层（不新增门禁条目，给现有门禁装机检）
 
 - **规格双形态 + 验收锚点**：人读散文 + 机读 `conformance.json`，双向链接；G0 四项机检（`cw-tickets-check.sh` C3/C4）。
-- **一致性制品 + baseline**：原型 = spec，G0 程序化生成、哈希锁、禁篡改。
+- **一致性制品 + baseline**：原型 = spec，G0 程序化生成、哈希锁、禁篡改；生成器 `cw-conformance.sh generate|lock|verify`。
 - **证据 manifest**：`.artifacts/<票号>/state-coverage.json`（≥4 态）——本地 G2 校验（`pr-automation.sh`）+ CI 结构校验（`evidence-check.yml`）。
 - **降级收紧**：exit-3 须附机器可核验理由；环境已具备 Playwright/ffmpeg 时不构成降级理由。
 - **§八 三指标**：执行率 / 阻断数 / 下游归因缺陷数（替代单一「捕获次数」，防退役执行最好的门禁）。

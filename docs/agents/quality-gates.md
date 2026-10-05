@@ -56,6 +56,10 @@
 ./scripts/cw-tickets-check.sh --change <名>
 # 退 0 = 完备/无孤儿/可断言/来源非空；退 1 = 违规（缺锚点 / 孤儿 / 不可断言 / 来源缺失）
 # 人读层不可丢：规格须保留可读叙述，机读制品不得取代它
+# G0 一致性制品生成与校验：
+./scripts/cw-conformance.sh generate <change>   # 解析 anchors.md → 四规则校验 → 写 conformance.json
+./scripts/cw-conformance.sh lock <change>       # 对 conformance.json + baseline/*.png 逐文件 sha256 → 写 conformance.lock
+./scripts/cw-conformance.sh verify <change>     # 重投影 anchors.md 语义比对 + lock 哈希核验
 ```
 
 ### QG-1 用户层 AC 强制（三分类：存在 / 生命周期 / 保真）

@@ -94,9 +94,11 @@ ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y
 ok "docs 模式 644" "$(fmode docs/agents/domain.md)" "644"
 ok "脚本模式 755" "$(fmode scripts/cw-evidence.sh)" "755"
 ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
-ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "23"
+ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "24"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
+# 回归锁：pr-automation.sh auto-merge 条件须包含 medium（risk-low/medium 自动合并，仅 high 人工）
+ok "pr-automation auto-merge 含 medium" "$(grep -c 'RISK.*==.*low.*||.*RISK.*==.*medium' scripts/pr-automation.sh)" "1"
 
 # ── 用例 2：幂等 ─────────────────────────────────────────────────────────────
 echo ""
@@ -104,7 +106,7 @@ echo "[2] 幂等（版本回退后重跑）"
 set_version "1.0.0"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out2" in *"已最新 23"*) r2=0 ;; *) r2=1 ;; esac
+case "$out2" in *"已最新 24"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
 # ── 用例 3：本地修改 → 冲突 ──────────────────────────────────────────────────
@@ -190,8 +192,8 @@ ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
 ok "cw-tickets-check 可执行" "$([[ -x scripts/cw-tickets-check.sh ]] && echo y)" "y"
 ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y"
-# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 23 - 3 = 20
-ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "20"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 24 - 3 = 21
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "21"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
@@ -359,7 +361,7 @@ ok "缺失+LOCAL 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo 
 ok "缺失+LOCAL 真实更新计本地保留" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "1"
 ok "缺失+LOCAL kept==^LOCAL" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11l="$(printf '%s' "$out11l" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL 五桶和==23" "$(( ${m11l:-0} ))" "23"
+ok "缺失+LOCAL 五桶和==24" "$(( ${m11l:-0} ))" "24"
 # 对抗轮7 回归锁：缺失 + LOCAL 哨兵 + --force —— force 优先于 LOCAL 哨兵（与等值/差异路径
 # 同原则），缺失分支必须归一：计 ADDED + 记 FORCED_LIST → manifest 重写走哈希归一分支。
 # 旧缺陷：缺失分支无 force 分流 → --force 仍走 LOCAL 保留分支 → 文件被「本地保留」永久
@@ -373,7 +375,7 @@ ok "缺失+LOCAL force 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] &&
 ok "缺失+LOCAL force 哨兵归一" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/pr-writing.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
 ok "缺失+LOCAL force kept==^LOCAL" "$(printf '%s' "$out11n" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11n="$(printf '%s' "$out11n" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL force 五桶和==23" "$(( ${m11n:-0} ))" "23"
+ok "缺失+LOCAL force 五桶和==24" "$(( ${m11n:-0} ))" "24"
 sanitize "$B5"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
@@ -487,7 +489,7 @@ B8="$(mktemp -d)"
 CLEAN="$B8/clean"; new_repo "$CLEAN" || exit 1
 write_conf "1.0.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
-ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "23"
+ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "24"
 
 rc14a=0; out14a="$("$CW_ROOT/test/rollout-check.sh" "$CLEAN" 2>&1)" || rc14a=$?
 ok "干净仓退出码" "$rc14a" "0"
@@ -703,7 +705,7 @@ case "$out19" in *"无基线记录"*) r19=1 ;; *) r19=0 ;; esac
 ok "无「无基线记录」误报" "$r19" "0"
 set_version "1.0.0"
 out19b="$("$B13/tk2/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out19b" in *"已最新 23"*) r19b=0 ;; *) r19b=1 ;; esac
+case "$out19b" in *"已最新 24"*) r19b=0 ;; *) r19b=1 ;; esac
 ok "二次运行已最新" "$r19b" "0"
 # --accept-local 对空格路径生效：本地修改 → 冲突 → 接受 → 归一且哨兵粘住
 echo "## 本地定制" >> "My Docs/triage-labels.md"
@@ -1286,6 +1288,160 @@ ok "cw-tickets-check 含锚点机检" "$(hasf 'conformance|锚点' scripts/cw-ti
 ok "cw-evidence 含 record-state" "$(hasf 'record-state' scripts/cw-evidence.sh)" "y"
 ok "受管清单含 evidence-check" "$(bash -c 'source lib/render.sh; cw_list_files' | grep -c 'evidence-check')" "1"
 ok "evidence-check.yml 存在" "$([[ -f workflows/evidence-check.yml ]] && echo y || echo n)" "y"
+
+# ── 用例 36：cw-conformance.sh 一致性制品生成器契约锁 ──
+# 背景：规格双形态的机读层（conformance.json + conformance.lock）由 G0 程序化生成，
+#       而非实现者手填。本用例锁定生成器的六条核心契约（scaffold/generate/lock/verify/幂等/降级）。
+echo ""
+echo "[36] cw-conformance.sh 一致性制品生成器契约锁"
+B36="$(mktemp -d)"
+new_repo "$B36/repo" || exit 1
+CC_SH="$CW_ROOT/scripts/cw-conformance.sh"
+
+# 36.1 --help 退 0
+rc=0; out36h="$("$CC_SH" --help 2>&1)" || rc=$?
+ok "conformance --help 退 0" "$rc" "0"
+case "$out36h" in *"用法"*) r36=0 ;; *) r36=1 ;; esac
+ok "conformance --help 输出用法" "$r36" "0"
+
+# 36.2 无子命令退 1
+rc=0; "$CC_SH" >/dev/null 2>&1 || rc=$?
+ok "conformance 无子命令退 1" "$rc" "1"
+
+# 36.3 未知子命令退 1
+rc=0; "$CC_SH" bogus >/dev/null 2>&1 || rc=$?
+ok "conformance 未知子命令退 1" "$rc" "1"
+
+# 36.4 scaffold 生成 anchors.md 骨架（含 1 注释示例行）；已存在拒退 1
+mkdir -p "$B36/change"
+rc=0; out36s="$("$CC_SH" scaffold "$B36/change" 2>&1)" || rc=$?
+ok "scaffold 退 0" "$rc" "0"
+ok "anchors.md 已生成" "$([[ -f "$B36/change/anchors.md" ]] && echo y)" "y"
+ok "anchors.md 含示例行" "$(grep -c '^# 示例' "$B36/change/anchors.md" 2>/dev/null || echo 0)" "1"
+# 再次 scaffold 同目录 → 退 1
+rc=0; "$CC_SH" scaffold "$B36/change" >/dev/null 2>&1 || rc=$?
+ok "scaffold 已存在拒退 1" "$rc" "1"
+
+# 36.5 最小合法 anchors.md → generate 退 0，conformance.json 含 A-1.1 且 schema 字段齐全
+cat > "$B36/change/anchors.md" <<'EOF'
+# 验收锚点 — test-change
+
+## R-1 斜杠插入三栏
+
+输入 /f3 选择「3 栏」后出现三栏布局；取消不残留触发字符。
+
+| id | kind | claim | assert | source |
+|---|---|---|---|---|
+| A-1.1 | state-machine | 菜单含 f3 项 | menu.items contains "f3" | prototype#13-slash |
+| A-1.2 | perceptual | 三栏渲染与原型一致 | screenshot(state=cols-3) ≈ baseline/cols-3.png | prototype#00-overview |
+EOF
+rc=0; out36g="$("$CC_SH" generate "$B36/change" 2>&1)" || rc=$?
+ok "generate 退 0" "$rc" "0"
+ok "conformance.json 已生成" "$([[ -f "$B36/change/conformance.json" ]] && echo y)" "y"
+ok "conformance.json 含 A-1.1" "$(grep -c 'A-1.1' "$B36/change/conformance.json" 2>/dev/null || echo 0)" "1"
+ok "conformance.json schema 字段齐全" "$(python3 -c "
+import json, sys
+with open('$B36/change/conformance.json') as f:
+    d = json.load(f)
+req = d.get('requirements', [])
+if not req: sys.exit(1)
+a = req[0].get('anchors', [])
+if not a: sys.exit(1)
+anchor = a[0]
+for k in ('id','claim','kind','assert','source'):
+    if k not in anchor: sys.exit(1)
+if anchor['kind'] not in ('exact','state-machine','perceptual'): sys.exit(1)
+print('ok')
+")" "ok"
+
+# 36.6 删 source 值 → generate 退 1
+cat > "$B36/change/anchors.md" <<'EOF'
+# 验收锚点 — test-change
+
+## R-1 斜杠插入三栏
+
+| id | kind | claim | assert | source |
+|---|---|---|---|---|
+| A-1.1 | state-machine | 菜单含 f3 项 | menu.items contains "f3" | |
+EOF
+rc=0; "$CC_SH" generate "$B36/change" >/dev/null 2>&1 || rc=$?
+ok "缺 source generate 退 1" "$rc" "1"
+
+# 36.7 generate 两次 sha256 相等（幂等）
+cat > "$B36/change/anchors.md" <<'EOF'
+# 验收锚点 — test-change
+
+## R-1 斜杠插入三栏
+
+输入 /f3 选择「3 栏」后出现三栏布局；取消不残留触发字符。
+
+| id | kind | claim | assert | source |
+|---|---|---|---|---|
+| A-1.1 | state-machine | 菜单含 f3 项 | menu.items contains "f3" | prototype#13-slash |
+EOF
+"$CC_SH" generate "$B36/change" >/dev/null 2>&1
+sha1="$(python3 -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$B36/change/conformance.json")"
+"$CC_SH" generate "$B36/change" >/dev/null 2>&1
+sha2="$(python3 -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$B36/change/conformance.json")"
+ok "generate 幂等 sha256 相等" "$([ "$sha1" = "$sha2" ] && echo y || echo n)" "y"
+
+# 36.8 lock → verify 退 0；篡改 conformance.json 一字符 → verify 退 1；删 lock → verify 退 3
+mkdir -p "$B36/change/baseline"
+# 创建一个最小 png（1x1 透明像素）用于 perceptual 锚点
+python3 -c "
+import base64, zlib, struct
+# 1x1 透明 PNG
+png = b'\\x89PNG\\r\\n\\x1a\\n' + struct.pack('>I', 13) + b'IHDR' + struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0) + struct.pack('>I', 0x1f15c489) + struct.pack('>I', 0) + b'IDAT' + zlib.compress(b'\\x00\\x00\\x00\\x00') + struct.pack('>I', 0xae426082) + struct.pack('>I', 0) + b'IEND'
+open('$B36/change/baseline/cols-3.png', 'wb').write(png)
+"
+cat > "$B36/change/anchors.md" <<'EOF'
+# 验收锚点 — test-change
+
+## R-1 斜杠插入三栏
+
+输入 /f3 选择「3 栏」后出现三栏布局；取消不残留触发字符。
+
+| id | kind | claim | assert | source |
+|---|---|---|---|---|
+| A-1.1 | state-machine | 菜单含 f3 项 | menu.items contains "f3" | prototype#13-slash |
+| A-1.2 | perceptual | 三栏渲染与原型一致 | screenshot(state=cols-3) ≈ baseline/cols-3.png | prototype#00-overview |
+EOF
+"$CC_SH" generate "$B36/change" >/dev/null 2>&1
+rc=0; "$CC_SH" lock "$B36/change" >/dev/null 2>&1 || rc=$?
+ok "lock 退 0" "$rc" "0"
+ok "conformance.lock 已生成" "$([[ -f "$B36/change/conformance.lock" ]] && echo y)" "y"
+rc=0; "$CC_SH" verify "$B36/change" >/dev/null 2>&1 || rc=$?
+ok "verify 退 0" "$rc" "0"
+# 篡改 conformance.json 一字符
+python3 -c "
+import sys
+with open(sys.argv[1], 'r') as f:
+    content = f.read()
+content = content.replace('f3', 'f4')
+with open(sys.argv[1], 'w') as f:
+    f.write(content)
+" "$B36/change/conformance.json"
+rc=0; "$CC_SH" verify "$B36/change" >/dev/null 2>&1 || rc=$?
+ok "篡改 conformance.json verify 退 1" "$rc" "1"
+# 恢复并删 lock
+python3 -c "
+import sys
+with open(sys.argv[1], 'r') as f:
+    content = f.read()
+content = content.replace('f4', 'f3')
+with open(sys.argv[1], 'w') as f:
+    f.write(content)
+" "$B36/change/conformance.json"
+rm "$B36/change/conformance.lock"
+rc=0; "$CC_SH" verify "$B36/change" >/dev/null 2>&1 || rc=$?
+ok "删 lock verify 退 3" "$rc" "3"
+
+# 36.9 PATH 去 python3 → generate 退 3
+rc=0; PATH="/bin" "$CC_SH" generate "$B36/change" >/dev/null 2>&1 || rc=$?
+ok "无 python3 generate 退 3" "$rc" "3"
+
+cd "$CW_ROOT"
+sanitize "$B36"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""

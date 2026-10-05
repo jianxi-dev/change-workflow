@@ -10,7 +10,7 @@
 #   ./scripts/pr-automation.sh --role feat --issue 42 --title "..." --refs-only   # PR body 用 Refs #N（不关 issue）
 #
 # --refs-only: PR body 关联用 `Refs #N`（parent/spec issue 场景，避免合并提前关闭）
-# auto-merge: risk-low 尝试启用；仓库未启用时 fail-open（提示手动合并，退出 0）
+# auto-merge: risk-low/medium 尝试启用；仓库未启用时 fail-open（提示手动合并，退出 0）
 # --verified-sha: 仅 --resume-branch 模式；QG-5 验证时效检查——与分支 HEAD 不一致（rebase/追加提交后未重验）即拒收退 1，未提供仅警告
 #
 # 流程: 校验仓库干净 → 基于 origin/main 建分支 → 本地验证四件套硬门禁
@@ -31,7 +31,7 @@
 #   - 1 分支 = 1 PR,绝不复用
 #   - 分支名: feat/<slug> / fix/<slug>,基于 origin/main
 #   - commit 引用 fixes #N → PR 合并自动关 issue
-#   - risk-low → auto-merge; risk-medium/high → 人工评审
+#   - risk-low/medium → auto-merge; risk-high → 人工评审
 # =============================================================================
 set -euo pipefail
 
@@ -407,15 +407,15 @@ else
 fi
 
 echo "==> 6/6 风险分级"
-if [[ "$RISK" == "low" ]]; then
+if [[ "$RISK" == "low" || "$RISK" == "medium" ]]; then
   PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
   if gh pr merge "$PR_NUM" --auto --squash 2>/dev/null; then
-    echo "    risk-low → 已启用 auto-merge(CI 绿自动合并)"
+    echo "    risk-low/medium → 已启用 auto-merge(CI 绿自动合并)"
   else
-    echo "    risk-low → auto-merge 不可用(仓库未启用)，CI 绿后合并: gh pr merge $PR_NUM --squash"
+    echo "    risk-low/medium → auto-merge 不可用(仓库未启用)，CI 绿后合并: gh pr merge ${PR_NUM} --squash"
   fi
 else
-  echo "    risk-$RISK → 人工评审,等待确认"
+  echo "    risk-high → 人工评审,等待确认"
 fi
 
 echo "==> 完成。分支: $BRANCH | PR: $PR_URL"

@@ -410,9 +410,10 @@ gh issue view <票号> --json body --jq .body | grep -iE "commit|branch|deployme
 
 | 制品 | 内容 | 生成方式 |
 |---|---|---|
-| `conformance.json` | 验收锚点集（具体期望值 + 来源 + 断言类型 `exact`/`state-machine`/`perceptual`） | 解析原型结构化表 / 人读规格，**不由实现者手填** |
+| `conformance.json` | 验收锚点集（具体期望值 + 来源 + 断言类型 `exact`/`state-machine`/`perceptual`） | `scripts/cw-conformance.sh generate`（解析 anchors.md，四规则校验） |
 | `baseline/*.png` | 每个定义态的原型基准截图（golden） | 从外部原型采集（截图 + 来源 URL + 时间戳） |
-| e2e 断言骨架 | 由锚点机械展开 | 生成器 |
+| `conformance.lock` | 制品哈希锁（`conformance.json` + `baseline/*.png` 的 sha256） | `scripts/cw-conformance.sh lock` |
+| e2e 断言骨架 | 由锚点机械展开 | 生成器（后续 change） |
 
 实现阶段 MUST 只消费、MUST NOT 篡改 baseline（哈希变即核验失败）。CI MUST 在 ui-surface 票上运行三层核验：**T1 确定量**（计算样式 / DOM / 文本 vs `conformance.json`）/ **T2 感知**（实现截图 vs baseline 的像素 / 感知 diff + 多模态结构化判定）/ **T3 状态机**（六态往返 + 无残留）。三层 MUST 自动执行，MUST NOT 依赖人工观察。
 
@@ -431,6 +432,9 @@ md-bundle `editor-fidelity`：16/16 勾选、CI 全绿、归档，用户见约 2
 ```bash
 # 一致性制品在位 + baseline 哈希锁
 ls openspec/changes/<change>/conformance.json
+ls openspec/changes/<change>/conformance.lock
+# 生成器契约锁
+./scripts/cw-conformance.sh verify <change>
 # 证据 manifest（ui-surface 票；≥4 态）
 jq '.states | length' .artifacts/<票号>/state-coverage.json
 # CI 三层核验：evidence-check.yml（ui-surface 触发）

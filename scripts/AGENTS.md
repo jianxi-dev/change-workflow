@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-本目录是模板源：6 个受管脚本 `pr-automation.sh` / `cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` / `cw-tickets-check.sh` / `decisions-log.sh` 都装到消费仓的 `scripts/`，清单唯一定义在 `../lib/render.sh:153` 的 `cw_list_files`。改这里的文件即改变所有消费仓的安装产物。
+本目录是模板源：7 个受管脚本 `pr-automation.sh` / `cw-update.sh` / `cw-evidence.sh` / `cw-greploop.sh` / `cw-tickets-check.sh` / `cw-conformance.sh` / `decisions-log.sh` 都装到消费仓的 `scripts/`，清单唯一定义在 `../lib/render.sh:153` 的 `cw_list_files`。改这里的文件即改变所有消费仓的安装产物。
 
 ## 文件与职责
 
@@ -13,7 +13,7 @@ G2 提交/PR 机械流水线。仓库内无 shell 调用它，仅被 `../skills/
 - 显式白名单提交：只提交 `--files` 指定路径，禁止 `git add -A`（`:296`）。`--files` 之外的改动（含 untracked）拒绝并退 1（`:240-244`、`:249-254`）。
 - `--refs-only`：commit message 用 `refs #N`（`:303`），PR body 用 `Refs #N`（`:320`）。用于 parent/spec issue，防合并提前关闭。
 - 分支绝不复用（`:31`）；分支名 `feat/<slug>` / `fix/<slug>`，基于 `origin/main`（`:31-32`）。
-- risk-low 且 auto-merge 不可用 → fail-open 退 0（`:13`、`:388-392`）。
+- risk-low/medium 且 auto-merge 不可用 → fail-open 退 0（`:13`、`:388-392`）。
 - 四件套门禁函数 `run_gate`（`:112`）；`--skip-checks` 是逃生舱，`../skills/change-workflow/SKILL.md:190` 明确禁止。
 - `--verified-sha`（仅 `--resume-branch` 生效）：QG-5 验证时效检查——与分支 HEAD 不一致（rebase / 追加提交后未重验）→ 拒收退 1；未提供仅警告（降级不阻塞）。检查块 `:156-189` 置于 gh 前置校验之前：纯本地判定（`git rev-parse`），不依赖网络/凭证。
 
@@ -46,6 +46,20 @@ G3 决策日志追加器（pstack P0 反哺）：隔夜/无人值守的 frontier
 - 退出码：0 = 成功（含 `--help` / `show` 无文件 / `path`）；1 = 用法或参数错误。
 - 契约锁：`../test/install-update-e2e.sh` 用例 24；挂载点：`../skills/change-workflow/SKILL.md` G3（每票收尾一行）。
 
+### cw-conformance.sh（534 行）
+
+G0 一致性制品生成器——把「规格双形态」的机读层（`conformance.json` + `conformance.lock`）从人读 `anchors.md` **程序化生成**，而非实现者手填。
+
+- 子命令：
+  - `scaffold <change>`：生成 `anchors.md` 骨架（含 1 注释示例行）；已存在→拒退 1
+  - `generate <change>`：解析 `anchors.md`→四规则校验（完备/无孤儿/可断言/来源非空）→原子写 `conformance.json`（幂等字节）
+  - `lock <change>`：对 `conformance.json` + `baseline/*.png` 逐文件 sha256 → 写 `conformance.lock`（哈希锁）；perceptual 锚点但 baseline/ 无 png→退 1
+  - `verify <change>`：①重投影 `anchors.md` 与 `conformance.json` 语义比对→漂移退 1；②lock 缺失→退 3；③重算哈希，篡改/缺失/多出→退 1 逐文件列出
+  - `--help`：退 0
+- 可选全局 `--dir <path>` 覆盖 change 目录（e2e/非标布局用）
+- 退出码契约（对齐 `cw-evidence.sh`）：0=成功；1=内容错（解析失败/四规则违规/篡改/缺文件/目录不存在/符号链接）；3=环境缺（python3 缺失/未锁定/无制品）——「降级，调用方决定是否升级用户」
+- 契约锁：`../test/install-update-e2e.sh` 用例 36（6 条核心断言：scaffold/generate/lock/verify/幂等/降级）；四规则与 `cw-tickets-check.sh:check_conformance` 刻意重复、同词汇报错
+
 ## 参数与退出码
 
 pr-automation.sh 参数表：
@@ -67,13 +81,14 @@ pr-automation.sh 参数表：
 
 退出码硬约束：`--help` 退出码是 1（`usage()` 末尾 `exit 1`，`pr-automation.sh:107-109`），不是 0。
 
-其余 4 个包装脚本的退出码契约（0/1；3 = 降级）：
+其余 5 个包装脚本的退出码契约（0/1；3 = 降级）：
 
 | 脚本 | 0 | 1 | 3 |
 |---|---|---|---|
 | `cw-evidence.sh` | doctor/headless/`--help` 正常完成（`:422/:425/:426`） | 空/未知子命令（`:427-434`） | 依赖缺失降级：start/stop 显式 `|| exit $?`（`:423-424`），不依赖 `set -e` 的边角语义（`:389`） |
 | `cw-greploop.sh` | 能力检测通过、协议已打印（`:357`/`:378`） | 参数错误（`:115`） | 依赖缺失降级（`:361`/`:381`） |
 | `cw-update.sh` | `--help`/`-h`（`:37`） | 目标不存在/非 git 仓（`:42-43`/`:48`） | —（`exec` 透传 `update.sh` 退出码，`:126`/`:128`） |
+| `cw-conformance.sh` | scaffold/generate/lock/verify/`--help` 正常完成 | 空/未知子命令/解析失败/四规则违规/篡改/缺文件/符号链接 | 依赖缺失降级：python3 缺失/未锁定/无制品 |
 | `decisions-log.sh` | `add` / `show` / `path` / `--help` 正常完成（`show` 无文件退 0） | 用法或参数错误（`:59-71`、`:146-153`） | —（无降级路径） |
 
 3 是「降级未录制/未审查」的显式信号，不是失败：调用方（SKILL.md 编排）据此决定是否升级用户。

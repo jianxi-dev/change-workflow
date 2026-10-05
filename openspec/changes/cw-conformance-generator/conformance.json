@@ -1,0 +1,186 @@
+{
+  "change": "cw-conformance-generator",
+  "requirements": [
+    {
+      "id": "R-1",
+      "text": "生成器四子命令契约",
+      "anchors": [
+        {
+          "id": "A-1.1",
+          "claim": "四子命令均存在且可调用",
+          "kind": "exact",
+          "assert": "`cw-conformance.sh scaffold/generate/lock/verify --help` 均退 0",
+          "source": "design.md D2"
+        },
+        {
+          "id": "A-1.2",
+          "claim": "退出码契约：内容错→1、环境缺→3",
+          "kind": "exact",
+          "assert": "`generate` 无 python3 退 3；`verify` 无 lock 退 3；篡改/缺文件退 1",
+          "source": "design.md D2"
+        }
+      ]
+    },
+    {
+      "id": "R-2",
+      "text": "anchors.md 确定性文法",
+      "anchors": [
+        {
+          "id": "A-2.1",
+          "claim": "requirement 标题模式",
+          "kind": "exact",
+          "assert": "`^## R-1 .+$` 匹配",
+          "source": "design.md D1"
+        },
+        {
+          "id": "A-2.2",
+          "claim": "表列名与顺序",
+          "kind": "exact",
+          "assert": "`id/kind/claim/assert/source` 逐字一致",
+          "source": "design.md D1"
+        },
+        {
+          "id": "A-2.3",
+          "claim": "anchor id 回指",
+          "kind": "exact",
+          "assert": "`A-1.1` 回指 `R-1`",
+          "source": "design.md D1"
+        },
+        {
+          "id": "A-2.4",
+          "claim": "kind 取值域",
+          "kind": "exact",
+          "assert": "`exact/state-machine/perceptual` 三值之一",
+          "source": "design.md D1"
+        }
+      ]
+    },
+    {
+      "id": "R-3",
+      "text": "四规则机检（完备/无孤儿/可断言/来源非空）",
+      "anchors": [
+        {
+          "id": "A-3.1",
+          "claim": "完备性：每 requirement ≥1 anchor",
+          "kind": "state-machine",
+          "assert": "缺 anchor 退 1 报「完备性」",
+          "source": "design.md D3"
+        },
+        {
+          "id": "A-3.2",
+          "claim": "无孤儿：anchor 回指存在 requirement",
+          "kind": "state-machine",
+          "assert": "孤儿退 1 报「无孤儿」",
+          "source": "design.md D3"
+        },
+        {
+          "id": "A-3.3",
+          "claim": "可断言性：assert 含具体值 token",
+          "kind": "exact",
+          "assert": "无数字/引号/#hex/状态迁移词退 1",
+          "source": "design.md D3"
+        },
+        {
+          "id": "A-3.4",
+          "claim": "来源非空：source 非空",
+          "kind": "exact",
+          "assert": "source 空退 1 报「来源非空」",
+          "source": "design.md D3"
+        }
+      ]
+    },
+    {
+      "id": "R-4",
+      "text": "conformance.json 幂等投影",
+      "anchors": [
+        {
+          "id": "A-4.1",
+          "claim": "幂等字节相等",
+          "kind": "exact",
+          "assert": "两次 generate sha256 相等",
+          "source": "design.md IC-1"
+        }
+      ]
+    },
+    {
+      "id": "R-5",
+      "text": "conformance.lock 哈希锁",
+      "anchors": [
+        {
+          "id": "A-5.1",
+          "claim": "lock 文件格式",
+          "kind": "exact",
+          "assert": "首行注释 + `<hash>  <rel-path>` 两空格",
+          "source": "design.md IC-2"
+        },
+        {
+          "id": "A-5.2",
+          "claim": "perceptual 无 png 拒退",
+          "kind": "state-machine",
+          "assert": "baseline/ 空时 lock 退 1",
+          "source": "design.md D2"
+        }
+      ]
+    },
+    {
+      "id": "R-6",
+      "text": "verify 语义比对 + 哈希核验",
+      "anchors": [
+        {
+          "id": "A-6.1",
+          "claim": "漂移检测",
+          "kind": "state-machine",
+          "assert": "anchors.md 改动未重跑 generate → verify 退 1",
+          "source": "design.md D2"
+        },
+        {
+          "id": "A-6.2",
+          "claim": "无 lock 退 3",
+          "kind": "exact",
+          "assert": "删 lock → verify 退 3",
+          "source": "design.md D2"
+        },
+        {
+          "id": "A-6.3",
+          "claim": "篡改/缺失/多出检测",
+          "kind": "exact",
+          "assert": "逐文件列出退 1",
+          "source": "design.md D2"
+        }
+      ]
+    },
+    {
+      "id": "R-7",
+      "text": "受管清单与安装",
+      "anchors": [
+        {
+          "id": "A-7.1",
+          "claim": "受管清单含新脚本",
+          "kind": "exact",
+          "assert": "`cw_list_files` 输出含 `scripts/cw-conformance.sh`",
+          "source": "design.md D5"
+        },
+        {
+          "id": "A-7.2",
+          "claim": "受管数 24",
+          "kind": "exact",
+          "assert": "`manifest` 行数 = 24",
+          "source": "design.md D5"
+        }
+      ]
+    },
+    {
+      "id": "R-8",
+      "text": "降级契约（python3 缺失→退 3）",
+      "anchors": [
+        {
+          "id": "A-8.1",
+          "claim": "无 python3 退 3",
+          "kind": "exact",
+          "assert": "`PATH=\"/bin\" cw-conformance.sh generate ...` 退 3",
+          "source": "design.md D2"
+        }
+      ]
+    }
+  ]
+}

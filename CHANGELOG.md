@@ -1,3 +1,41 @@
+## 1.11.0 — 2026-10-05
+
+### 新增/修复
+
+**新增：一致性制品生成器 `scripts/cw-conformance.sh`（受管数 23 → 24）**
+
+v1.10.0 把「一致性制品」写进约定层（`evidence-capture.md` §八），但生成仍靠人手——实现者仍可手填/反填 `conformance.json`（投毒源未堵）。本版补上 G0 生成器，把「不由实现者手填」从文字变为机检机制：
+
+- 四子命令：`scaffold`（生成 `anchors.md` 骨架）/ `generate`（解析 `anchors.md` → 四规则校验 → 原子写 `conformance.json`）/ `lock`（对 `conformance.json` + `baseline/*.png` 逐文件 sha256 → 写 `conformance.lock` 哈希锁）/ `verify`（重投影语义比对 + 哈希核验）。
+- `anchors.md` 人写一次、任意 markdown 查看器可读；JSON 永远是投影（规格双形态的人读层不可丢）。确定性文法：`^## (R-\d+) (.+)$` 开启 requirement、裸 markdown 表列名恰为 `id|kind|claim|assert|source`；对无 openspec 消费仓同样成立。
+- 四规则（完备 / 无孤儿 / 可断言 / 来源非空）与 `cw-tickets-check.sh:check_conformance` **刻意重复、同词汇报错**（防「生成通过、检查失败」的静默漂移）。
+- 退出码 0/1/3 对齐 `cw-evidence.sh`：内容错 → 1（fail-closed），环境缺（python3 缺失 / 未锁定 / 无制品）→ 3（降级，调用方决定）。
+- **自举 dogfood**：本 change 自身的 `anchors.md` → `generate` → `lock` → `verify` 全绿（openspec change `cw-conformance-generator`）。
+
+**调整：中风险（risk-medium）PR 也自动合并**
+
+- `pr-automation.sh` auto-merge 条件由「仅 risk-low」扩为「risk-low/medium」；仅 **risk-high** 保留人工合并确认。`review`（pre-landing 结构审查，risk≥medium）语义不变——审查与合并是两回事。
+- 净效果：任务级「唯一人工介入」由「risk-medium/high 合并确认」收窄为「risk-high 合并确认」。
+
+### 教训反思
+
+**「约定」到「机制」还差一个生成器**：v1.10.0 定义了制品与四规则机检，但生成动作仍可人工——只要产物由实现者落笔，投毒面就还在。生成器把人写面收窄到「人读的 `anchors.md`」，机读 JSON 全由脚本产出并锁哈希，实现期只消费。
+
+**自动化边界要显式收窄**：中风险自动合并后，人工介入面只剩高风险合并确认一处；把「边界」写进 SKILL 与规范，比散落的「medium/high」表述更难漂移（本版一并统一了脚本/规范/速查卡五处 medium 合并引用）。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 307 · 失败 0（36 用例；受管数断言 23→24；新增用例 36「cw-conformance.sh 契约锁」6 条断言）
+
+$ bash -n / shellcheck --severity=warning -x / bash 3.2 静态：全绿
+$ openspec validate cw-conformance-generator --strict：valid
+$ ./scripts/cw-conformance.sh verify cw-conformance-generator（自举 dogfood）：全绿
+```
+
+---
+
 ## 1.10.0 — 2026-10-04
 
 ### 新增：机制层门禁加固（双形态规格 / 验收锚点 / 一致性制品 / CI 三层核验 / §八 三指标）

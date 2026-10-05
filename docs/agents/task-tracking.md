@@ -127,7 +127,7 @@ to-tickets 拆出的每张子票统一引用其**来源 issue**（G0-PRE 由 to-
 
 > **时序修正（2026-09-12）**：learn + sync-gbrain 在 **推送 + 创建 PR 后立即执行，不等合并**。理由：
 > - learn/sync-gbrain 操作的是**本地工作区文件**，代码推送后本地即最新，无需等远端合并
-> - risk-medium/high 的 PR 需人工合并，若等合并才收尾，会**阻塞下一个 change 启动**
+> - risk-high 的 PR 需人工合并，若等合并才收尾，会**阻塞下一个 change 启动**
 > - 合并发生时只需一次增量 `gbrain sync` 对账（秒级），不构成依赖
 >
 > 正确闭环：实现 → 四件套 → code-review → commit → push + PR → **learn → sync-gbrain → 下一轮 change**；合并为异步事件，事后可选增量 sync。
@@ -146,7 +146,7 @@ to-tickets 拆出的每张子票统一引用其**来源 issue**（G0-PRE 由 to-
   → 四件套硬门禁 + e2e 硬门禁(QG-2)
   → code-review(对照 QG-4) → [QG-5 独立验证：粘贴原始输出]
   → pr-automation.sh 提交 fixes #N → push → pr create(risk 分级)
-  → CI → low:auto-merge / medium/high:review+人工
+  → CI → low/medium:auto-merge / high:review+人工
   → learn → sync-gbrain → 下一轮 issue
   [QG-6] change ≥6 票时每 ≤4 票插入集成 checkpoint
 发版（VERSION + CHANGELOG + tag）按发布节奏接入
@@ -220,7 +220,7 @@ gh pr list --state open --head <关联分支>            # 检查无未合并 PR
 **设计要点**：
 - 任务级闭环管"单 issue 是否交付"，change 级管"整个 change 是否收口"——两级串行，互不阻塞
 - 收尾全程自动：agent 检测到完成条件即执行，无需用户喊 `/opsx-sync` `/opsx-archive`
-- 人工介入点：risk-medium/high 的 PR 合并确认（机制既有规则）+ change 收口后的剩余队列盘点与继续确认（见 change-workflow SKILL.md §G3/G4）
+- 人工介入点：risk-high 的 PR 合并确认（机制既有规则）+ change 收口后的剩余队列盘点与继续确认（见 change-workflow SKILL.md §G3/G4）
 
 ---
 
