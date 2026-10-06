@@ -333,9 +333,12 @@ echo "==> 4/6 推送分支"
 git push -u origin "$BRANCH"
 
 echo "==> 5/6 创建/检测 PR"
+# 无匹配时 gh 2.95.0 的 `--jq '.[0]'` 输出**空串**（不是 `null`）——实测 `xxd` 仅 `0a`。
+# 故 jq 替代运算符把 null/空归一为 `NO_PR` 哨兵；:338 的 `-z` 再兜一道（防其他 gh/jq 版本差异）。
+# 教训（1.12.1 回归）：桩测试若假定 `jq '.[0]'` → `null`，就会漏掉真实 gh 的空输出行为。
 PR_JSON=$(gh pr list --head "$BRANCH" --state all --limit 1 \
-  --json number,headRefName,baseRefName,title,state --jq '.[0]' 2>/dev/null || echo "NO_PR")
-if [[ "$PR_JSON" == "NO_PR" || "$PR_JSON" == "null" ]]; then
+  --json number,headRefName,baseRefName,title,state --jq '.[0] // "NO_PR"' 2>/dev/null || echo "NO_PR")
+if [[ -z "$PR_JSON" || "$PR_JSON" == "NO_PR" || "$PR_JSON" == "null" ]]; then
   BODY_FILE="$(mktemp)"
   cat > "$BODY_FILE" <<EOF
 ## 变更概述

@@ -1,3 +1,35 @@
+## 1.12.2 — 2026-10-06
+
+### 新增/修复
+
+**修复：1.12.1 引入的回归——`pr-automation.sh` 打坏「无 PR → 新建」路径（change-workflow#2 评论）**
+
+- `scripts/pr-automation.sh:336` 的 PR 检测 jq 由 `'.[0]'` 改为 `'.[0] // "NO_PR"'`；`:338` 守卫扩为 `[[ -z "$PR_JSON" || "$PR_JSON" == "NO_PR" || "$PR_JSON" == "null" ]]`。
+- 根因（实测 gh 2.95.0，`xxd` 原始证据）：`gh pr list --head <无匹配>` 时 `--jq '.[0]'` 输出**空串**（仅 `0a`），**不是** `null`。1.12.1 的守卫只认 `NO_PR`/`null` → 空串漏判 → 走 `else` 当作已有 PR → `_head="" != "$BRANCH"` → 「❌ 已有 PR … 拒绝接管」退 1 → **「无 PR → 新建」路径（`--role feat` 从头模式）100% 中断**，`gh pr create` 永不执行——比 1.12.0 更糟（旧代码该路径本是好的）。
+- `test/install-update-e2e.sh`：新增用例 38（先红后绿）——桩**忠实模拟真 gh 2.95.0**（无匹配时 `pr list` 输出空串而非 `null`），断言走 create 新建 PR、不误判「拒绝接管」、抵达 auto-merge，并静态锁定空值归一与 `-z` 守卫。用例 37（已有 PR 路径）保留为对照。
+
+### 教训反思
+
+**桩必须忠实复刻真实 CLI 的行为，否则「桩上绿、真实环境红」**：1.12.1 的用例 37 桩假定 `jq '.[0]'` 无匹配 → `null`，而真 gh 2.95.0 输出空串——桩把「打坏 fresh 路径」的缺陷掩盖了。防御：凡以桩替代外部 CLI，桩的**每个返回值/退出码都必须与真 CLI 实测对齐**；一次改动触及的**两侧（有/无）都要有独立断言**，不能只锁修复面。
+
+**修复一处须回归一处**：1.12.1 只锁了「已有 PR」用例，未给同一函数补「无 PR」对照组——改了 `PR_JSON` 的归一语义，却未锁它的另一种取值。这是本次回归的成因，用例 38 即其补丁。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 329 · 失败 0（39 用例；新增用例 38「无 PR → 新建」6 条断言）
+  先红：1.12.1 源码下用例 38 六条断言全红（误判「拒绝接管」退 1），用例 37 保持绿
+
+$ bash -n scripts/pr-automation.sh test/install-update-e2e.sh：全绿
+$ shellcheck --severity=warning -x scripts/pr-automation.sh test/install-update-e2e.sh：clean
+
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+  消费仓 3 个 · 通过 9 · 失败 0（冲突 0 / LOCAL 哨兵完整 / 覆盖数 24 一致）
+```
+
+---
+
 ## 1.12.1 — 2026-10-06
 
 ### 新增/修复

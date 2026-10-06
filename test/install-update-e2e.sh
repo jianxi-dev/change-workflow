@@ -1576,6 +1576,61 @@ ok "使用 gh pr list --head" "$(grep -c 'gh pr list --head' scripts/pr-automati
 cd "$CW_ROOT"
 sanitize "$B37"
 
+# ── 用例 38：pr-automation「无 PR → 新建」路径（1.12.1 回归修复）──────────────
+# 背景（change-workflow#2 评论）：1.12.1 修好「已有 PR」却打坏「无 PR」——实测 gh 2.95.0
+#   的 `--jq '.[0]'` 对空结果输出**空串**（xxd 仅 0a；不是 `null`），:337 的 `== null` 守卫
+#   漏判 → 走 else 当作已有 PR → `_head="" != BRANCH` → 「拒绝接管」退 1 → fresh 模式
+#   100% 中断、`gh pr create` 永不执行（比 1.12.0 更糟）。
+# 本用例的桩**忠实模拟真 gh 2.95.0**：无匹配时 `pr list` 输出空（不是 null）——正是用例 37
+#   桩的假定缺口（桩返回 null → 桩上绿、真实环境红）。裸远端/桩落仓外、脚本先入库（同用例 37）。
+echo ""
+echo "[38] pr-automation 无 PR → 新建（1.12.1 回归修复）"
+B38="$(mktemp -d)"
+new_repo "$B38/repo" || exit 1
+mkdir -p scripts
+cp "$CW_ROOT/scripts/pr-automation.sh" scripts/pr-automation.sh
+chmod +x scripts/pr-automation.sh
+PA_SH="$PWD/scripts/pr-automation.sh"
+git add scripts/pr-automation.sh
+git -c user.name=t -c user.email=t@t.invalid commit -q -m "vendor pr-automation"
+git init -q --bare "$B38/remote.git"
+git remote add origin "$B38/remote.git"
+git checkout -q -b fix/nopr
+git -c user.name=t -c user.email=t@t.invalid commit -q --allow-empty -m probe
+
+mkdir -p "$B38/stub"
+cat > "$B38/stub/gh" <<'STUB'
+#!/usr/bin/env bash
+# 忠实模拟真 gh 2.95.0：无匹配时 `pr list --jq '.[0]'` 输出空串（不是 null）
+case "$1 $2" in
+  "issue view")
+    printf '999\n'; exit 0 ;;
+  "pr list")
+    exit 0 ;;                                  # 空输出 = 无 PR（真 gh 行为）
+  "pr create")
+    echo 'https://github.com/x/y/pull/500'; exit 0 ;;
+  "pr merge")
+    exit 0 ;;
+esac
+exit 0
+STUB
+chmod +x "$B38/stub/gh"
+
+rc=0; out38="$(PATH="$B38/stub:$PATH" "$PA_SH" --role feat --issue 999 --title "t" --resume-branch fix/nopr 2>&1)" || rc=$?
+ok "无 PR 收口退 0" "$rc" "0"
+case "$out38" in *"PR: https://github.com/x/y/pull/500"*) r38=0 ;; *) r38=1 ;; esac
+ok "走 create 新建 PR" "$r38" "0"
+case "$out38" in *"拒绝接管"*) r38=1 ;; *) r38=0 ;; esac
+ok "未误判为已有 PR" "$r38" "0"
+case "$out38" in *"auto-merge"*) r38=0 ;; *) r38=1 ;; esac
+ok "抵达 step 6 auto-merge" "$r38" "0"
+# 静态契约锁：空串归一（// "NO_PR"）+ 守卫兜底（-z 空串）
+ok "jq 空值归一" "$(grep -c '// "NO_PR"' scripts/pr-automation.sh)" "1"
+ok "守卫含 -z 兜空串" "$(grep -c -- '-z "$PR_JSON"' scripts/pr-automation.sh)" "1"
+
+cd "$CW_ROOT"
+sanitize "$B38"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="
