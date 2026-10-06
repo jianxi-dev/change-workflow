@@ -1,3 +1,38 @@
+## 1.12.1 — 2026-10-06
+
+### 新增/修复
+
+**修复：`pr-automation.sh` `--resume-branch` 收口路径失效（`gh pr view` 无 `--head` flag，issue #2）**
+
+- `scripts/pr-automation.sh` 的 PR 检测由 `gh pr view --head "$BRANCH"` 改为 `gh pr list --head "$BRANCH" --state all --limit 1 --json number,headRefName,baseRefName,title,state --jq '.[0]'`。`--head` 是 `gh pr list` 的 flag，`gh pr view` 不接受它（实测 gh 2.95.0：`gh pr view --head x --json number` → `unknown flag: --head`，退 1）。
+- 旧路径后果：错误 flag 让检测命令稳定失败 → `2>/dev/null || echo "NO_PR"` 恒判 `NO_PR` → 走 `gh pr create` 分支 → PR 已存在时 create 退 1 → `set -euo pipefail` 在 step 5/6 中止 → **auto-merge 永不 arm**（分支无法自动收口）。
+- 保留 `:337` 的 `NO_PR`/`null` 处理：`gh pr list` 无匹配返回 `[]`，`jq '.[0]'` 输出 `null`，既有 `== "null"` 分支自然兜住。`--state all` 确保非 OPEN 的健在 PR 仍被找到并交由既有 head/base/state 校验拒绝（未弱化校验）。
+- `test/install-update-e2e.sh`：新增用例 37（先红后绿）——用模拟真实 `gh` 行为的桩（`pr view --head` 复刻 `unknown flag` 退 1），断言收口退 0、命中「已存在且校验通过」、抵达 auto-merge，并以静态契约锁锁定源码无 `gh pr view --head`、恰一处 `gh pr list --head`。
+
+### 教训反思
+
+**参数落在错误的子命令上，被 `2>/dev/null || 默认值` 掩盖成「无 PR」**：`gh pr view` 与 `gh pr list` 的 flag 集不同，`--head` 只属于后者；错误 flag 让命令稳定失败，而 `|| echo NO_PR` 把它伪装成一个合法状态，于是收口静默走了错误分支。防御：① 关键外部命令的「失败即默认值」必须有回归测试覆盖默认值本身是否语义正确；② 子命令级 flag 差异要靠功能测试（模拟真实 CLI 行为）而非「命令存在性」检查。
+
+**一次收口断链会吞掉后续所有步骤**：`set -e` 在 create 失败处中止，auto-merge 根本没机会执行——表象是「PR 建不出来」，真实影响是「分支永不自动合并」。功能测试必须断言**末端有效动作**（auto-merge）被抵达，而不只断言中间步骤没报错。
+
+**测试桩必须先在正确的状态上运行**：首版用例曾用 untracked 的 `scripts/`、`stub/` 建桩，被 resume 模式的脏树护栏（`git status --porcelain` 计入 untracked）提前拒绝——测试看似「红」，却根本没走到被测行。桩、裸远端必须落在仓外，被测脚本先提交入库，工作树清空后才具判定力。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 323 · 失败 0（38 用例；新增用例 37「pr-automation --resume-branch 收口」6 条断言）
+  先红：坏代码下该用例 6 条断言全红（gh pr create「already exists」→ set -e 中止，未达 auto-merge）
+
+$ bash -n scripts/pr-automation.sh test/install-update-e2e.sh：全绿
+$ shellcheck --severity=warning -x scripts/pr-automation.sh test/install-update-e2e.sh：clean
+
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+  消费仓 3 个 · 通过 9 · 失败 0（冲突 0 / LOCAL 哨兵完整 / 覆盖数一致）
+```
+
+---
+
 ## 1.12.0 — 2026-10-05
 
 ### 新增/修复

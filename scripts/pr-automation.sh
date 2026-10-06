@@ -333,7 +333,8 @@ echo "==> 4/6 推送分支"
 git push -u origin "$BRANCH"
 
 echo "==> 5/6 创建/检测 PR"
-PR_JSON=$(gh pr view --head "$BRANCH" --json number,headRefName,baseRefName,title,state 2>/dev/null || echo "NO_PR")
+PR_JSON=$(gh pr list --head "$BRANCH" --state all --limit 1 \
+  --json number,headRefName,baseRefName,title,state --jq '.[0]' 2>/dev/null || echo "NO_PR")
 if [[ "$PR_JSON" == "NO_PR" || "$PR_JSON" == "null" ]]; then
   BODY_FILE="$(mktemp)"
   cat > "$BODY_FILE" <<EOF

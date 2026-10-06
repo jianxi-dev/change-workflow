@@ -1499,6 +1499,83 @@ ok "无 python3 generate 退 3" "$rc" "3"
 cd "$CW_ROOT"
 sanitize "$B36"
 
+# ── 用例 37：pr-automation --resume-branch 收口（gh pr list --head 修复）──────
+# 背景（issue #2）：:336 用 `gh pr view --head` 做 PR 检测，但 `--head` 是 `gh pr list`
+#   的 flag，`gh pr view` 不接受它（实测 gh 2.95.0: `unknown flag: --head` → 退 1）。
+#   错误 flag 让检测恒判 NO_PR → 走 create 分支 → PR 已存在时 `gh pr create` 退 1 →
+#   set -euo pipefail 在 step 5/6 中止 → auto-merge 永不 arm（分支无法自动收口）。
+# 本用例用模拟真实 gh 行为的桩：坏代码下 `pr view --head` 复刻 `unknown flag` 退 1（RED），
+#   修好后走「已存在且校验通过」分支并抵达 auto-merge（GREEN）。
+echo ""
+echo "[37] pr-automation --resume-branch 收口（gh pr list --head 修复）"
+B37="$(mktemp -d)"
+new_repo "$B37/repo" || exit 1
+mkdir -p scripts
+cp "$CW_ROOT/scripts/pr-automation.sh" scripts/pr-automation.sh
+chmod +x scripts/pr-automation.sh
+PA_SH="$PWD/scripts/pr-automation.sh"
+
+# 把脚本提交入库，并让裸远端/桩都落在仓外 —— resume 无 --files 时拒绝任何工作树改动
+# （untracked 的 scripts/ 或 stub/ 也会被 git status --porcelain 计入 → 收口前必须清空）
+git add scripts/pr-automation.sh
+git -c user.name=t -c user.email=t@t.invalid commit -q -m "vendor pr-automation"
+git init -q --bare "$B37/remote.git"
+git remote add origin "$B37/remote.git"
+
+# 分支 + 空提交；工作树保持干净
+git checkout -q -b fix/probe
+git -c user.name=t -c user.email=t@t.invalid commit -q --allow-empty -m probe
+
+# gh 桩（仓外）：模拟真实 gh 的 flag/子命令行为（核心：pr view 不接受 --head）
+mkdir -p "$B37/stub"
+cat > "$B37/stub/gh" <<'STUB'
+#!/usr/bin/env bash
+# 模拟真实 gh：`gh pr view` 不认 --head（该 flag 属于 `gh pr list`）
+case "$1 $2" in
+  "issue view")
+    printf '999\n'; exit 0 ;;
+  "pr view")
+    for a in "$@"; do
+      if [ "$a" = "--head" ]; then
+        echo "unknown flag: --head" >&2
+        exit 1
+      fi
+    done
+    case "$*" in
+      *"--json body"*) echo '**风险等级**: medium'; exit 0 ;;
+      *"--json url"*)  echo 'https://github.com/x/y/pull/396'; exit 0 ;;
+    esac
+    exit 0 ;;
+  "pr list")
+    echo '{"number":396,"headRefName":"fix/probe","baseRefName":"main","title":"t","state":"OPEN"}'
+    exit 0 ;;
+  "pr create")
+    echo 'a pull request for branch "fix/probe" into branch "main" already exists' >&2
+    exit 1 ;;
+  "pr edit")
+    exit 0 ;;
+  "pr merge")
+    exit 0 ;;
+esac
+exit 0
+STUB
+chmod +x "$B37/stub/gh"
+
+rc=0; out37="$(PATH="$B37/stub:$PATH" "$PA_SH" --role fix --issue 999 --title "t" --resume-branch fix/probe 2>&1)" || rc=$?
+ok "resume 收口退 0" "$rc" "0"
+case "$out37" in *"已存在且校验通过"*) r37=0 ;; *) r37=1 ;; esac
+ok "识别已有 PR（非 create 路径）" "$r37" "0"
+case "$out37" in *"auto-merge"*) r37=0 ;; *) r37=1 ;; esac
+ok "抵达 step 6 auto-merge" "$r37" "0"
+case "$out37" in *"already exists"*) r37=1 ;; *) r37=0 ;; esac
+ok "未走 create 失败路径" "$r37" "0"
+# 静态契约锁：源码里 `gh pr view --head` 必须为 0、`gh pr list --head` 恰一处
+ok "无 gh pr view --head 残留" "$(grep -c 'gh pr view --head' scripts/pr-automation.sh)" "0"
+ok "使用 gh pr list --head" "$(grep -c 'gh pr list --head' scripts/pr-automation.sh)" "1"
+
+cd "$CW_ROOT"
+sanitize "$B37"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="
