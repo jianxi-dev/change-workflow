@@ -18,12 +18,12 @@
 | `project-board.md` | 88 | Projects V2 看板常量（PROJECT_ID/STATUS_FIELD_ID/OPT_*）与入列 API |
 | `triage-labels.md` | 23 | 5 个 canonical triage 角色 → 本仓标签字符串的映射 |
 | `defect-workflow.md` | 306 | 缺陷流程（`gh issue list` 唯一事实来源；废弃本地 bug-registry 缓存） |
-| `domain.md` | 38 | 探索前领域文档消费规则（术语表、ADR 冲突必须显式声明） |
+| `domain.md` | 40 | 探索前领域文档消费规则（术语表、ADR 冲突必须显式声明） |
 | `incident-uncommitted-work-loss.md` | 301 | 未提交代码被破坏性回滚覆盖的事故复盘 + 共享工作区保护 |
 | `incident-merge-local-workspace.md` | 45 | 合并收尾切错分支致本地工作流失效的事故复盘与强制规则 |
 | `evidence-capture.md` | 280 | 证据驱动测试规范（证据分层 before/after + 6 类证据：视频/截图/测量数字/transcript/headless 降级/视觉探针；挂 QG-5/DQ-3/DQ-5） |
 | `code-structure.md` | 95 | 服务层架构约束（actions 管 why/when、service 管 how + 四反模式 + 迁移清单；挂 G1 与 code-review Standards 轴） |
-| `pr-writing.md` | 164 | PR 与提交文字规范（去 AI 味：12 条 AI tells + 两遍扫描法 + add soul；挂 G2/G3/G4） |
+| `pr-writing.md` | 186 | PR 与提交文字规范（去 AI 味：12 条 AI tells + 两遍扫描法 + add soul + Evidence/Merge Danger；挂 G2/G3/G4） |
 
 ## 模板硬规则
 

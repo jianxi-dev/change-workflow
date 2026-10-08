@@ -299,6 +299,11 @@ print(n)
 PY
 )" "0"
 
+# 契约锁（1.12.3）：上游 mattpocock/skills 把 Context.md 更名 glossary.md，
+# domain.md 必须指向新名 GLOSSARY.md，且不得残留旧引用（消费仓 skill 已只产出新名）。
+ok "domain.md 指向 GLOSSARY.md" "$(grep -q 'GLOSSARY\.md' "$CW_ROOT/docs/agents/domain.md" && echo y || echo n)" "y"
+ok "domain.md 无 CONTEXT.md 旧引用" "$(grep -q 'CONTEXT\.md' "$CW_ROOT/docs/agents/domain.md" && echo y || echo n)" "n"
+
 # ── 用例 10：接管后再更新，本地定制不得被覆盖（回归：曾静默覆盖）─────────────
 echo ""
 echo "[10] 接管 → 再次更新，定制不得被覆盖"

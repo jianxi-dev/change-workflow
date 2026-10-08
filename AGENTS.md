@@ -10,7 +10,7 @@
 bash 工具包（无编译、无运行时依赖，需 `bash` + `gh` + `git` + `python3`）：把 agent 的**变更生命周期**编码为 G0-G4 强制 gate + fix-first 自愈回路，安装到任意 GitHub 仓库。
 本仓是**工具包源**；它的产物是「装进消费仓的 20 个受管文件」，不是可运行的 app。
 
-消费仓：`md-bundle`（含架构图 `docs/diagrams/change-workflow.architecture.html`）、`mdpkg`、`clairis`。
+消费仓：`md-bundle`（含架构图 `docs/diagrams/change-workflow.architecture.html`）、`mdpkg`、`clairis`、`contentweave`。
 
 ## STRUCTURE
 
@@ -24,7 +24,7 @@ change-workflow/
 ├── skills/change-workflow/   # 模板源 → 装到 <SKILLS_DIR>（默认 .opencode/skills）
 ├── docs/agents/              # 模板源 → 装到 <DOCS_DIR>（12 份规范）
 ├── workflows/                # 模板源 → 装到 .github/workflows/change-closure-signal.yml
-├── test/install-update-e2e.sh # 26 用例 / 226 断言（CI 第 9 步全量跑；唯一权威验证）
+├── test/install-update-e2e.sh # 39 用例 / 331 断言（CI 第 9 步全量跑；唯一权威验证）
 ├── test/rollout-check.sh     # 消费仓滚动验证（发布前本地门禁；CI 无消费仓检出，跑不了）
 ├── .opencode/                # openspec init 产物：6 个 opsx-* 命令 + 6 个 openspec-* 技能
 ├── openspec/                 # openspec 项目数据（config.yaml / changes / specs）
@@ -97,7 +97,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 ## 本仓的开发方式（决策 2026-09-22）
 
-**本仓不以消费仓身份跑 G0-G4。** 理由：G0-G4 的编排（issue / 看板 / 分支 / PR / frontier / 归档）是为「多票并行、跨会话推进」的**应用交付**设计的；而本仓的失败模式是「CI 绿但只在 macOS 炸」「渲染不幂等」这类**契约与回归**问题，防护重心在 `test/` + CI，不在票据仪式。本仓真正的 dogfooding 面是**三个消费仓的升级结果**。
+**本仓不以消费仓身份跑 G0-G4。** 理由：G0-G4 的编排（issue / 看板 / 分支 / PR / frontier / 归档）是为「多票并行、跨会话推进」的**应用交付**设计的；而本仓的失败模式是「CI 绿但只在 macOS 炸」「渲染不幂等」这类**契约与回归**问题，防护重心在 `test/` + CI，不在票据仪式。本仓真正的 dogfooding 面是**四个消费仓的升级结果**。
 
 替代纪律（轻量，零安装成本）：
 
@@ -112,11 +112,11 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 ## COMMANDS
 
 ```bash
-# 唯一权威验证：26 用例 / 226 断言（CI 第 9 步跑的就是它）
+# 唯一权威验证：39 用例 / 331 断言（CI 第 9 步跑的就是它）
 ./test/install-update-e2e.sh
 
 # 发布前本地门禁：本工具包 HEAD 装到每个消费仓都不冲突（CI 无消费仓检出，跑不了）
-./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis
+./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis ../contentweave
 
 # 预演升级（不落盘），<dir> 为消费仓
 ./update.sh --target <dir> --check

@@ -1,3 +1,34 @@
+## 1.12.3 — 2026-10-08
+
+### 新增/修复
+
+**同步上游 mattpocock/skills 更名：`Context.md` / `CONTEXT-MAP.md` → `GLOSSARY.md` / `GLOSSARY-MAP.md`**
+
+- `docs/agents/domain.md`：3 处 `CONTEXT.md` 引用改为 `GLOSSARY.md`，并补多上下文仓库说明（根目录存在 `GLOSSARY-MAP.md` 时按 map 定位各上下文 `GLOSSARY.md`）。上游 `domain-modeling` skill 现在只读写 `GLOSSARY.md`，旧名会让消费仓 agent 去找一个 skill 永不生成的文件（契约静默失效）。
+- `docs/agents/pr-writing.md`：参考上游 `/pr` skill 增加「§七 PR 正文的两块内容：Evidence 与 Merge Danger」——Evidence 要求成对 before/after 原始输出，Merge Danger 要求声明单向门/双向门与影响半径；与既有 risk 标签（可评审强度轴）显式区分，不重复 QG-5 判据。
+- `test/install-update-e2e.sh`：用例 9 新增 2 条契约锁（先红后绿）——domain.md 必含 `GLOSSARY.md`、不得含 `CONTEXT.md`，防改名漂移回旧名。
+- **登记第 4 个消费仓 contentweave**：其 `docs/agents/quality-gates.md`（自建 QG-9 交付物证据表）与 `.github/workflows/evidence-check.yml`（断言判据补 Python/openspec 形态）属有意本地化，用 `--accept-local` 归一为 LOCAL 哨兵；`docs/agents/domain.md` 同步 GLOSSARY 更名。AGENTS.md 消费仓清单与 rollout-check 调用同步补入。
+
+### 教训反思
+
+**上游重命名只打到引用方，不会自己通知你**：CW 把「领域文档创建」外包给上游 `/domain-modeling`，只在 `domain.md` 文档化消费侧；上游改了产出文件名，引用侧不跟就静默失效。防御：凡把能力外包给外部 skill，其接口契约（产出文件名/路径）必须有本仓侧回归锁，依赖清单记录上游快照便于比对漂移。
+
+**规范新增章节要区分轴，别造同义竞争**：Merge Danger 的单向/双向门与既有 `risk-low/medium/high` 是两条不同的轴（可逆性 vs 可评审强度），混写会造出互相打架的词汇（T10 同义词轮换）。新增内容必须显式声明与既有概念的关系。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+  通过 331 · 失败 0（39 用例；用例 9 新增 2 条改名契约锁）
+  先红：模板未改前，2 条新断言全红（domain.md 仍指向 CONTEXT.md，通过 329 · 失败 2）
+
+$ bash -n / shellcheck / 占位符表 / 模板头 / 结尾换行：本地 5 项门禁全绿
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis ../contentweave
+  消费仓 4 个 · 通过 12 · 失败 0（冲突 0 / LOCAL 哨兵完整 / 覆盖数 24 一致）
+```
+
+---
+
 ## 1.12.2 — 2026-10-06
 
 ### 新增/修复
