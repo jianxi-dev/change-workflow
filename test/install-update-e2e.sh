@@ -1497,9 +1497,15 @@ rm "$B36/change/conformance.lock"
 rc=0; "$CC_SH" verify "$B36/change" >/dev/null 2>&1 || rc=$?
 ok "删 lock verify 退 3" "$rc" "3"
 
-# 36.9 PATH 去 python3 → generate 退 3
-rc=0; PATH="/bin" "$CC_SH" generate "$B36/change" >/dev/null 2>&1 || rc=$?
-ok "无 python3 generate 退 3" "$rc" "3"
+  # 36.9 PATH 去 python3 → generate 退 3
+  no_py_path=""
+  while IFS= read -r d; do
+    [[ -z "$d" ]] && continue
+    [[ -e "$d/python3" ]] && continue
+    no_py_path="${no_py_path:+$no_py_path:}$d"
+  done < <(printf '%s' "$PATH" | tr ':' '\n')
+  rc=0; PATH="$no_py_path" "$CC_SH" generate "$B36/change" >/dev/null 2>&1 || rc=$?
+  ok "无 python3 generate 退 3" "$rc" "3"
 
 cd "$CW_ROOT"
 sanitize "$B36"
