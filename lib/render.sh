@@ -287,7 +287,8 @@ cw_conf_get() {
 # 为什么不写进 manifest：manifest 的 LOCAL 行是两字段（`LOCAL  <path>`），首/次字段
 # 被既有 e2e 断言与外部解析器依赖；加成三字段会静默破坏它们。
 # 基线是「上游观测值」，与 manifest 的「本地策略标记」是两件事，独立文件也避免二者耦合。
-CW_LB_FILE=".change-workflow.local-baseline"
+# 文件名常量 `.change-workflow.local-baseline` 定义在 update.sh（唯一使用处）——
+# 定义在这里但只被外部引用会命中 shellcheck SC2034。
 
 # 读 manifest 中某路径的状态/基线（LOCAL 或内容哈希）。写法见 update.sh baseline_of。
 cw_manifest_state() {

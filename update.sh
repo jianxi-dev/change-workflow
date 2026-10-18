@@ -129,6 +129,7 @@ done
 unset _cw_key _cw_val
 
 MANIFEST=".change-workflow.manifest"
+CW_LB_FILE=".change-workflow.local-baseline"
 NEW_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
 OLD_VERSION="${TOOLKIT_VERSION:-（未知，视为 1.0.0）}"
 
