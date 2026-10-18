@@ -70,9 +70,11 @@ cw_conf_dir() {
 }
 
 # 打印 LOCAL 上游漂移告警（升级与 --check 共用，保证两条路径同一措辞）。
-# 入参：漂移行数、漂移路径列表（换行分隔）、缺基线数。
+# 入参：漂移行数、漂移路径列表（换行分隔）、缺基线数、缺基线是否已在本次升级中补写。
+# 最后一个参数必须区分：--check 只读，说「已补」是假话（红证：check 路径照抄升级路径
+# 措辞，用户会以为基线已建立，实际什么都没写）。
 cw_report_local_drift() {
-  local ndrift="$1" list="$2" nmissing="$3" p
+  local ndrift="$1" list="$2" nmissing="$3" applied="${4:-0}" p
   if [[ "$ndrift" -gt 0 ]]; then
     warn "LOCAL 文件的上游模板已更新：${ndrift} 个 —— 模板演进被「本地保留」跳过，需人工审阅移植"
     while IFS= read -r p; do
@@ -82,7 +84,11 @@ cw_report_local_drift() {
     printf '    移植后回执：./update.sh --ack-local <path>\n' >&2
   fi
   if [[ "$nmissing" -gt 0 ]]; then
-    warn "另有 ${nmissing} 个 LOCAL 文件缺基线（基线机制上线前接受）：已按当前上游补基线，请人工 diff 一次"
+    if [[ "$applied" == "1" ]]; then
+      warn "另有 ${nmissing} 个 LOCAL 文件缺基线（基线机制上线前接受）：已按当前上游补基线，请人工 diff 一次"
+    else
+      warn "另有 ${nmissing} 个 LOCAL 文件缺基线（基线机制上线前接受）：运行 ./update.sh 建立基线，并人工 diff 一次"
+    fi
   fi
 }
 
@@ -144,7 +150,7 @@ if [[ "$CHECK_ONLY" == "1" ]]; then
       _nd=$((_nd + 1)); _np="${_np}${_p}"$'\n'
     fi
   done < <(cw_local_drift_scan "$MANIFEST" "$CW_LB_FILE" "$_sk" "$_docs" "$SCRIPT_DIR")
-  cw_report_local_drift "$_nd" "$_np" "$_nm"
+  cw_report_local_drift "$_nd" "$_np" "$_nm" 0
   exit 0
 fi
 
@@ -624,7 +630,7 @@ if [[ "$BAK_CLEANED" -gt 0 ]]; then
   log "已清理冗余备份 ${BAK_CLEANED} 个（安全覆盖的 .bak，内容可由 git 追溯）"
 fi
 log "更新完成：更新 ${UPDATED} · 新增 ${ADDED} · 已最新 ${CURRENT} · 冲突 ${CONFLICTED} · 本地保留 ${LOCAL_KEPT}"
-cw_report_local_drift "$LOCAL_DRIFT_N" "$LOCAL_DRIFT_PATHS" "$LOCAL_BACKFILL_N"
+cw_report_local_drift "$LOCAL_DRIFT_N" "$LOCAL_DRIFT_PATHS" "$LOCAL_BACKFILL_N" 1
 if [[ "$CONFLICTED" -gt 0 ]]; then
   cat >&2 <<EOF
 
