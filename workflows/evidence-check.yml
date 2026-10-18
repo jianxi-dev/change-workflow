@@ -178,19 +178,20 @@ jobs:
             exit 0
           fi
 
-          # 检查断言强度标记（expect/assert + 具体值）
-          if [[ "$DIFF" == *"expect"* || "$DIFF" == *"assert"* ]]; then
+          # 检查断言强度标记：JS（expect/toBe/toEqual…）+ Python（assertEqual/assertIn…）
+          # + openspec（#### Scenario: WHEN/THEN）。纯 Python + openspec 仓不得误报。
+          if [[ "$DIFF" == *"expect"* || "$DIFF" == *"assert"* || "$DIFF" == *"Scenario"* ]]; then
             case "$DIFF" in
-              *toBe*|*toEqual*|*toContain*|*toMatch*|*toThrow*)
+              *toBe*|*toEqual*|*toContain*|*toMatch*|*toThrow*|*assertEqual*|*assertIn*|*assertTrue*|*assertFalse*|*assertLess*|*assertGreater*|*assertRegex*|*assertRaises*|*Scenario*)
                 echo "✅ spec diff 含断言强度标记"
                 ;;
               *)
-                echo "❌ spec diff 缺少断言强度标记（expect/assert + toBe/toEqual 等）"
+                echo "❌ spec diff 缺少断言强度标记（expect/assert + toBe/toEqual/assertEqual/Scenario 等）"
                 exit 1
                 ;;
             esac
           else
-            echo "❌ spec diff 缺少断言强度标记（expect/assert）"
+            echo "❌ spec diff 缺少断言强度标记（expect/assert/Scenario）"
             exit 1
           fi
 
