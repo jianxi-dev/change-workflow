@@ -1642,6 +1642,43 @@ ok "守卫含 -z 兜空串" "$(grep -c -- '-z "$PR_JSON"' scripts/pr-automation.
 cd "$CW_ROOT"
 sanitize "$B38"
 
+# ── 用例 39：LOCAL 基线漂移告警（上游模板演进不再静默跳过）────────────────────
+echo ""
+echo "[39] LOCAL 基线：上游演进告警 + --ack-local 回执"
+B39="$(mktemp -d)"; new_repo "$B39/repo" || exit 1
+cp -R "$CW_ROOT" "$B39/tk"
+write_conf "1.0.0"
+"$B39/tk/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+echo "## 本仓定制" >> docs/agents/domain.md
+set_version "0.9.0"
+"$B39/tk/update.sh" --target "$PWD" --accept-local docs/agents/domain.md >/dev/null 2>&1 || true
+ok "接受本地后写了基线" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/domain.md") c++ } END {print c+0}' .change-workflow.local-baseline)" "1"
+out39a="$("$B39/tk/update.sh" --target "$PWD" --check 2>&1 || true)"
+case "$out39a" in *"上游模板已更新"*) r39a=1 ;; *) r39a=0 ;; esac
+ok "上游未变时无告警" "$r39a" "0"
+echo "## vNEXT 上游新规则" >> "$B39/tk/docs/agents/domain.md"
+out39b="$("$B39/tk/update.sh" --target "$PWD" --check 2>&1 || true)"
+case "$out39b" in *"上游模板已更新：1 个"*) r39b=0 ;; *) r39b=1 ;; esac
+ok "--check 报 LOCAL 漂移" "$r39b" "0"
+case "$out39b" in *"--ack-local"*) r39c=0 ;; *) r39c=1 ;; esac
+ok "告警含回执指引" "$r39c" "0"
+set_version "0.9.0"
+out39c="$("$B39/tk/update.sh" --target "$PWD" 2>&1 || true)"
+case "$out39c" in *"上游模板已更新：1 个"*) r39d=0 ;; *) r39d=1 ;; esac
+ok "升级路径报同一告警" "$r39d" "0"
+ok "本地定制未被覆盖" "$(grep -c '本仓定制' docs/agents/domain.md)" "1"
+ok "上游新规则未混入" "$(grep -c 'vNEXT 上游新规则' docs/agents/domain.md)" "0"
+"$B39/tk/update.sh" --target "$PWD" --ack-local docs/agents/domain.md >/dev/null 2>&1 || true
+out39d="$("$B39/tk/update.sh" --target "$PWD" --check 2>&1 || true)"
+case "$out39d" in *"上游模板已更新"*) r39e=1 ;; *) r39e=0 ;; esac
+ok "回执后告警清除" "$r39e" "0"
+echo "## vNEXT2" >> "$B39/tk/docs/agents/domain.md"
+out39e="$("$B39/tk/update.sh" --target "$PWD" --check 2>&1 || true)"
+case "$out39e" in *"上游模板已更新：1 个"*) r39f=0 ;; *) r39f=1 ;; esac
+ok "再次演进重新告警" "$r39f" "0"
+cd "$CW_ROOT"
+sanitize "$B39"
+
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================================="
