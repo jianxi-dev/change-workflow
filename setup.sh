@@ -90,12 +90,24 @@ EFFECTIVE_DATE="$(date +%F)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 log "仓库: ${REPO}（默认分支 ${DEFAULT_BRANCH}）"
 
-PROJECT_ID="" STATUS_FIELD_ID="" OPT_BACKLOG="" OPT_READY="" OPT_IN_PROGRESS="" OPT_DONE=""
-PROJ_ID="$(gh project list --owner "$OWNER" --format json 2>/dev/null \
-  | python3 -c 'import json,sys; p=json.load(sys.stdin).get("projects",[]); print(p[0]["id"] if p else "")' 2>/dev/null || true)"
+PROJECT_ID="" PROJECT_TITLE="" PROJECT_NUMBER="" STATUS_FIELD_ID="" OPT_BACKLOG="" OPT_READY="" OPT_IN_PROGRESS="" OPT_DONE=""
+# 按 repo 名称匹配看板标题，避免多看板时盲取第一个（同 repo 多看板场景）
+PROJ_JSON="$(gh project list --owner "$OWNER" --format json 2>/dev/null || true)"
+if [[ -n "$PROJ_JSON" ]]; then
+  read -r PROJ_ID PROJ_TITLE PROJ_NUM < <(printf '%s' "$PROJ_JSON" | python3 -c '
+import json,sys
+repo=sys.argv[1]
+p=json.load(sys.stdin).get("projects",[])
+if not p: print("","",""); sys.exit()
+match=next((x for x in p if repo.lower() in x.get("title","").lower()), p[0])
+print(match["id"], match["title"], match.get("number",""))
+' "$REPO" 2>/dev/null || true)
+fi
 if [[ -n "$PROJ_ID" ]]; then
   PROJECT_ID="$PROJ_ID"
-  log "发现 Project 看板: $PROJECT_ID"
+  PROJECT_TITLE="$PROJ_TITLE"
+  PROJECT_NUMBER="$PROJ_NUM"
+  log "发现 Project 看板: ${PROJECT_TITLE} (#${PROJECT_NUMBER}, ID=${PROJECT_ID})"
   FIELDS="$(gh api graphql -f query="query { node(id: \"$PROJECT_ID\") { ... on ProjectV2 { fields(first:20){ nodes { ... on ProjectV2SingleSelectField { name id options { id name } } } } } } }" 2>/dev/null || true)"
   read -r STATUS_FIELD_ID OPT_BACKLOG OPT_READY OPT_IN_PROGRESS OPT_DONE < <(printf '%s' "$FIELDS" | python3 -c '
 import json,sys
@@ -154,6 +166,8 @@ REPO="$REPO"
 OWNER="$OWNER"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 DEFAULT_BRANCH="$DEFAULT_BRANCH"
+PROJECT_TITLE="$PROJECT_TITLE"
+PROJECT_NUMBER="$PROJECT_NUMBER"
 PROJECT_ID="$PROJECT_ID"
 STATUS_FIELD_ID="$STATUS_FIELD_ID"
 OPT_BACKLOG="$OPT_BACKLOG"

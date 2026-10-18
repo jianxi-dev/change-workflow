@@ -12,12 +12,20 @@
 #   --adopt     强制进入接管模式（用于 1.0.0 时代无基线记录的既有安装）
 #   --accept-local <path>  接受某文件的本地版本（记为新基线，此后不再报告冲突）；
 #                          可重复传入多个路径
+#   --ack-local <path>     人工移植上游改动后回执：把该 LOCAL 文件的基线推进到当前上游
+#                          模板，清除「LOCAL 文件上游已更新」告警；可重复传入多个路径
 #
 # 冲突保护:
 #   以 .change-workflow.manifest 记录的**基线哈希**判定目标文件是否被本地修改。
 #   - 未修改（current == baseline）→ 安全覆盖（备份 .bak；收尾清理冗余副本）
 #   - 已修改（current != baseline）→ 写 <file>.new 旁路文件并报告，**不覆盖**
 #   - 目标不存在（新增文件）        → 直接安装
+#
+# LOCAL 文件的上游演进（.change-workflow.local-baseline）:
+#   LOCAL 哨兵 = 本地保留、此后永久跳过 —— 上游模板怎么改都不会进来。为免静默滞后，
+#   另存「接受/回执那一刻的上游模板哈希」作基线；升级时基线 ≠ 当前上游即告警，提示
+#   人工审阅移植。移植后用 --ack-local 回执推进基线。基线缺失（旧版安装）时自动补，
+#   并提示人工 diff 一次。
 #
 # 退出码: 0 无冲突；1 存在冲突或错误（便于 CI/脚本判断）
 # =============================================================================
@@ -33,6 +41,7 @@ DRY_RUN=0
 FORCE=0
 ADOPT=0
 ACCEPT_LOCAL=()
+ACK_LOCAL=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -42,7 +51,8 @@ while [[ $# -gt 0 ]]; do
     --force)   FORCE=1; shift ;;
     --adopt)   ADOPT=1; shift ;;
     --accept-local) ACCEPT_LOCAL+=("$2"); shift 2 ;;
-    --help|-h) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --ack-local)    ACK_LOCAL+=("$2"); shift 2 ;;
+    --help|-h) sed -n '2,31p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "未知参数: $1" >&2; exit 1 ;;
   esac
 done
@@ -50,6 +60,37 @@ done
 log()  { echo "==> $*"; }
 warn() { echo "⚠️  $*" >&2; }
 act()  { if [[ "$DRY_RUN" == "1" ]]; then echo "    [dry-run] $*"; else "$@"; fi; }
+
+# 从 conf 取目录键（缺失回退默认值）。--check / --accept-local / --ack-local 都在下方
+# 「共用默认值解析」块之前执行，拿不到那里的 SKILLS_DIR/DOCS_DIR，故各自取一次。
+cw_conf_dir() {
+  local v
+  v="$(cw_conf_get "$CONF" "$1" 2>/dev/null || true)"
+  printf '%s\n' "${v:-$2}"
+}
+
+# 打印 LOCAL 上游漂移告警（升级与 --check 共用，保证两条路径同一措辞）。
+# 入参：漂移行数、漂移路径列表（换行分隔）、缺基线数、缺基线是否已在本次升级中补写。
+# 最后一个参数必须区分：--check 只读，说「已补」是假话（红证：check 路径照抄升级路径
+# 措辞，用户会以为基线已建立，实际什么都没写）。
+cw_report_local_drift() {
+  local ndrift="$1" list="$2" nmissing="$3" applied="${4:-0}" p
+  if [[ "$ndrift" -gt 0 ]]; then
+    warn "LOCAL 文件的上游模板已更新：${ndrift} 个 —— 模板演进被「本地保留」跳过，需人工审阅移植"
+    while IFS= read -r p; do
+      [[ -n "$p" ]] || continue
+      printf '    %s\n' "$p" >&2
+    done <<< "$list"
+    printf '    移植后回执：./update.sh --ack-local <path>\n' >&2
+  fi
+  if [[ "$nmissing" -gt 0 ]]; then
+    if [[ "$applied" == "1" ]]; then
+      warn "另有 ${nmissing} 个 LOCAL 文件缺基线（基线机制上线前接受）：已按当前上游补基线，请人工 diff 一次"
+    else
+      warn "另有 ${nmissing} 个 LOCAL 文件缺基线（基线机制上线前接受）：运行 ./update.sh 建立基线，并人工 diff 一次"
+    fi
+  fi
+}
 
 # 校验安装目录是仓库内相对路径（不含 ..）：SKILLS_DIR/DOCS_DIR 会拼进受管文件目标路径，
 # 若被填成绝对路径或带 .. 的路径，会把文件装到仓库外（B1）。
@@ -80,7 +121,7 @@ CONF=".change-workflow.conf"
 # source 会把 `TOOLKIT_SOURCE="$(touch /tmp/pwned; echo x)"` 这类值当命令执行。
 # 只读白名单内的 15 个键，其余键（TOOLKIT_SOURCE/CHANGE_WORKFLOW_HOME/LABEL_* 等）不读不写。
 for _cw_key in TOOLKIT_VERSION EFFECTIVE_DATE REPO_ROOT REPO OWNER DEFAULT_BRANCH \
-               SKILLS_DIR DOCS_DIR APP_DIR PROJECT_ID STATUS_FIELD_ID \
+               SKILLS_DIR DOCS_DIR APP_DIR PROJECT_TITLE PROJECT_NUMBER PROJECT_ID STATUS_FIELD_ID \
                OPT_BACKLOG OPT_READY OPT_IN_PROGRESS OPT_DONE; do
   _cw_val="$(cw_conf_get "$CONF" "$_cw_key")" || _cw_val=""
   printf -v "$_cw_key" '%s' "$_cw_val"
@@ -88,17 +129,29 @@ done
 unset _cw_key _cw_val
 
 MANIFEST=".change-workflow.manifest"
+CW_LB_FILE=".change-workflow.local-baseline"
 NEW_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
 OLD_VERSION="${TOOLKIT_VERSION:-（未知，视为 1.0.0）}"
 
 log "工具包版本：${OLD_VERSION} → ${NEW_VERSION}"
 if [[ "$OLD_VERSION" == "$NEW_VERSION" ]]; then
   log "已是最新版本，无需更新"
-  [[ "$CHECK_ONLY" == "1" ]] && exit 0
 fi
 
 if [[ "$CHECK_ONLY" == "1" ]]; then
   [[ "$OLD_VERSION" == "$NEW_VERSION" ]] || log "有新版本可用：运行 ./update.sh 进行更新"
+  _sk="$(cw_conf_dir SKILLS_DIR .opencode/skills)"
+  _docs="$(cw_conf_dir DOCS_DIR docs/agents)"
+  _nd=0; _np=""; _nm=0
+  while IFS='|' read -r _p _b _c; do
+    [[ -n "$_p" ]] || continue
+    if [[ -z "$_b" ]]; then
+      _nm=$((_nm + 1))
+    elif [[ "$_b" != "$_c" ]]; then
+      _nd=$((_nd + 1)); _np="${_np}${_p}"$'\n'
+    fi
+  done < <(cw_local_drift_scan "$MANIFEST" "$CW_LB_FILE" "$_sk" "$_docs" "$SCRIPT_DIR")
+  cw_report_local_drift "$_nd" "$_np" "$_nm" 0
   exit 0
 fi
 
@@ -130,6 +183,8 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
   # C2 边界。红证：manifest 为符号链接时本路径原本 rc=0 放行 —— 同卷 mv 以 rename 替换
   # 链接（链接被销毁），跨卷 mv 退化为复制+删除则直接经链接写穿仓外目标。
   cw_refuse_symlink "$MANIFEST" "基线清单"
+  _sk="$(cw_conf_dir SKILLS_DIR .opencode/skills)"
+  _docs="$(cw_conf_dir DOCS_DIR docs/agents)"
   accepted=0
   for p in "${ACCEPT_LOCAL[@]}"; do
     # 路径归一：剥「./」前缀（与 pr-automation.sh 的 in_files 同款）。manifest 键与受管清单
@@ -151,10 +206,47 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
     # 的 manifest 写同构；红证：accept-local 一次后 manifest 644→600（rc=0 静默）。
     cw_tmp_mode_for "$tmp_manifest" "$MANIFEST"
     mv "$tmp_manifest" "$MANIFEST"
+    # 记上游基线：该文件此后永久跳过，基线是「上游模板是否演进」的唯一信号源。
+    _tpl="$(cw_tpl_for_dst "$SCRIPT_DIR" "$p" "$_sk" "$_docs" || true)"
+    if [[ -n "$_tpl" && -f "$_tpl" ]]; then
+      cw_refuse_symlink "$CW_LB_FILE" "LOCAL 基线文件"
+      cw_lb_set "$CW_LB_FILE" "$p" "$(cw_sha "$_tpl")"
+    else
+      warn "无法定位上游模板，未记 LOCAL 基线（该文件的上游演进将不会被提示）：${p}"
+    fi
     log "已接受本地版本（此后永久跳过）：${p}"
     accepted=$((accepted + 1))
   done
   log "完成：接受 ${accepted} 个文件；再次运行 ./update.sh 应归一（退出码 0）"
+  exit 0
+fi
+
+# --- 回执本地基线：人工移植上游改动后推进基线，清除漂移告警 --------------------
+# 与 --accept-local 的区别：accept-local 是「我决定保留本地、不看上游」；ack-local 是
+# 「我已看过上游的这次改动并移植完毕」——同一基线写入，语义不同，故独立子命令而非
+# 让用户重复 accept-local（后者会掩盖「还没看过」的状态）。
+if [[ "${#ACK_LOCAL[@]}" -gt 0 ]]; then
+  _sk="$(cw_conf_dir SKILLS_DIR .opencode/skills)"
+  _docs="$(cw_conf_dir DOCS_DIR docs/agents)"
+  acked=0
+  for p in "${ACK_LOCAL[@]}"; do
+    p="${p#./}"
+    _tpl="$(cw_tpl_for_dst "$SCRIPT_DIR" "$p" "$_sk" "$_docs" || true)"
+    if [[ -z "$_tpl" || ! -f "$_tpl" ]]; then
+      warn "跳过（无法定位上游模板，或不是受管文件）：${p}"; continue
+    fi
+    _old="$(cw_lb_get "$CW_LB_FILE" "$p")"
+    _new="$(cw_sha "$_tpl")"
+    if [[ "$DRY_RUN" == "1" ]]; then
+      log "[dry-run] 将更新基线：${p}  ${_old:-（无）} → ${_new}"
+      continue
+    fi
+    cw_refuse_symlink "$CW_LB_FILE" "LOCAL 基线文件"
+    cw_lb_set "$CW_LB_FILE" "$p" "$_new"
+    log "已更新基线：${p}  ${_old:-（无）} → ${_new}"
+    acked=$((acked + 1))
+  done
+  log "完成：回执 ${acked} 个文件"
   exit 0
 fi
 
@@ -338,6 +430,7 @@ baseline_of() {
 }
 
 UPDATED=0; ADDED=0; CURRENT=0; CONFLICTED=0; LOCAL_KEPT=0; BAK_CLEANED=0
+LOCAL_DRIFT_N=0; LOCAL_DRIFT_PATHS=""; LOCAL_BACKFILL_N=0
 CONFLICT_LIST=()
 # --force 覆盖过的文件清单：force = 用户显式采用上游，基线必须归一为当前内容哈希。
 # 红证：LOCAL 文件被 --force 覆盖后 manifest 仍是 LOCAL，下次模板演进时该文件被
@@ -503,6 +596,18 @@ if [[ "$DRY_RUN" != "1" ]]; then
   mv "$_mft_tmp" "$MANIFEST"
   rm -f "$OLD_BASELINES"
 
+  # LOCAL 基线：manifest 重写后 LOCAL 状态已定，此时补缺（旧版安装）并收集上游漂移。
+  while IFS='|' read -r _p _b _c; do
+    [[ -n "$_p" ]] || continue
+    if [[ -z "$_b" ]]; then
+      cw_refuse_symlink "$CW_LB_FILE" "LOCAL 基线文件"
+      cw_lb_set "$CW_LB_FILE" "$_p" "$_c"
+      LOCAL_BACKFILL_N=$((LOCAL_BACKFILL_N + 1))
+    elif [[ "$_b" != "$_c" ]]; then
+      LOCAL_DRIFT_N=$((LOCAL_DRIFT_N + 1)); LOCAL_DRIFT_PATHS="${LOCAL_DRIFT_PATHS}${_p}"$'\n'
+    fi
+  done < <(cw_local_drift_scan "$MANIFEST" "$CW_LB_FILE" "$SKILLS_DIR" "$DOCS_DIR" "$SCRIPT_DIR")
+
   if grep -q '^TOOLKIT_VERSION=' "$CONF"; then
     sed -i.cw-tmp "s|^TOOLKIT_VERSION=.*|TOOLKIT_VERSION=\"$NEW_VERSION\"|" "$CONF" && rm -f "$CONF.cw-tmp"
   else
@@ -526,6 +631,7 @@ if [[ "$BAK_CLEANED" -gt 0 ]]; then
   log "已清理冗余备份 ${BAK_CLEANED} 个（安全覆盖的 .bak，内容可由 git 追溯）"
 fi
 log "更新完成：更新 ${UPDATED} · 新增 ${ADDED} · 已最新 ${CURRENT} · 冲突 ${CONFLICTED} · 本地保留 ${LOCAL_KEPT}"
+cw_report_local_drift "$LOCAL_DRIFT_N" "$LOCAL_DRIFT_PATHS" "$LOCAL_BACKFILL_N" 1
 if [[ "$CONFLICTED" -gt 0 ]]; then
   cat >&2 <<EOF
 
@@ -546,7 +652,8 @@ cat <<EOF
 后续：
   1. 检查变更：git diff
   2. 提交：只显式添加本次升级触碰的文件（受管文件 + .change-workflow.conf +
-     .change-workflow.manifest）。**禁止 git add -A** —— 白名单提交是仓库约定，
+     .change-workflow.manifest + .change-workflow.local-baseline（若存在））。
+     **禁止 git add -A** —— 白名单提交是仓库约定，
      防止把你未完成的 WIP 一并卷进升级提交。
   3. 开 PR 合并
 EOF

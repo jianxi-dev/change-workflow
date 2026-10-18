@@ -36,6 +36,8 @@ cw_substitute() {
     out="${out//\{\{DEFAULT_BRANCH\}\}/${DEFAULT_BRANCH:-main}}"
     out="${out//\{\{REPO_ROOT\}\}/${REPO_ROOT:-}}"
     out="${out//\{\{EFFECTIVE_DATE\}\}/${EFFECTIVE_DATE:-}}"
+    out="${out//\{\{PROJECT_TITLE\}\}/${PROJECT_TITLE:-}}"
+    out="${out//\{\{PROJECT_NUMBER\}\}/${PROJECT_NUMBER:-}}"
     out="${out//\{\{PROJECT_ID\}\}/${PROJECT_ID:-}}"
     out="${out//\{\{STATUS_FIELD_ID\}\}/${STATUS_FIELD_ID:-}}"
     out="${out//\{\{OPT_BACKLOG\}\}/${OPT_BACKLOG:-}}"
@@ -274,5 +276,73 @@ cw_conf_get() {
     printf '%s\n' "$v"
     return 0
   done < "$file"
+  return 1
+}
+
+# ---- LOCAL 基线：把「模板演进被静默跳过」变成可执行告警 ----------------------
+# LOCAL 哨兵 = 本地保留、永久跳过。此后上游模板怎么改，消费仓都**静默**停在旧版
+# （本工具包 e2e 用例 11 的边缘即此）。记下「接受/回执那一刻的上游模板哈希」，
+# 升级时一比即可报告「哪个 LOCAL 文件的上游已更新，需人工审阅移植」。
+#
+# 为什么不写进 manifest：manifest 的 LOCAL 行是两字段（`LOCAL  <path>`），首/次字段
+# 被既有 e2e 断言与外部解析器依赖；加成三字段会静默破坏它们。
+# 基线是「上游观测值」，与 manifest 的「本地策略标记」是两件事，独立文件也避免二者耦合。
+# 文件名常量 `.change-workflow.local-baseline` 定义在 update.sh（唯一使用处）——
+# 定义在这里但只被外部引用会命中 shellcheck SC2034。
+
+# 读 manifest 中某路径的状态/基线（LOCAL 或内容哈希）。写法见 update.sh baseline_of。
+cw_manifest_state() {
+  local manifest="$1" p="$2"
+  [[ -f "$manifest" ]] || return 0
+  CW_P="$p" awk '{ sha=$1; rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == ENVIRON["CW_P"]) { print sha; exit } }' "$manifest"
+}
+
+cw_lb_get() {
+  local file="$1" p="$2"
+  [[ -f "$file" ]] || return 0
+  CW_P="$p" awk '{ sha=$1; rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest == ENVIRON["CW_P"]) { print sha; exit } }' "$file"
+}
+
+# 写/更新某路径的基线（原子替换 + 模式保持，与 manifest 写同构）。
+cw_lb_set() {
+  local file="$1" p="$2" sha="$3" tmp
+  tmp="$(mktemp)"
+  if [[ -f "$file" ]]; then
+    CW_P="$p" awk '{ rest=$0; sub(/\r$/, "", rest); sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest != ENVIRON["CW_P"]) print }' "$file" > "$tmp"
+  fi
+  printf '%s  %s\n' "$sha" "$p" >> "$tmp"
+  cw_tmp_mode_for "$tmp" "$file"
+  mv "$tmp" "$file"
+}
+
+# 扫描受管文件：manifest 状态为 LOCAL 者输出 `<dst>|<基线>|<当前上游模板哈希>`。
+# 基线为空 = 基线机制上线前就接受的 LOCAL，需补基线并人工 diff 一次（调用方处理）。
+cw_local_drift_scan() {
+  local manifest="$1" lbfile="$2" sk="$3" docs="$4" tkit="$5"
+  local tpl_rel dst_rel dst tpl state base cur
+  while IFS='|' read -r tpl_rel dst_rel; do
+    [[ -n "$tpl_rel" ]] || continue
+    dst="${dst_rel/__SKILLS_DIR__/$sk}"
+    dst="${dst/__DOCS_DIR__/$docs}"
+    [[ -f "$dst" ]] || continue
+    state="$(cw_manifest_state "$manifest" "$dst")"
+    [[ "$state" == "LOCAL" ]] || continue
+    tpl="$tkit/$tpl_rel"
+    [[ -f "$tpl" ]] || continue
+    base="$(cw_lb_get "$lbfile" "$dst")"
+    cur="$(cw_sha "$tpl")"
+    printf '%s|%s|%s\n' "$dst" "$base" "$cur"
+  done < <(cw_list_files)
+}
+
+# 目标路径 → 对应上游模板绝对路径。找不到返回 1。
+cw_tpl_for_dst() {
+  local tkit="$1" want="$2" sk="$3" docs="$4"
+  local tr dr d
+  while IFS='|' read -r tr dr; do
+    d="${dr/__SKILLS_DIR__/$sk}"
+    d="${d/__DOCS_DIR__/$docs}"
+    if [[ "$d" == "$want" ]]; then printf '%s\n' "$tkit/$tr"; return 0; fi
+  done < <(cw_list_files)
   return 1
 }
