@@ -1498,13 +1498,24 @@ rc=0; "$CC_SH" verify "$B36/change" >/dev/null 2>&1 || rc=$?
 ok "删 lock verify 退 3" "$rc" "3"
 
   # 36.9 PATH 去 python3 → generate 退 3
-  no_py_path=""
-  while IFS= read -r d; do
-    [[ -z "$d" ]] && continue
-    [[ -e "$d/python3" ]] && continue
-    no_py_path="${no_py_path:+$no_py_path:}$d"
-  done < <(printf '%s' "$PATH" | tr ':' '\n')
-  rc=0; PATH="$no_py_path" "$CC_SH" generate "$B36/change" >/dev/null 2>&1 || rc=$?
+  # 不能整目录剔除「含 python3 的 PATH 项」：Ubuntu 上 /usr/bin 既有 python3 也有
+  # mktemp/awk/grep/sha256sum —— 整目录剔掉会让脚本以 127（command not found）退出，
+  # 测到的是「工具全没了」而不是「python3 缺失」（CI 红证：实际=127 期望=3）。
+  # 正解：建一个 shim 目录，把原 PATH 里**除 python3* 以外**的可执行文件全部软链进去。
+  no_py_shim="$B36/nopy-bin"
+  mkdir -p "$no_py_shim"
+  _old_ifs="$IFS"; IFS=':'
+  for _d in $PATH; do
+    [[ -d "$_d" ]] || continue
+    for _f in "$_d"/*; do
+      _b="${_f##*/}"
+      case "$_b" in python3*|python) continue ;; esac
+      [[ -x "$_f" ]] || continue
+      ln -sf "$_f" "$no_py_shim/$_b" 2>/dev/null || true
+    done
+  done
+  IFS="$_old_ifs"
+  rc=0; PATH="$no_py_shim" "$CC_SH" generate "$B36/change" >/dev/null 2>&1 || rc=$?
   ok "无 python3 generate 退 3" "$rc" "3"
 
 cd "$CW_ROOT"
