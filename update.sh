@@ -80,7 +80,7 @@ CONF=".change-workflow.conf"
 # source 会把 `TOOLKIT_SOURCE="$(touch /tmp/pwned; echo x)"` 这类值当命令执行。
 # 只读白名单内的 15 个键，其余键（TOOLKIT_SOURCE/CHANGE_WORKFLOW_HOME/LABEL_* 等）不读不写。
 for _cw_key in TOOLKIT_VERSION EFFECTIVE_DATE REPO_ROOT REPO OWNER DEFAULT_BRANCH \
-               SKILLS_DIR DOCS_DIR APP_DIR PROJECT_ID STATUS_FIELD_ID \
+               SKILLS_DIR DOCS_DIR APP_DIR PROJECT_TITLE PROJECT_NUMBER PROJECT_ID STATUS_FIELD_ID \
                OPT_BACKLOG OPT_READY OPT_IN_PROGRESS OPT_DONE; do
   _cw_val="$(cw_conf_get "$CONF" "$_cw_key")" || _cw_val=""
   printf -v "$_cw_key" '%s' "$_cw_val"

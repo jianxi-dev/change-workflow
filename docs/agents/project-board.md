@@ -1,6 +1,6 @@
 <!-- change-workflow 工具包模板 —— 由 setup.sh 安装到目标项目 docs/agents/。
      示例值（模块列表 / 看板 ID / 质量门禁命令）请按目标项目调整；
-     占位符 {{REPO}} / {{PROJECT_ID}} / {{STATUS_FIELD_ID}} / {{OPT_*}} 由 setup.sh 自动替换。 -->
+     占位符 {{REPO}} / {{PROJECT_TITLE}} / {{PROJECT_NUMBER}} / {{PROJECT_ID}} / {{STATUS_FIELD_ID}} / {{OPT_*}} 由 setup.sh 自动替换。 -->
 
 # 完成跟踪看板(GitHub Projects)
 
@@ -9,7 +9,7 @@
 
 ## 看板信息
 
-- 看板：**MD-Bundle 开发看板** → https://github.com/orgs/{{OWNER}}/projects/1
+- 看板：**{{PROJECT_TITLE}}** → https://github.com/orgs/{{OWNER}}/projects/{{PROJECT_NUMBER}}
 - Project ID（GraphQL）：`{{PROJECT_ID}}`
 - Status 字段 ID：`{{STATUS_FIELD_ID}}`
 - 列（Status 单选项）：`Backlog`(GRAY) / `Ready`(BLUE) / `In Progress`(YELLOW) / `Done`(GREEN)

@@ -36,6 +36,8 @@ cw_substitute() {
     out="${out//\{\{DEFAULT_BRANCH\}\}/${DEFAULT_BRANCH:-main}}"
     out="${out//\{\{REPO_ROOT\}\}/${REPO_ROOT:-}}"
     out="${out//\{\{EFFECTIVE_DATE\}\}/${EFFECTIVE_DATE:-}}"
+    out="${out//\{\{PROJECT_TITLE\}\}/${PROJECT_TITLE:-}}"
+    out="${out//\{\{PROJECT_NUMBER\}\}/${PROJECT_NUMBER:-}}"
     out="${out//\{\{PROJECT_ID\}\}/${PROJECT_ID:-}}"
     out="${out//\{\{STATUS_FIELD_ID\}\}/${STATUS_FIELD_ID:-}}"
     out="${out//\{\{OPT_BACKLOG\}\}/${OPT_BACKLOG:-}}"
