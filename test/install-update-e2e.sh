@@ -94,7 +94,7 @@ ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y
 ok "docs 模式 644" "$(fmode docs/agents/domain.md)" "644"
 ok "脚本模式 755" "$(fmode scripts/cw-evidence.sh)" "755"
 ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
-ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "25"
+ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "27"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
 # 回归锁（2026-09-27 反转）：pr-automation.sh auto-merge 重新分档——high 不自动合并，
@@ -164,7 +164,7 @@ echo "[2] 幂等（版本回退后重跑）"
 set_version "1.0.0"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out2" in *"已最新 25"*) r2=0 ;; *) r2=1 ;; esac
+case "$out2" in *"已最新 27"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
 # ── 用例 3：本地修改 → 冲突 ──────────────────────────────────────────────────
@@ -250,8 +250,8 @@ ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
 ok "cw-tickets-check 可执行" "$([[ -x scripts/cw-tickets-check.sh ]] && echo y)" "y"
 ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y"
-# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 25 - 3 = 22
-ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "22"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 27 - 3 = 24
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "24"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
@@ -424,7 +424,7 @@ ok "缺失+LOCAL 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo 
 ok "缺失+LOCAL 真实更新计本地保留" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "1"
 ok "缺失+LOCAL kept==^LOCAL" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11l="$(printf '%s' "$out11l" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL 五桶和==25" "$(( ${m11l:-0} ))" "25"
+ok "缺失+LOCAL 五桶和==27" "$(( ${m11l:-0} ))" "27"
 # 对抗轮7 回归锁：缺失 + LOCAL 哨兵 + --force —— force 优先于 LOCAL 哨兵（与等值/差异路径
 # 同原则），缺失分支必须归一：计 ADDED + 记 FORCED_LIST → manifest 重写走哈希归一分支。
 # 旧缺陷：缺失分支无 force 分流 → --force 仍走 LOCAL 保留分支 → 文件被「本地保留」永久
@@ -438,8 +438,38 @@ ok "缺失+LOCAL force 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] &&
 ok "缺失+LOCAL force 哨兵归一" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/pr-writing.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
 ok "缺失+LOCAL force kept==^LOCAL" "$(printf '%s' "$out11n" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11n="$(printf '%s' "$out11n" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL force 五桶和==25" "$(( ${m11n:-0} ))" "25"
+ok "缺失+LOCAL force 五桶和==27" "$(( ${m11n:-0} ))" "27"
 sanitize "$B5"
+
+# P3 回归锁（1.13.1）：.new 里用户未合并的草稿不得被静默覆盖 —— 覆盖前必须备份 .new.bak。
+# 红证：echo MERGE-DRAFT > x.new → 再升级 → x.new 被新版覆盖且无备份，草稿丢失。
+echo ""
+echo "[11b] P3 回归：.new 草稿覆盖前备份"
+B5N="$(mktemp -d)"; new_repo "$B5N/repo" || exit 1
+cd "$B5N/repo"
+write_conf "0.0.1"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+echo "## local-edit" >> docs/agents/pr-writing.md
+set_version "0.0.1"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+ls docs/agents/pr-writing.md.new >/dev/null 2>&1 || { echo "前置失败：未产生 .new"; exit 1; }
+echo "MERGE-DRAFT-MARKER-7f3a" >> docs/agents/pr-writing.md.new
+set_version "0.0.1"
+rc11p=0; out11p="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1)" || rc11p=$?
+ok "草稿场景冲突退 1" "$rc11p" "1"
+# .new 被新版覆盖（预期），但旧内容必须先落 .new.bak
+case "$out11p" in *"已备份为 docs/agents/pr-writing.md.new.bak"*) r11p=0 ;; *) r11p=1 ;; esac
+ok "覆盖前提示已备份" "$r11p" "0"
+ok "草稿在 .new.bak" "$(grep -c 'MERGE-DRAFT-MARKER-7f3a' docs/agents/pr-writing.md.new.bak)" "1"
+ok "草稿不在新 .new" "$(grep -c 'MERGE-DRAFT-MARKER-7f3a' docs/agents/pr-writing.md.new)" "0"
+# 等值 .new（内容与新版相同）→ 不产生冗余备份
+set_version "0.0.1"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true   # 重新生成 .new（等于新版）
+set_version "0.0.1"
+"$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
+ok "等值 .new 不重复备份" "$([[ -f docs/agents/pr-writing.md.new.bak ]] && echo y || echo n)" "y"   # 首个备份仍留存
+ok "等值 .new 无第二备份" "$([[ -f docs/agents/pr-writing.md.new.bak.bak ]] && echo y || echo n)" "n"
+sanitize "$B5N"
 
 # ── 用例 12：项目自升级 cw-update.sh ─────────────────────────────────────────
 echo ""
@@ -552,7 +582,7 @@ B8="$(mktemp -d)"
 CLEAN="$B8/clean"; new_repo "$CLEAN" || exit 1
 write_conf "1.0.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
-ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "25"
+ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "27"
 
 rc14a=0; out14a="$("$CW_ROOT/test/rollout-check.sh" "$CLEAN" 2>&1)" || rc14a=$?
 ok "干净仓退出码" "$rc14a" "0"
@@ -768,7 +798,7 @@ case "$out19" in *"无基线记录"*) r19=1 ;; *) r19=0 ;; esac
 ok "无「无基线记录」误报" "$r19" "0"
 set_version "1.0.0"
 out19b="$("$B13/tk2/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out19b" in *"已最新 25"*) r19b=0 ;; *) r19b=1 ;; esac
+case "$out19b" in *"已最新 27"*) r19b=0 ;; *) r19b=1 ;; esac
 ok "二次运行已最新" "$r19b" "0"
 # --accept-local 对空格路径生效：本地修改 → 冲突 → 接受 → 归一且哨兵粘住
 echo "## 本地定制" >> "My Docs/triage-labels.md"
