@@ -1,3 +1,43 @@
+## 1.13.0 — 2026-10-25
+
+### 新增/修复
+
+**1. 运行时冒烟门禁（UI 票交付面第 7 类证据）**
+
+- 新增受管脚本 `scripts/test_runtime_smoke.py`：headless Chrome + CDP（纯标准库最小 WS 客户端，无 websocket-client/selenium 依赖，PEP 668 环境友好）打开本地渲染页，检查控制台零异常 + `[data-chart]`/`[data-illustration]` 容器非空。exit 0=过 / 1=失败 / 3=无 Chrome 降级。
+- 已内置红端/绿端配对 fixture（`test_runtime_smoke_fixture{,_good}.html`），自检即用例。
+- 背景事故：静态快照逐字节一致但页面空白——JS 运行时异常中断图表挂载，qa_html 不执行 JS 永远拦不住。
+- 受管文件 24 → 25（`cw_list_files` 新增一项）。
+
+**2. 证据规范新增「运行时态」（§3.0，UI 票强制）**
+
+- `docs/agents/evidence-capture.md`：6 类 → 7 类证据。UI 票 QG-5 证据至少含一项运行时证据（运行时截图/计算样式/控制台+挂载探针输出）。附 `file://` 被拒、须起 `http.server` 的环境约束说明。
+- 同步 AGENTS.md 索引与 SKILL.md G1 出口描述。
+
+**3. PR 风险分档：medium 自动合并，high 人工**
+
+- `scripts/pr-automation.sh`：risk-low/medium 尝试 auto-merge；risk-high 打印人工合并指引，不再静默落库（1.12.x 的「全风险尝试」语义反转，回归锁同步改写：旧锁断言「无分档」，新锁断言 high 有分档）。
+
+**4. evidence-check 断言强度误判修复（二选一判据）**
+
+- `workflows/evidence-check.yml`：纯修复 PR 不再因「diff 无 assertEqual」恒红——diff 含测试文件变更 → 照走强度检查；否则 PR 正文含原始输出代码块（QG-5 证据块）→ 免检放行；两者皆无 → 才判红。
+
+### 教训反思
+
+**快照一致 ≠ 页面正确**：字节级快照对「JS 是否真的跑起来」是盲的。凡是「产物 → 浏览器」的交付链，门禁必须至少有一环执行 JS——哪怕是七十行的 stdlib WS 探针。另外 `grep -r` 门禁会被 `__pycache__/*.pyc` 缓存投毒（调试时 import 脚本把二进制缓存留在受管目录，命中禁串误红）：探针脚本自清缓存或门禁排除 `__pycache__`。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+通过 341 · 失败 0 · 全部通过 ✅（用例 1/37/38 计数 24→25；回归锁重写 +2 断言）
+
+$ python3 scripts/test_runtime_smoke.py scripts/test_runtime_smoke_fixture_good.html
+✅ 控制台零异常 + 组件渲染完整 → PASS (exit 0)
+$ python3 scripts/test_runtime_smoke.py scripts/test_runtime_smoke_fixture.html
+❌ 1 个容器为空 → FAIL (exit 1)   # 红端配对
+```
+
 ## 1.12.5 — 2026-10-18
 
 ### 新增/修复

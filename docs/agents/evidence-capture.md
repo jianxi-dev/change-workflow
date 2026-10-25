@@ -13,7 +13,7 @@
 > 生效日期：{{EFFECTIVE_DATE}}
 > 配套：`docs/agents/quality-gates.md`（QG-5 / DQ-3 / DQ-5 定义）、`docs/agents/defect-workflow.md`（缺陷闭环）、`.opencode/skills/change-workflow/SKILL.md`（G0-G4 gate 编排——本文件的挂载点）
 
-本规范定义**证据分层协议**、**6 类证据规范**与**探针形态约定**，每条规则固定四段：规则 / 理由 / 实证案例 / 如何验证。
+本规范定义**证据分层协议**、**7 类证据规范**与**探针形态约定**，每条规则固定四段：规则 / 理由 / 实证案例 / 如何验证。
 
 ---
 
@@ -60,7 +60,39 @@ gh issue view <票号> --json body --jq .body | grep -iE "before|after|修复前
 
 ---
 
-## 三、6 类证据规范
+## 三、7 类证据规范
+
+### 3.0 运行时态（UI 票强制——静态产物无法替代）
+
+#### 规则
+
+UI 票的 QG-5 证据**至少包含一项运行时证据**：运行时截图、计算样式输出、或控制台零异常 + 组件挂载探针输出。仅静态产物（DOM 快照、字节 diff）不满足 UI 票的证据要求。
+
+采集方式：
+
+- **自动**：`python3 scripts/test_runtime_smoke.py <页面.html>` —— headless Chrome 打开本地渲染页，检查控制台零异常 + `[data-chart]`/`[data-illustration]` 容器非空。exit 0=过 / 1=失败 / 3=环境无 Chrome（降级记录，不得静默放行，见 §七）。
+- **人工复核**：`bsk`（browser-skill）打开渲染页 + `screenshot` / `console` / `evaluate` 读计算样式。适合合并前最后一道实看。
+
+**环境约束**：Chrome 拒绝 `file://` 导航（`Navigating to local URL is not allowed`）。本地页面验证须先起静态服务：`python3 -m http.server 8899 --directory <页面目录>`，再访问 `http://127.0.0.1:8899/<页面>`。`test_runtime_smoke.py` 已内置此服务，无需手工。
+
+#### 理由
+
+静态产物只比字节，不执行 JS。两类事故静态检查全漏：① 运行时异常中断渲染（#647 类：脚本抛 TypeError，快照只见空容器）；② 插画/图表组件未挂载（静态产物只有空容器，字节一致但页面空白）。「快照一致」≠「页面正确」。
+
+#### 实证案例
+
+某渲染产物快照逐字节一致，交付后页面空白——JS 在运行时抛异常中断了图表挂载。qa_html 不执行 JS，快照 diff 永远绿。补运行时冒烟后同类缺陷在 CMD_TEST 内即拦。
+
+#### 如何验证
+
+```bash
+python3 scripts/test_runtime_smoke.py .artifacts/<task-name>/render.html
+# 期望：exit 0，输出「控制台零异常 + 组件渲染完整」
+```
+
+**产出**：探针 stdout（含容器计数与异常列表）贴票/PR verification 段；运行时截图存 `.artifacts/<task>/runtime/`。
+
+---
 
 ### 3.1 视频录制（UI 多步流程）
 
@@ -334,8 +366,9 @@ gh issue view <票号> --json body --jq .body | grep -E "原始输出|before|aft
 
 本规范是 QG-5 的**证据采集层**。QG-5 要求「验证者自己的探针的原始输出粘贴到票上」，本规范定义**如何采集这些原始输出**：
 
-- 验证者须按 §三 的 6 类规范之一采集证据（视频/截图/测量数字/transcript/headless/视觉探针）
+- 验证者须按 §三 的 7 类规范之一采集证据（运行时态/视频/截图/测量数字/transcript/headless/视觉探针）
 - 证据须包含 before/after 成对（§二）
+- **UI 票须含运行时态证据**（§3.0：运行时截图、计算样式输出、或控制台+挂载探针输出，至少一项）
 - 交互类 UI 变更须含**状态覆盖矩阵**（§3.2.1，≥4 态 + `state-coverage.json`）与**视觉探针**（§3.6）
 - 视频/截图/测量数字/transcript 摘录/视觉探针复核记录须粘贴到票上
 

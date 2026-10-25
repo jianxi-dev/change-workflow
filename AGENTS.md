@@ -54,7 +54,7 @@ LSP 不可用（bash server 未安装）、无 codegraph → 下表 Refs 为**�
 
 | Symbol | Type | Location | Refs | Role |
 |---|---|---|---|---|
-| `cw_list_files` | fn | `lib/render.sh:153` | 11 | 20 个受管文件的**唯一清单**（8 硬编码 + 12 docs glob；globs 在 `:162-168`，跳过 `AGENTS.md`） |
+| `cw_list_files` | fn | `lib/render.sh:153` | 11 | 25 个受管文件的**唯一清单**（13 硬编码 + 12 docs glob；跳过 `AGENTS.md`） |
 | `cw_render` | fn | `lib/render.sh:90` | 11 | 模板 → 目标文件（剥头 + 替换占位符） |
 | `cw_sha` | fn | `lib/render.sh:108` | 9 | sha256（macOS/Linux 双实现） |
 | `cw_substitute` | fn | `lib/render.sh:29` | 2 | 占位符替换表 |

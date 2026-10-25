@@ -127,7 +127,7 @@ flowchart TB
 | `code-review` | G1 出口·步骤 1 | 必调（每任务后） | 双轴自审（Standards 代码规范 + Spec 需求符合，并行防互相掩盖）；通过才允许 commit |
 | `review` | G1 出口·步骤 2 | 条件调（risk-medium/high） | pre-landing 结构审查（SQL 安全/LLM trust boundary/条件副作用/scope drift）；risk-low 跳过 |
 | `quality-gates`（规范，非 skill） | **G0 切片 + G1 出口 + G2 前置 + G4 收尾前置** | 必读（`docs/agents/quality-gates.md`） | QG-1..QG-8 八条硬门禁定义：QG-7 挂 G0 切片、QG-1/QG-3 挂 G0 拆票、QG-2/QG-4/QG-5 挂 G1 出口、QG-6 挂 G1 循环、QG-8 挂 G4 收尾前置 |
-| `evidence-capture`（规范，非 skill） | **G1 出口·QG-5 + 缺陷线 DQ-3/DQ-5** | 必读（`docs/agents/evidence-capture.md`） | 证据分层协议（before/after 成对）+ 6 类证据规范（视频/截图/测量数字/transcript/headless 降级/视觉探针）；`cw-evidence.sh` 是其采集脚本 |
+| `evidence-capture`（规范，非 skill） | **G1 出口·QG-5 + 缺陷线 DQ-3/DQ-5** | 必读（`docs/agents/evidence-capture.md`） | 证据分层协议（before/after 成对）+ 7 类证据规范（运行时态/视频/截图/测量数字/transcript/headless 降级/视觉探针）；UI 票证据至少含一项运行时证据；`cw-evidence.sh` 是其采集脚本，`test_runtime_smoke.py` 是运行时冒烟脚本 |
 | `code-structure`（规范，非 skill） | **G1 实施 + G1 出口·code-review Standards 轴** | 条件读（`docs/agents/code-structure.md`；仅本票 diff 含新增共享逻辑或跨流程重复块时触发） | 服务层架构约束：两层分离（actions 管 why/when，service 管 how）+ 四反模式清单（God/Leaky/Inconsistent/Over-abstraction） |
 | `pr-writing`（规范，非 skill） | **G2 提交前 + G3 收尾 + G4 收口评论** | 必读（`docs/agents/pr-writing.md`；只处理本次写/改的文本） | 去 AI 味：12 条 AI tells 清单 + 两遍扫描法 + add soul 原则；commit message / PR 标题正文 / learn / 收尾回复均过此规范 |
 | `triage` | 缺陷状态机 | 条件调（缺陷流程内） | needs-triage → 验证/grill → ready-for-agent（附 agent brief）→ 修复 → 验证 → close |
@@ -222,7 +222,7 @@ flowchart TB
 - **parent/spec issue 的 PR 用 `--refs-only`**：PR body 用 `Refs #N` 而非 `Closes #N`，避免合并提前关闭 parent/spec issue 生命周期（G4 才收口）
 - **文字质量门禁**：commit message 与 PR 标题/正文在提交前过 `docs/agents/pr-writing.md`（去 AI 味：按 12 条 tells 清单跑两遍扫描，只处理本次写的文字，不改未触碰的既有 prose）；PR 创建后发现问题用 `gh pr edit` 仅改标题/正文（不动文件）
 - **成对证据（UI/行为变更）**：PR 正文 verification 段嵌入两列对比表格（| 修复前 | 修复后 |）或媒体链接，复用 QG-5 已采集的成对证据，不二次截图（规范：`docs/agents/evidence-capture.md`）
-- **auto-merge**：全风险尝试启用；仓库未启用时脚本 fail-open（提示 `gh pr merge <N> --squash`，CI 绿后执行）
+- **auto-merge**：risk-low/medium 尝试启用；risk-high 不自动合并（人工，不可逆/高风险变更不静默落库）；仓库未启用时脚本 fail-open（提示 `gh pr merge <N> --squash`，CI 绿后执行）
 - **从头模式适用场景**：artifacts docs PR（文件就绪一次成型）；单文件快速改动
 - PR 模板必填项全填（impact/verification/risk）；禁止 `--skip-checks`
 - **门禁引用纪律**：本次应用/豁免的每条 QG/DQ 必须在 PR body 逐条写 `QG-x / DQ-x: <它改变了哪个具体决策>`（例：`QG-5: 用真实按键探针替代测试摘要`）；只写编号 = **空引用**，不予合并（豁免的显式声明见 `docs/agents/quality-gates.md` §七）
@@ -235,7 +235,7 @@ flowchart TB
 - **时机**：push + PR 创建后立即执行，不等合并
 - **不阻塞下一 change**：下一 change 自 commit/push 完成后即可启动；learn/sync 是收尾动作而非前置 gate，可并行
 - **frontier 自动推进（任务级零询问）**：G3 后自动运行 `gh issue list --label ready-for-agent --state open --json number,title,body` 按 `[change=<名>/` 精确筛选 → 逐票解析 Blocked by 确认全部 closed → 取第一张可开工票**立即进入其 G1**；同一 change 内连续执行到无票可做——推进全程零询问，**禁止以「是否继续下一票」之类提问结束回合**（跨会话接力见「会话启动」节）。无票可做 → change 收口检查（completedTasks==totalTasks 且无残留且无未合并 PR）→ 自动进入 G4。标签名以 conf `LABEL_READY` 为准（默认 `ready-for-agent`），conf 值优先
-- **阻塞等待（有界轮询）**：frontier 为空的唯一原因是「前序票 PR 已创建未合并」（`gh pr list --state open` 命中本 change）→ 轮询该 PR 状态（`gh pr view <N> --json state`，间隔 20s、上限 10 分钟；全风险已由 G2 尝试 auto-merge）→ 合并后**自动继续**下一票；超上限 → 停在合并确认点报告（合并完成后自动恢复，不询问「是否继续」）
+- **阻塞等待（有界轮询）**：frontier 为空的唯一原因是「前序票 PR 已创建未合并」（`gh pr list --state open` 命中本 change）→ 轮询该 PR 状态（`gh pr view <N> --json state`，间隔 20s、上限 10 分钟；low/medium 已由 G2 尝试 auto-merge，high 需人工合并后自动继续）→ 合并后**自动继续**下一票；超上限 → 停在合并确认点报告（合并完成后自动恢复，不询问「是否继续」）
 - **决策日志（可审计轨迹）**：每票收尾追加一行——`./scripts/decisions-log.sh add <阶段> <决策> <理由> <证据指针> <结果>`；TSV 默认落 `.artifacts/decisions.tsv`（本地、不入库；需留档的项目自行纳入版本控制）。隔夜/无人值守运行结束后按它审计「做了哪些决策、为什么」（列：时间/阶段/决策/理由/证据/结果）
 - **自动化边界**：任务级全程零询问（会话内连跑 + 跨会话自动接力 + 阻塞轮询等待）；唯一人工介入 = 跨 change 切换的队列盘点；跨 change 切换停一次——G4 收口后队列盘点并询问（见 §G4）
 - **learn/sync 与发版解耦**：每轮交付后的知识闭环服务下一 change/会话；发版（`VERSION`+`CHANGELOG`+tag）不改代码，无需额外 sync
