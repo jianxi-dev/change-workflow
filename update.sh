@@ -81,13 +81,13 @@ cw_report_local_drift() {
       [[ -n "$p" ]] || continue
       printf '    %s\n' "$p" >&2
     done <<< "$list"
-    printf '    移植后回执：./update.sh --ack-local <path>\n' >&2
+    printf '    移植后回执：./scripts/cw-update.sh --ack-local <path>\n' >&2
   fi
   if [[ "$nmissing" -gt 0 ]]; then
     if [[ "$applied" == "1" ]]; then
       warn "另有 ${nmissing} 个 LOCAL 文件缺基线（基线机制上线前接受）：已按当前上游补基线，请人工 diff 一次"
     else
-      warn "另有 ${nmissing} 个 LOCAL 文件缺基线（基线机制上线前接受）：运行 ./update.sh 建立基线，并人工 diff 一次"
+      warn "另有 ${nmissing} 个 LOCAL 文件缺基线（基线机制上线前接受）：运行 ./scripts/cw-update.sh 建立基线，并人工 diff 一次"
     fi
   fi
 }
@@ -139,7 +139,7 @@ if [[ "$OLD_VERSION" == "$NEW_VERSION" ]]; then
 fi
 
 if [[ "$CHECK_ONLY" == "1" ]]; then
-  [[ "$OLD_VERSION" == "$NEW_VERSION" ]] || log "有新版本可用：运行 ./update.sh 进行更新"
+  [[ "$OLD_VERSION" == "$NEW_VERSION" ]] || log "有新版本可用：运行 ./scripts/cw-update.sh 进行更新"
   _sk="$(cw_conf_dir SKILLS_DIR .opencode/skills)"
   _docs="$(cw_conf_dir DOCS_DIR docs/agents)"
   _nd=0; _np=""; _nm=0
@@ -217,7 +217,7 @@ if [[ "${#ACCEPT_LOCAL[@]}" -gt 0 ]]; then
     log "已接受本地版本（此后永久跳过）：${p}"
     accepted=$((accepted + 1))
   done
-  log "完成：接受 ${accepted} 个文件；再次运行 ./update.sh 应归一（退出码 0）"
+  log "完成：接受 ${accepted} 个文件；再次运行 ./scripts/cw-update.sh 应归一（退出码 0）"
   exit 0
 fi
 
@@ -339,7 +339,14 @@ if needs_bootstrap; then
       B_SAME=$((B_SAME + 1))
     else
       warn "  不同：${dst}（新版本写入 ${dst}.new；**不写基线**，将持续标记直到你解决）"
-      [[ "$DRY_RUN" != "1" ]] && cw_atomic_cp "$TMP" "${dst}.new"
+      if [[ "$DRY_RUN" != "1" ]]; then
+        # P3 教训（1.13.1）：同上 —— .new 里可能有用户未合并的草稿，覆盖前先备份
+        if [[ -s "${dst}.new" ]] && ! cmp -s "${dst}.new" "$TMP"; then
+          cw_atomic_cp "${dst}.new" "${dst}.new.bak"
+          warn "  旧 ${dst}.new 已备份为 ${dst}.new.bak（含未合并内容）"
+        fi
+        cw_atomic_cp "$TMP" "${dst}.new"
+      fi
       B_DIFF=$((B_DIFF + 1)); B_LIST+=("${dst}")
     fi
     rm -f "$TMP"
@@ -392,12 +399,12 @@ if needs_bootstrap; then
 $(printf '  - %s.new\n' "${B_LIST[@]}")
 
 处理方式（每个文件任选其一）：
-  1. 保留本地：./update.sh --accept-local <file>   （记为新基线，此后不再报告）
+  1. 保留本地：./scripts/cw-update.sh --accept-local <file>   （记为新基线，此后不再报告；上游有新演进时会提示漂移）
   2. 采用新版：mv <file>.new <file>                （下次升级自动写基线）
   3. 人工合并：diff <file> <file>.new → 合并 → rm <file>.new
-  4. 全部采用新版：./update.sh --force
+  4. 全部采用新版：./scripts/cw-update.sh --force  （覆盖前自动备份 .bak）
 
-全部解决后再次运行 ./update.sh 即归一（退出码 0）。
+全部解决后再次运行 ./scripts/cw-update.sh 即归一（退出码 0）。
 EOF
     exit 1
   fi
@@ -533,7 +540,15 @@ while IFS='|' read -r tpl_rel dst_rel; do
   fi
 
   warn "本地已修改，写旁路文件（不覆盖）：${dst}.new"
-  if [[ "$DRY_RUN" != "1" ]]; then cw_atomic_cp "$TMP" "${dst}.new"; fi
+  if [[ "$DRY_RUN" != "1" ]]; then
+    # P3 教训（1.13.1）：.new 可能装着用户合到一半的草稿 —— 覆盖前若已存在且非空且
+    # 与新内容不同，先备份成 .new.bak，否则静默丢用户成果。
+    if [[ -s "${dst}.new" ]] && ! cmp -s "${dst}.new" "$TMP"; then
+      cw_atomic_cp "${dst}.new" "${dst}.new.bak"
+      warn "  旧 ${dst}.new 已备份为 ${dst}.new.bak（含未合并内容）"
+    fi
+    cw_atomic_cp "$TMP" "${dst}.new"
+  fi
   CONFLICTED=$((CONFLICTED + 1)); CONFLICT_LIST+=("${dst}"); rm -f "$TMP"
 done < <(cw_list_files)
 
@@ -639,9 +654,10 @@ if [[ "$CONFLICTED" -gt 0 ]]; then
 $(printf '  - %s.new\n' "${CONFLICT_LIST[@]}")
 
 处理方式（任选）：
-  1. 人工 diff 合并：diff <file> <file>.new → 合并后删除 .new
-  2. 放弃本地改动：mv <file>.new <file>
-  3. 强制覆盖：./update.sh --force（覆盖前会备份 .bak；注意也会覆盖
+  1. 保留本地：./scripts/cw-update.sh --accept-local <file>（记为新基线，此后不再报告；上游有新演进时会提示漂移）
+  2. 人工 diff 合并：diff <file> <file>.new → 合并后删除 .new
+  3. 放弃本地改动：mv <file>.new <file>
+  4. 强制覆盖：./scripts/cw-update.sh --force（覆盖前会备份 .bak；注意也会覆盖
      --accept-local 保留的文件并清除其 LOCAL 哨兵 —— 哨兵归一是有意语义）
 EOF
   exit 1

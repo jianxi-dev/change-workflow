@@ -174,6 +174,9 @@ cw_list_files() {
   echo "scripts/cw-tickets-check.sh|scripts/cw-tickets-check.sh"
   echo "scripts/cw-conformance.sh|scripts/cw-conformance.sh"
   echo "scripts/test_runtime_smoke.py|scripts/test_runtime_smoke.py"
+  # 红绿配对 fixture 必须与脚本同受管（P1 教训：漏列 → 消费仓装了脚本装不了 fixture，无参自检必 FAIL）
+  echo "scripts/test_runtime_smoke_fixture.html|scripts/test_runtime_smoke_fixture.html"
+  echo "scripts/test_runtime_smoke_fixture_good.html|scripts/test_runtime_smoke_fixture_good.html"
   echo "scripts/decisions-log.sh|scripts/decisions-log.sh"
   echo "Makefile|Makefile"
   local f base
