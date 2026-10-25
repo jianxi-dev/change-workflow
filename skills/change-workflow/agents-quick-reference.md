@@ -62,10 +62,10 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 1. G3：learn 沉淀 → sync-gbrain 刷新索引 → decisions-log.sh 决策日志
 2. frontier 自动推进下一张可开工票（零询问：会话内连跑 + 跨会话自动接力；被未合并前票阻塞 → 轮询等待）
 3. G4：全部合并 → 收尾生命周期黑盒巡检 + 发现闭环门（QG-8）→ opsx-sync → validate --strict → archive → 看板 Done → 关 spec issue
-4. G4 收口后：盘点剩余 open issue（分类清单 + 下一项建议 + 询问是否继续）
+4. G4 收口后：`./scripts/cw-next-change.sh` 自动选下一 change 首张可开工票并直接进 G1（不询问）；仅「并列 / 队列只剩研讨类 / 队列空」三种情形停
 5. G4 一致性制品校验：baseline 哈希与 G0 锁一致（不一致不得收尾）
 
-**出口条件**：change 归档 + spec issue 关闭 + 看板 Done + 剩余清单已盘点（详见 SKILL.md §G3/G4）
+**出口条件**：change 归档 + spec issue 关闭 + 看板 Done + 下一 change 已选定（或队列空，见 SKILL.md §G3/G4）
 
 ## 质量门禁索引
 

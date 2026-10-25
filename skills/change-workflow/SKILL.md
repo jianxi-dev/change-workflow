@@ -235,9 +235,10 @@ flowchart TB
 - **时机**：push + PR 创建后立即执行，不等合并
 - **不阻塞下一 change**：下一 change 自 commit/push 完成后即可启动；learn/sync 是收尾动作而非前置 gate，可并行
 - **frontier 自动推进（任务级零询问）**：G3 后自动运行 `gh issue list --label ready-for-agent --state open --json number,title,body` 按 `[change=<名>/` 精确筛选 → 逐票解析 Blocked by 确认全部 closed → 取第一张可开工票**立即进入其 G1**；同一 change 内连续执行到无票可做——推进全程零询问，**禁止以「是否继续下一票」之类提问结束回合**（跨会话接力见「会话启动」节）。无票可做 → change 收口检查（completedTasks==totalTasks 且无残留且无未合并 PR）→ 自动进入 G4。标签名以 conf `LABEL_READY` 为准（默认 `ready-for-agent`），conf 值优先
-- **阻塞等待（有界轮询）**：frontier 为空的唯一原因是「前序票 PR 已创建未合并」（`gh pr list --state open` 命中本 change）→ 轮询该 PR 状态（`gh pr view <N> --json state`，间隔 20s、上限 10 分钟；low/medium 已由 G2 尝试 auto-merge，high 需人工合并后自动继续）→ 合并后**自动继续**下一票；超上限 → 停在合并确认点报告（合并完成后自动恢复，不询问「是否继续」）
+- **阻塞等待（有界轮询）**：frontier 为空的唯一原因是「前序票 PR 已创建未合并」（`gh pr list --state open` 命中本 change）→ 轮询该 PR 状态（`gh pr view <N> --json state`，间隔 20s、上限 10 分钟；low/medium 已由 G2 尝试 auto-merge）→ 合并后**自动继续**下一票；超上限 → 报告「等待 PR #N 合并」并给出恢复命令（合并完成后自动恢复，不询问「是否继续」）
+  - **risk-high 是设计性停点，不是故障**：`pr-automation.sh` 对 high 票只打印合并指引、不启用 auto-merge（不可逆/高风险变更不静默落库）。故 high 票的「推送后无人接续」是预期行为，**不要**当成流程断线去排查；轮询上限到达时如实报告「等人工合并 #N」即可。本停点与跨 change 切换停点并列为全局仅有的两处人工点（见「自动化边界」）
 - **决策日志（可审计轨迹）**：每票收尾追加一行——`./scripts/decisions-log.sh add <阶段> <决策> <理由> <证据指针> <结果>`；TSV 默认落 `.artifacts/decisions.tsv`（本地、不入库；需留档的项目自行纳入版本控制）。隔夜/无人值守运行结束后按它审计「做了哪些决策、为什么」（列：时间/阶段/决策/理由/证据/结果）
-- **自动化边界**：任务级全程零询问（会话内连跑 + 跨会话自动接力 + 阻塞轮询等待）；唯一人工介入 = 跨 change 切换的队列盘点；跨 change 切换停一次——G4 收口后队列盘点并询问（见 §G4）
+- **自动化边界**：任务级全程零询问（会话内连跑 + 跨会话自动接力 + 阻塞轮询等待）；全局仅两处人工点——① **risk-high 票合并**（不可逆/高风险，见「阻塞等待」节）② **跨 change 切换的队列盘点**（见 §G4「剩余队列盘点」）。除此之外禁止以提问结束回合
 - **learn/sync 与发版解耦**：每轮交付后的知识闭环服务下一 change/会话；发版（`VERSION`+`CHANGELOG`+tag）不改代码，无需额外 sync
 - **文字质量**：learn 记录与收尾回复发布前过 `docs/agents/pr-writing.md`（T9 模糊归因在学习记录里危害最大，必须给出处）；如触发发版/PR，`cw-greploop.sh` 为可选调用（同 G2 降级策略）
 
@@ -249,7 +250,9 @@ flowchart TB
 - **收尾生命周期黑盒巡检（G4 前置）**：按六态清单真机走查 `打开→插入→编辑→切换→取消→关闭→空态→错误`，发现问题即**不允许收尾**（转缺陷处理机制，修复后重巡）
 - **一致性制品收尾校验**：G4 收尾前校验一致性制品在位且 baseline 哈希与 G0 锁一致；哈希不一致 → 核验失败，须经独立模型复核后重新锁定，不得收尾
 - **发现闭环门（QG-8）前置**：任何报告 / findings / 实测发现中记录的缺陷，须转 tracked issue 或规格条目，否则该 change **不得标记完成**（机检：findings 行数 vs issue 数）
-- **剩余队列盘点（收口后必做，change 边界提醒）**：archive 与关闭 spec issue #S 后运行 `gh issue list --state open --limit 100 --json number,title,labels` → 分类输出（① 其他 change 的 `ready-for-agent` 子票；② 决策/研讨类（wayfinder 类标签或「研讨/原型」前缀）；③ 其他 open issue）→ **列出剩余清单 + 给出下一项建议 + 询问是否继续**（零询问不跨 change，此处是全流程唯一停点）；清单为空 → 明确报告「无剩余 issue」
+- **剩余队列盘点（收口后必做）**：archive 与关闭 spec issue #S 后运行 `./scripts/cw-next-change.sh` —— 它按「无残留 open 子票 → 子票/PR 最近更新时间倒序」自动选出下一 change 的首张可开工票并**立即进入其 G1**（等价于「会话启动」节的自动接力，不询问）。仍须人工输出三段分类（① 其他 change 的 `ready-for-agent` 子票；② 决策/研讨类（wayfinder 类标签或「研讨/原型」前缀）；③ 其他 open issue）作为**记录性报告**，但报告不构成停点
+  - **仅在以下情形停下来问**：① 候选 change 有并列且更新时间差 < 1 小时（选择理由不充分）；② 队列只剩「决策/研讨类」issue（不属于本 skill 的交付范围）；③ 队列为空 → 明确报告「无剩余 issue」并结束
+  - 早于本规则的历史行为是「每次都问是否继续」，导致 G4 之后流程实际终止（agent 的提问成了回合终点）——清单非空即自动推进，见 `docs/agents/quality-gates.md` QG-10 的教训段
 
 ## gate 失败处理：fix-first 自愈回路（禁止停等用户、禁止跳过）
 

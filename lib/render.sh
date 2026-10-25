@@ -178,6 +178,10 @@ cw_list_files() {
   echo "scripts/test_runtime_smoke_fixture.html|scripts/test_runtime_smoke_fixture.html"
   echo "scripts/test_runtime_smoke_fixture_good.html|scripts/test_runtime_smoke_fixture_good.html"
   echo "scripts/decisions-log.sh|scripts/decisions-log.sh"
+  # G3 收尾机检 + 下一 change 选取（QG-10）：两者都在消费仓 scripts/ 下被 SKILL.md 的
+  # G3/G4 节直接调用；漏进清单 = 消费仓读得到文档但跑不了命令（同 1.13.1 P1 fixture 坑）。
+  echo "scripts/cw-g3-check.sh|scripts/cw-g3-check.sh"
+  echo "scripts/cw-next-change.sh|scripts/cw-next-change.sh"
   echo "Makefile|Makefile"
   local f base
   for f in "$CW_ROOT"/docs/agents/*.md; do

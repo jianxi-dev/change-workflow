@@ -16,6 +16,7 @@
 # 流程: 校验仓库干净 → 基于 origin/main 建分支 → 本地验证四件套硬门禁
 #        → 显式 git add 白名单提交 → push → gh pr create(模板+风险标签)
 #        → 按风险分级启用 auto-merge（low/medium 自动；high 人工）
+#        → 打印 G3 三项补齐命令 + 下一 change 推荐（脚本止于命令提示，执行仍是 agent 的事）
 #
 # 白名单路径若被 .gitignore 匹配(如 force-tracked 的 .omo/notepads/**),
 # git add 会失败,此时自动 fallback 到 git add -f(路径已由 --files 显式限定)。
@@ -422,3 +423,25 @@ else
 fi
 
 echo "==> 完成。分支: $BRANCH | PR: $PR_URL"
+
+# --- G3 接续（push+PR 之后三步不能靠记性）-------------------------------
+# 2026-10-26 事故：本脚本止于 push/PR/merge，之后一切（learn → sync-gbrain →
+# decisions-log → frontier 下一票）只写在 SKILL.md 的 prompt 里。连续 5 个 change
+# 走到这里就结束了，三项收尾全跳，而代理以为自己「在等用户确认」。
+# 修法：脚本退出前把下一步的**可执行命令**打出来——提示语会把代理引向追问，
+# 命令不会。均 fail-open（gh/gbrain 缺失不影响 PR 结果，也不改退出码）。
+echo ""
+echo "==> G3 收尾（必调三项，缺一不得进 G4）"
+if [[ -x "$REPO_ROOT/scripts/cw-g3-check.sh" ]]; then
+  "$REPO_ROOT/scripts/cw-g3-check.sh" 2>&1 | sed 's/^/    /' || true
+else
+  echo "    ⚠️ 缺 scripts/cw-g3-check.sh（未装机？）—— 手工核对 gbrain/decisions/learn"
+fi
+echo "    learn          : 经验写入 brain page（勿写 .omo/，那目录 gitignore，gbrain 读不到）"
+echo "    sync-gbrain    : gbrain sync --repo . && gbrain embed --stale"
+echo "    decisions-log  : ./scripts/decisions-log.sh add <阶段> <决策> <理由> <证据> <结果>"
+echo ""
+if [[ -x "$REPO_ROOT/scripts/cw-next-change.sh" ]]; then
+  echo "==> 下一 change（队列非空即自动推进，不询问）"
+  "$REPO_ROOT/scripts/cw-next-change.sh" 2>&1 | sed 's/^/    /' || true
+fi

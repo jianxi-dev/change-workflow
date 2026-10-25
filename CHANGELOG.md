@@ -1,3 +1,59 @@
+## 1.13.2 — 2026-10-26
+
+### 新增/修复
+
+**1. G3 三项机检入库（QG-10）**
+
+- `scripts/cw-g3-check.sh` 从消费仓回收为受管脚本：三项判据机检（gbrain `last_sync_at` ≥ HEAD 提交时间、`.artifacts/decisions.tsv` mtime ≥ HEAD、`--change` 时 `tasks.md` 不比决策日志新），退 1 时不得进入 G4。
+- 该脚本 2026-10-25 先在 contentweave 就地实现（commit `fcff03e`），本次纳入工具包模板，后续安装/升级自动带到四个消费仓。
+
+**2. 新增 `scripts/cw-next-change.sh`：下一 change 自动选取（不再提问）**
+
+- SKILL.md 旧条款是「G4 收口后 → 列出剩余清单 + 给出下一项建议 + **询问是否继续**」。agent 一旦以提问结束回合，流程就终止了——提问本身成了终点。
+- 新脚本按 `[change=<名>/` 归组 `LABEL_READY` open 票 + 解析 Blocked by → 取「子票最近更新时间最新」的 change 的首张可开工票；只在**并列（时间差 < 1h）/ 队列只剩研讨类 / 队列为空**三种情形退非 0，其余直接给出「立即进入该票 G1」。
+- 契约：0=给出推荐 / 1=无候选 / 2=歧义 / 3=环境缺。只读，不改任何 GitHub 状态。
+
+**3. `pr-automation.sh` 收尾接上 G3（断线的真正位置）**
+
+- 脚本止于 push + PR + merge 之后就不再有任何输出，而 SKILL.md 把后续一切写成 prompt 条款——机器停了，agent 只能靠自觉。连续 5 个 change 走到这里就结束。
+- 现在退出前打印：`cw-g3-check.sh` 实测结果 + 三条补齐命令（learn / sync-gbrain / decisions-log）+ `cw-next-change.sh` 的下一票推荐。均 fail-open，不改退出码。
+- 提示语会把代理引向追问，命令不会——这是本次修的核心判据。
+
+**4. 文档矛盾消除（risk-high 停点 vs 「全流程唯一停点」）**
+
+- v1.11.1 把 auto-merge 改成全风险尝试，v1.13.0 又改回「medium 自动 / high 人工」，但 SKILL.md 的「唯一停点 = 跨 change 切换」没跟着改，于是文档同时声称「只有一处人工点」和「high 需人工合并后自动继续」。
+- 现在明写**两处**人工点：① risk-high 票合并（设计性停点，不是故障）② 跨 change 切换（且只在并列/空队列时停）。
+- `agents-quick-reference.md` 同步（原「询问是否继续」改为 `cw-next-change.sh` 自动选取）。
+
+**5. 受管文件 27 → 29**
+
+- `cw_list_files` 新增两脚本；e2e 计数断言（含 `--adopt` 无基线分支 26）同步；补 `cw-g3-check`/`cw-next-change` 可执行位断言 + 结尾换行断言（渲染幂等铁律）。
+
+### 教训反思
+
+**「必调」写在文档里且没有机检时，等于「可不调」；而流程断在「以提问结束回合」上时，连 bug 都看起来像设计。**
+2026-10-25 一晚五个 change 只做 push + merge，事后排查不是「忘了」而是两层缺失：G3 三项无任何可执行判据（`pr-automation.sh` 在 push **前**跑门禁，G3 在 push **后**，天然没人拦），且 G4 收口条款要求「询问是否继续」——提问让回合终止，用户以为流程在等自己，实际流程已经走完。真跟仓库里 QG-1/QG-5 的来历一模一样：写进文档的判据，不机械化就等于没有。
+另记一条文档漂移规律：**同一机制被两次反转（1.11.1 全风险 auto-merge → 1.13.0 分档），改了代码的那次未必改全配套文本**；本次 `SKILL.md` 的「唯一人工点」就是 v1.11.1 遗留、v1.13.0 未回滚的句子。改语义时用 `grep` 把受管面里旧语义的措辞全找出来，比读一遍文档可靠。
+
+### 验证
+
+```
+$ ./test/install-update-e2e.sh
+ 通过 360 · 失败 0 · 全部通过 ✅（新增用例 41：7 断言；用例 8 可执行位 +2）
+
+$ ./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis ../contentweave
+工具包: 1.13.2 · 受管文件 29 个
+md-bundle 更新2/新增4/已最新22/冲突0/本地保留1 · mdpkg 12/7/10/0/0
+clairis 2/2/22/0/3 · contentweave 2/1/20/0/6
+ ✅ 全部消费仓升级无冲突、LOCAL 哨兵完整、覆盖数与受管清单一致
+
+$ ./scripts/cw-g3-check.sh        # 在本仓（工具包源，无 .artifacts/）
+  ❌ 1 项未完成：缺 .artifacts/decisions.tsv     ← 判据有效（本仓正是漏做的地方）
+
+$ ./scripts/cw-next-change.sh     # 在 contentweave（子票已全部关闭）
+  （无候选）open 子票中不存在可开工的 change    ← 退 1，正确指向 G4 收口
+```
+
 ## 1.13.1 — 2026-10-25
 
 ### 新增/修复
