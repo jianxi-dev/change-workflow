@@ -146,7 +146,7 @@ to-tickets 拆出的每张子票统一引用其**来源 issue**（G0-PRE 由 to-
   → 四件套硬门禁 + e2e 硬门禁(QG-2)
   → code-review(对照 QG-4) → [QG-5 独立验证：粘贴原始输出]
   → pr-automation.sh 提交 fixes #N → push → pr create(risk 分级)
-  → CI → 全风险 auto-merge / +review
+  → CI → low/medium auto-merge（high 人工）/ +review
   → learn → sync-gbrain → 下一轮 issue
   [QG-6] change ≥6 票时每 ≤4 票插入集成 checkpoint
 发版（VERSION + CHANGELOG + tag）按发布节奏接入

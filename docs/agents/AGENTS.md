@@ -5,7 +5,7 @@
 ## OVERVIEW
 
 本目录 12 份 `*.md` 是规范模板（不是本仓文档），安装到消费仓的 `<DOCS_DIR>`（默认 `docs/agents`）。
-清单由 `../lib/render.sh:162-168` 的 glob 自动纳入 `cw_list_files`（该 glob 跳过 `AGENTS.md` 自身）；受管文件共 20 个 = 8 硬编码 + 12 份 docs（`../lib/render.sh:153`）。
+清单由 `../lib/render.sh` 的 glob 自动纳入 `cw_list_files`（该 glob 跳过 `AGENTS.md` 自身）；受管文件共 25 个 = 9 硬编码 + 12 份 docs + 4 个 workflow/Makefile（`../lib/render.sh:153`）。
 改本目录的文件名即改变消费仓的 `docs/agents` 布局。
 
 ## 12 份模板
@@ -21,7 +21,7 @@
 | `domain.md` | 40 | 探索前领域文档消费规则（术语表、ADR 冲突必须显式声明） |
 | `incident-uncommitted-work-loss.md` | 301 | 未提交代码被破坏性回滚覆盖的事故复盘 + 共享工作区保护 |
 | `incident-merge-local-workspace.md` | 45 | 合并收尾切错分支致本地工作流失效的事故复盘与强制规则 |
-| `evidence-capture.md` | 280 | 证据驱动测试规范（证据分层 before/after + 6 类证据：视频/截图/测量数字/transcript/headless 降级/视觉探针；挂 QG-5/DQ-3/DQ-5） |
+| `evidence-capture.md` | 330 | 证据驱动测试规范（证据分层 before/after + 7 类证据：运行时态/视频/截图/测量数字/transcript/headless 降级/视觉探针；挂 QG-5/DQ-3/DQ-5） |
 | `code-structure.md` | 95 | 服务层架构约束（actions 管 why/when、service 管 how + 四反模式 + 迁移清单；挂 G1 与 code-review Standards 轴） |
 | `pr-writing.md` | 186 | PR 与提交文字规范（去 AI 味：12 条 AI tells + 两遍扫描法 + add soul + Evidence/Merge Danger；挂 G2/G3/G4） |
 
@@ -50,7 +50,7 @@
 
 新增 3 份规范与门禁的挂接：
 
-- `evidence-capture.md`：证据分层与 6 类证据（视频/截图/测量数字/transcript/headless 降级/视觉探针）——QG-5（独立验证+原始证据）与 DQ-3（先红后绿）/DQ-5（关闭附原始证据）的取证细则。
+- `evidence-capture.md`：证据分层与 7 类证据（运行时态/视频/截图/测量数字/transcript/headless 降级/视觉探针）——QG-5（独立验证+原始证据）与 DQ-3（先红后绿）/DQ-5（关闭附原始证据）的取证细则。UI 票 QG-5 证据至少含一项运行时证据。
 - `code-structure.md`：服务层架构约束（actions 管 why/when、service 管 how）——G1 出口的 code-review Standards 轴判据。
 - `pr-writing.md`：PR 与提交文字规范（12 条 AI tells + 两遍扫描法）——G2/G3/G4 的文字质量判据。
 

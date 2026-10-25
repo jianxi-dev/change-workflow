@@ -173,6 +173,7 @@ cw_list_files() {
   echo "scripts/cw-greploop.sh|scripts/cw-greploop.sh"
   echo "scripts/cw-tickets-check.sh|scripts/cw-tickets-check.sh"
   echo "scripts/cw-conformance.sh|scripts/cw-conformance.sh"
+  echo "scripts/test_runtime_smoke.py|scripts/test_runtime_smoke.py"
   echo "scripts/decisions-log.sh|scripts/decisions-log.sh"
   echo "Makefile|Makefile"
   local f base
