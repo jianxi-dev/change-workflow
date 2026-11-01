@@ -168,9 +168,11 @@ echo "[1c] 首装向导写 conf（UI_PATH_GLOB）"
 B1c="$(mktemp -d)"; new_repo "$B1c/repo" || { echo "无法建立测试仓库"; exit 1; }
 # setup.sh 用 `gh repo view`（无 --repo）识别仓库：无 remote 的 cwd 会拒收 GH_REPO（实测
 # 「no git remotes found」退 1），必须同时有 origin remote + GH_REPO 跳过真仓解析。
+# GH_REPO 指向当前仓：CI 的 GITHUB_TOKEN 只保证能读本仓，跨仓（mdpkg）会退 1（实测）。
 # 本用例只验证 conf 写入，不验证看板/标签（那需要真仓写权限，失败也允许 fail-open）。
-git remote add origin https://github.com/jianxi-dev/mdpkg.git
-rc1c=0; GH_REPO=jianxi-dev/mdpkg "$CW_ROOT/setup.sh" --target "$PWD" --yes >"$B1c/setup.log" 2>&1 || rc1c=$?
+SELF_REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo jianxi-dev/change-workflow)"
+git remote add origin "https://github.com/${SELF_REPO}.git"
+rc1c=0; GH_REPO="$SELF_REPO" "$CW_ROOT/setup.sh" --target "$PWD" --yes >"$B1c/setup.log" 2>&1 || rc1c=$?
 # CI 上 gh 认证/权限差异可能让 setup 在仓库识别阶段退 1（conf 未写）。
 # 判据：rc=0 必须有 conf；rc=1 允许（fail-open），但诊断日志必须保留在输出里供排查。
 if [[ $rc1c -ne 0 ]]; then echo "    [1c] setup 退 $rc1c，诊断："; tail -5 "$B1c/setup.log"; fi
