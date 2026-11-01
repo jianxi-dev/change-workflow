@@ -124,7 +124,11 @@ else
 fi
 
 log "创建标签（幂等）"
-mk_label() { act gh label create "$1" --repo "$REPO" --color "$2" --description "$3" --force; }
+# 标签创建 fail-open：企业/CI 环境的 token 常只有 contents 读权限（如 Actions GITHUB_TOKEN），
+# 403 中止会把 setup 拦在 conf 写入之前 —— 标签可以事后手动建，conf 写不进去才是致命的。
+# 为什么不用 `|| warn`：act 在 dry-run 下返回 0，无法区分真失败；显式 if 才可靠。
+gh_label_create() { if ! gh label create "$1" --repo "$REPO" --color "$2" --description "$3" --force 2>/dev/null; then log "⚠️  标签 $1 创建失败（权限不足或已存在）——可事后手动: gh label create $1 --repo $REPO"; fi; }
+mk_label() { if [[ "$DRY_RUN" == "1" ]]; then echo "    [dry-run] gh label create $1"; else gh_label_create "$@"; fi; }
 mk_label ready-for-agent       "0E8A16" "已充分定义，可交给 agent 执行"
 mk_label needs-triage          "BFDADC" "维护者需先评估"
 mk_label needs-info            "D4C5F9" "等待报告者补充信息"
