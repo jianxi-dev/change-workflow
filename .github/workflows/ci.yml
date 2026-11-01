@@ -118,4 +118,6 @@ jobs:
           exit $fail
 
       - name: 安装/升级 端到端测试
+        env:
+          GH_TOKEN: ${{ github.token }}   # e2e 用例 1c：setup.sh 仓库识别依赖 gh repo view
         run: ./test/install-update-e2e.sh
