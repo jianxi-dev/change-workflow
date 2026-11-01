@@ -170,7 +170,10 @@ B1c="$(mktemp -d)"; new_repo "$B1c/repo" || { echo "无法建立测试仓库"; e
 # 「no git remotes found」退 1），必须同时有 origin remote + GH_REPO 跳过真仓解析。
 # 本用例只验证 conf 写入，不验证看板/标签（那需要真仓写权限，失败也允许 fail-open）。
 git remote add origin https://github.com/jianxi-dev/mdpkg.git
-rc1c=0; GH_REPO=jianxi-dev/mdpkg "$CW_ROOT/setup.sh" --target "$PWD" --yes >/dev/null 2>&1 || rc1c=$?
+rc1c=0; GH_REPO=jianxi-dev/mdpkg "$CW_ROOT/setup.sh" --target "$PWD" --yes >"$B1c/setup.log" 2>&1 || rc1c=$?
+# CI 上 gh 认证/权限差异可能让 setup 在仓库识别阶段退 1（conf 未写）。
+# 判据：rc=0 必须有 conf；rc=1 允许（fail-open），但诊断日志必须保留在输出里供排查。
+if [[ $rc1c -ne 0 ]]; then echo "    [1c] setup 退 $rc1c，诊断："; tail -5 "$B1c/setup.log"; fi
 ok "1c-1 setup --yes 退出码（无 gh 认证时允许 fail-open）" "$([[ $rc1c -eq 0 || $rc1c -eq 1 ]] && echo ok)" "ok"
 ok "1c-2 conf 含 UI_PATH_GLOB" "$(grep -c '^UI_PATH_GLOB=' .change-workflow.conf)" "1"
 ok "1c-3 conf 含 LABEL_UI_SURFACE" "$(grep -c '^LABEL_UI_SURFACE=' .change-workflow.conf)" "1"
