@@ -166,10 +166,11 @@ cd "$B1/repo"
 echo ""
 echo "[1c] 首装向导写 conf（UI_PATH_GLOB）"
 B1c="$(mktemp -d)"; new_repo "$B1c/repo" || { echo "无法建立测试仓库"; exit 1; }
-# setup.sh 用 `gh repo view` 识别仓库（e2e 环境无真实远端），指向任意可解析的仓即可——
+# setup.sh 用 `gh repo view`（无 --repo）识别仓库：无 remote 的 cwd 会拒收 GH_REPO（实测
+# 「no git remotes found」退 1），必须同时有 origin remote + GH_REPO 跳过真仓解析。
 # 本用例只验证 conf 写入，不验证看板/标签（那需要真仓写权限，失败也允许 fail-open）。
 git remote add origin https://github.com/jianxi-dev/mdpkg.git
-rc1c=0; "$CW_ROOT/setup.sh" --target "$PWD" --yes >/dev/null 2>&1 || rc1c=$?
+rc1c=0; GH_REPO=jianxi-dev/mdpkg "$CW_ROOT/setup.sh" --target "$PWD" --yes >/dev/null 2>&1 || rc1c=$?
 ok "1c-1 setup --yes 退出码（无 gh 认证时允许 fail-open）" "$([[ $rc1c -eq 0 || $rc1c -eq 1 ]] && echo ok)" "ok"
 ok "1c-2 conf 含 UI_PATH_GLOB" "$(grep -c '^UI_PATH_GLOB=' .change-workflow.conf)" "1"
 ok "1c-3 conf 含 LABEL_UI_SURFACE" "$(grep -c '^LABEL_UI_SURFACE=' .change-workflow.conf)" "1"
