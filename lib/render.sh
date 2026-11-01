@@ -45,6 +45,7 @@ cw_substitute() {
     out="${out//\{\{OPT_IN_PROGRESS\}\}/${OPT_IN_PROGRESS:-}}"
     out="${out//\{\{OPT_DONE\}\}/${OPT_DONE:-}}"
     out="${out//\{\{APP_DIR\}\}/${APP_DIR:-<APP_DIR>}}"
+    out="${out//\{\{UI_PATH_GLOB\}\}/${UI_PATH_GLOB:-}}"
     printf '%s\n' "$out"
   done
 }

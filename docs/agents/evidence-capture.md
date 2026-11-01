@@ -208,6 +208,18 @@ jq '.states | length' .artifacts/<task>/state-coverage.json
 # <4 = 违规
 ```
 
+#### 参考实现（非受管，不背维护责任）
+
+截图骨架绑死测试栈（Playwright / pytest / vitest 各仓不同），工具包不打包——
+这里只留约定 + 指路。新仓接 state-coverage 时照抄已有消费仓的骨架，改态名和选择器即可：
+
+| 测试栈 | 参考仓 | 骨架要点 |
+|---|---|---|
+| Playwright（TS/前端 SPA） | md-bundle `visual-baseline.spec.ts` | `test.describe` 每态一个 test；`page.screenshot({path: '.artifacts/<票>/01-open.png'})` 后写 state-coverage.json；像素基线用 `expect(page).toHaveScreenshot()` |
+| pytest（Python 渲染产物） | contentweave `test_visual_baseline.py` | 每态一个 `test_*`；渲染 HTML → 截图库落 PNG → 断言后向 state-coverage.json 追加记录；`--check` 模式跑基线比对 |
+
+约定不变：骨架只负责「产生截图 + 断言 + 写 state-coverage.json」，判据（≥4 态、PNG 不入库、manifest 入库）以本节为准。参考实现会随消费仓演进，**以消费仓当时的实现为准**，本附录不追踪其版本。
+
 ---
 
 ### 3.3 测量数字（接口 / 性能，非 UI）

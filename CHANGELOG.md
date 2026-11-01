@@ -1,3 +1,28 @@
+## 1.14.0 — 2026-11-01
+
+### 新增/修复
+
+**1. setup.sh 首装问询 UI_PATH_GLOB（evidence-check 不再盲猜 glob）**
+
+- 背景：UI_PATH_GLOB 每仓手配，md-bundle 当年配窄（纯 tsx）→ #474-#490 连续 17 个 UI 修复 PR 静默旁路 state-coverage 校验（#493 修复时才暴露）。
+- 现在首装向导直接问「UI 表面 diff glob」（--yes 时默认 `src/**/*.{ts,tsx,css,scss}`）并写入 conf，附 md-bundle 教训注释；conf 同时显式写 `LABEL_UI_SURFACE`。
+- `lib/render.sh` 占位符替换表登记 `{{UI_PATH_GLOB}}`（ci.yml 一致性门禁自动覆盖）。
+- config.example.conf 同步注释：多模式必须写进同一个花括号组（evidence-check.yml 的 expand_braces 只拆一对 {}）。
+
+**2. evidence-capture.md 新增「参考实现」附录**
+
+- 截图骨架绑死测试栈（Playwright/pytest/vitest），工具包无运行时依赖承诺下不打包；改为附录表格指路（md-bundle visual-baseline.spec.ts / contentweave test_visual_baseline.py），声明非受管、不背维护责任、以消费仓当时实现为准。
+
+### 教训反思
+
+- 「机制装了就有的」和「配置对了才生效的」是两回事。evidence-check 机制 1.12 就装进了每个消费仓，但 UI_PATH_GLOB 这个**开关参数**不在 setup 问询里，四个消费仓全靠各自踩坑后手配——机制等价于没有。配置项的发现路径必须收进首装向导，不能指望用户读 yml 源码。
+- e2e 断言的位置要跟执行者走：用例 1 是 update.sh（手写 conf 升级），断言「conf 含 UI_PATH_GLOB」放那里永远红——update 不重写用户 conf 是正确行为。验证 setup 的断言要放在 setup 的用例（1c）里。
+
+### 验证
+
+- `./test/install-update-e2e.sh`：364 断言全绿（新增 1c 用例 5 断言：setup --yes 写入 conf + 花括号组形态）
+- `./test/rollout-check.sh ../md-bundle ../mdpkg ../clairis ../contentweave`：4 仓 12 检全过（冲突 0 / LOCAL 哨兵完整 / 覆盖数 29 一致）
+
 ## 1.13.2 — 2026-10-26
 
 ### 新增/修复
