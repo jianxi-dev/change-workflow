@@ -315,7 +315,7 @@ ls .artifacts/<task-name>/ | grep -E "assertions\.md|\.png|probe-output"
 
 #### 规则
 
-交互类 UI 变更的验证，**必须包含视觉探针**——关键态截图 + 人工/多模态复核。视觉探针是 QG-5 探针类型的第 5 项（见 `quality-gates.md` QG-5 探针类型清单）。
+交互类 UI 变更的验证，**必须包含视觉探针**——关键态截图 + 多模态复核（自动，见下方「如何验证」；仅在多模态不可用时才退回人工）。视觉探针是 QG-5 探针类型的第 5 项（见 `quality-gates.md` QG-5 探针类型清单）。
 
 - **单层截图对交互票明确不足**——必须配合状态覆盖矩阵（§3.2.1，≥4 态）使用
 - 视觉探针的截图由 **QG-4 第 4 级状态往返断言驱动产生**（副产物），而非独立手工产物
@@ -323,7 +323,9 @@ ls .artifacts/<task-name>/ | grep -E "assertions\.md|\.png|probe-output"
 
 #### 理由
 
-editor-v2 实证：D2 callout「注释 注释」、D3 围栏 `\`js`、D6 取消残留 `/`——均为「元素存在」级断言 + 单层截图无法拦截。视觉探针把「人眼可辨真伪」纳入证据链：截图覆盖六态 + 人工/多模态复核文本/像素真伪，堵住保真盲区。
+editor-v2 实证：D2 callout「注释 注释」、D3 围栏 `\`js`、D6 取消残留 `/`——均为「元素存在」级断言 + 单层截图无法拦截。视觉探针把「人眼可辨真伪」纳入证据链：截图覆盖六态 + 多模态复核文本/像素真伪，堵住保真盲区。
+
+另一个更隐蔽的失效：复核手段与复核要求写在两处且从未接通——`evidence-capture.md` 的 headless 降级表写着「无 GUI → Playwright 脚本化截图」，QG-5 要求「交互类 UI 变更须含视觉探针」，而 CI 的 T2 感知步骤条件是 `cmd_fidelity != ''`；四个消费仓中三个未配置该键，于是**步骤静默跳过、CI 依然全绿**。判据是 MUST、实现是零、状态是绿——三者同时成立。详见 `skills/change-workflow/SKILL.md` G2「CI 三层自动核验」的落地前提。
 
 #### 实证案例
 
@@ -335,8 +337,30 @@ editor-v2 D2：仅单层截图（打开态）→ 无法发现标题重复。补�
 # 机检：状态覆盖矩阵态数 + 断言结果（同 §3.2.1）
 jq '.states | length' .artifacts/<task>/state-coverage.json
 # <4 = 违规
-# 人工/多模态复核记录须贴票（PR body verification 段或票评论）
 ```
+
+**复核手段（按成本从低到高，能用低的就别用高的）**：
+
+| 场景 | 命令 | 输出 |
+|---|---|---|
+| 图片是什么（布局/配色/母题） | `./scripts/cw-vision.sh describe <png>` | 模型描述正文 |
+| 像素级硬数字（主色板/留白率/亮度分区） | `./scripts/cw-vision.sh analyze <png>` | JSON |
+| 确定量（计算样式/DOM/文本） | 浏览器 skill：`bsk evaluate` 读计算样式 | 断言输出 |
+| 多步流程过渡态 | `./scripts/cw-evidence.sh start` → 录视频 → `stop` | 带标注 mp4 + report.md |
+| 视频里某一刻到底渲染了什么 | `./scripts/cw-vision.sh frame <mp4> <秒>` | 抽帧 PNG，再走 describe |
+
+**为什么要有 `cw-vision.sh` 这一层**：同一个能力此前在各仓各写一份（`scripts/vision/vision.py`、`scripts/vision.py`、`analyze.py` / `analyze_image.py`，脚本头自己写着「同源副本，改动需同步两处」）。副本必然漂移，而漂移后的读图结论**看起来一样可信**。本脚本是唯一定位入口，按「`CW_VISION_CMD` → 仓内各候选路径 → 降级」选一个，退出码与 `cw-evidence.sh` 同一契约（成功 0 / 参数错 1 / 降级 3）。
+
+**视频抽帧核查**（上一轮视频录制的缺口在这里）：录了视频不等于看了视频。`cw-evidence.sh stop` 产出的 `report.md` 只证明「录了且断言被记录」，不证明画面正确。对每张 `assertion` 取它的时间戳 t，抽一帧看一眼：
+
+```bash
+./scripts/cw-vision.sh frame .artifacts/<task>/evidence.mp4 42   # → frame-000042.png
+./scripts/cw-vision.sh describe .artifacts/<task>/frame-000042.png
+```
+
+**降级契约**：`cmd_local` 缺失时退 3 并打印装什么；**退 3 不等于放行**——须把「缺什么工具 / 探测输出」记进票面（同 §六表）。本地已有 `python3` + `DEEPSEEK_API_KEY`（或仓内视觉脚本）时，「无法识别图片」不构成降级理由。
+
+**复核记录须贴票**（PR body verification 段或票评论）：贴模型原始输出与抽帧文件名，不要只写「已人工复核，无问题」——那是结论不是证据（QG-5）。
 
 ---
 

@@ -183,6 +183,10 @@ cw_list_files() {
   # G3/G4 节直接调用；漏进清单 = 消费仓读得到文档但跑不了命令（同 1.13.1 P1 fixture 坑）。
   echo "scripts/cw-g3-check.sh|scripts/cw-g3-check.sh"
   echo "scripts/cw-next-change.sh|scripts/cw-next-change.sh"
+  # 读图/抽帧唯一入口："三种识图 py + browser skill 没接进 CW"的修复面。
+  # 它不重新实现视觉，只定位仓内既有后端（vision.py / analyze.py）并归一退出码；
+  # 漏进清单 = 文档写着 ./scripts/cw-vision.sh 而消费仓跑不了（同 cw-g3-check 坑）。
+  echo "scripts/cw-vision.sh|scripts/cw-vision.sh"
   echo "Makefile|Makefile"
   local f base
   for f in "$CW_ROOT"/docs/agents/*.md; do
