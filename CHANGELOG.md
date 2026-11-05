@@ -1,3 +1,35 @@
+## 1.15.1 — 2026-11-05
+
+### 新增/修复
+
+**1. 本地 G2 门禁补全：四件套终于真的是四件，且多了 fidelity / visual-baseline**
+
+- `pr-automation.sh` 打印「四件套硬门禁 / [4/4] 完成」，实际只调了 typecheck / lint / test **三个** gate——`CMD_E2E` 从头到尾没被读过。md-bundle 的 `CMD_E2E`（Playwright）早已配上，但只在 CI 跑，本地硬门禁漏了它。现在 `run_gate e2e "$CMD_E2E"` 补齐。
+- 新增本地门禁 `fidelity`（读 `CMD_FIDELITY`）与 `visual-baseline`（读 `CMD_VISUAL_BASELINE`）。之前这两个键只在 CI 的 `evidence-check.yml` 里引用，而 CI 是 `ubuntu-latest`、**无 Google Chrome**，基线又是 macOS 采的——视觉层在 CI 永远跑不成。**本机 macOS + Chrome 是它唯一的执行地**，之前那里是个空洞。
+
+**2. 视觉基线从 fail-open 改为 fail-closed**
+
+- 旧行为：env 失配（platform/chrome/python 任一不匹配）只 WARN、`exit 0`。等于「换台机器就什么都不检测，而且报绿灯」。实例：基线采于 Chrome 156，本机是 157，26 条基线除 env 字段外**全部匹配**，却因一个小版本差异全部报 WARN——假警报与真警报分不开，这个门失去意义。
+- 现在默认 **FAIL**（`any_fail = True; continue`），并给出两条显式出路：① `--fingerprint` 后入库本机基线（根治，需 risk-medium PR 签字）；② `CW_VISUAL_ALLOW_ENV_DRIFT=1` 声明豁免（仅容忍 env 差异，指纹正文仍逐轴比对）。不允许默默过去。
+
+### 教训反思
+
+- **「打印出来的进度」不是证据。** `echo "[4/4] 完成"` 是硬编码字符串，四个 gate 里少一个，输出依然写着 4/4。文档、注释、进度条都在声称「四件套」，唯一没声称的是代码。同理 CI 里那句「✅ 三层核验通过」——如果 `CMD_FIDELITY` 是空的，它连这句话都不会打印，而**整步跳过也是成功**。验证「门存不存在」必须看它调用了什么，不是看它印了什么。
+- **WARN 不阻断等于没有。** 26 条基线全部匹配、26 条却全部 WARN，这种输出在人的眼里就是「噪音」，在 CI 眼里就是「绿灯」。一个告警若能同时覆盖「什么都没变」和「真的变了」，它就不能叫告警。降级通道必须（a）默认关闭，（b）显式声明，（c）只降低**环境**敏感度而不是降低**比对**强度。
+- **跨环境能力要按环境分流，不是按「统一」分流。** 视觉基线需要 Chrome，CI 是 ubuntu 无 Chrome——正确做法是让它在**有 Chrome 的地方**（本地）成为硬门禁、在没有的地方明确不跑，而不是塞进 CI 然后靠「降级不报错」假装跑了。1.15.0 我把 T2 排除在 CI 外是对的，但只说了「为什么不进 CI」，没说「那它在哪里跑」——于是它哪里都没跑。
+- 升级冲突里有一种是**过期路径伪装成本地定制**：clairis 的 `defect-workflow.md` 保留着 `/Users/mason/ToHighs/biaoyue`（仓已改名，该目录无此路径）。`--accept-local` 会把它固化成基线，让一个必然失效的路径永久不被纠正。判断「本地定制」时要看内容是否还有意义，不是只看哈希不同。
+
+### 验证
+
+- `./test/install-update-e2e.sh`：**379 通过 · 0 失败**（+5 条回归锁：真调 CMD_E2E / 读并执行 CMD_FIDELITY / 读并执行 CMD_VISUAL_BASELINE）
+- `./test/rollout-check.sh` 四仓：**12 通过 · 0 失败**
+- 视觉基线三态实测：默认无豁免 → `exit 1` 并报两条出路；`CW_VISUAL_ALLOW_ENV_DRIFT=1` → `exit 0` 且 26 条全匹配；豁免下伪造指纹差异 → 仍 `exit 1`（豁免不是万能通行证）
+- `run_gate` 契约：未配置跳过不失败；失败→`❌ 中止`且后续不执行（`exit 1`）
+- 四仓 `pr-automation.sh` 均含 `run_gate e2e` / `fidelity` / `visual-baseline` 三处；contentweave 真跑 Chrome 得 26 条匹配
+- `bash -n` + `shellcheck --severity=warning -x` 全通过
+
+---
+
 ## 1.15.0 — 2026-11-05
 
 ### 新增/修复

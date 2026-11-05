@@ -103,6 +103,15 @@ ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills
 # 只有 low/medium 尝试（用户决策：中风险自动合并，高风险人工）。旧锁「无风险分档」作废。
 ok "pr-automation high 不自动合并" "$(grep -c 'risk-high.*人工合并\|RISK.*==.*high.*human\|高风险不自动合并' scripts/pr-automation.sh)" "1"
 ok "pr-automation auto-merge 分档存在" "$(grep -c '"\$RISK" == "high"' scripts/pr-automation.sh)" "1"
+# 回归锁（2026-11-05）：四件套曾只跑 3 个——脚本打印「[4/4] 完成」但 CMD_E2E 从未被调。
+# md-bundle 的 CMD_E2E 早配了却只在 CI 跑，本地硬门禁漏了它。
+ok "pr-automation 真调 CMD_E2E" "$(grep -c 'run_gate e2e "\$CMD_E2E"' scripts/pr-automation.sh)" "1"
+# 回归锁：CMD_FIDELITY / CMD_VISUAL_BASELINE 必须被本地门禁读取并执行，否则是死配置。
+# 这两个键的意义在于「本机有 Chrome、CI 没有」——本地是它们唯一的执行地。
+ok "pr-automation 读 CMD_FIDELITY" "$(grep -c 'conf_get CMD_FIDELITY' scripts/pr-automation.sh)" "1"
+ok "pr-automation 执行 fidelity 门禁" "$(grep -c 'run_gate fidelity "\$CMD_FIDELITY"' scripts/pr-automation.sh)" "1"
+ok "pr-automation 读 CMD_VISUAL_BASELINE" "$(grep -c 'conf_get CMD_VISUAL_BASELINE' scripts/pr-automation.sh)" "1"
+ok "pr-automation 执行 visual-baseline 门禁" "$(grep -c 'run_gate visual-baseline "\$CMD_VISUAL_BASELINE"' scripts/pr-automation.sh)" "1"
 
 # ── 用例 1b：APP_DIR 渲染（conf 驱动路径本地化）──────────────────────────────────
 echo ""

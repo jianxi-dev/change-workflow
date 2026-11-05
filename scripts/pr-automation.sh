@@ -89,6 +89,9 @@ conf_get() {
 CMD_TYPECHECK="$(conf_get CMD_TYPECHECK || true)"
 CMD_LINT="$(conf_get CMD_LINT || true)"
 CMD_TEST="$(conf_get CMD_TEST || true)"
+CMD_E2E="$(conf_get CMD_E2E || true)"
+CMD_FIDELITY="$(conf_get CMD_FIDELITY || true)"
+CMD_VISUAL_BASELINE="$(conf_get CMD_VISUAL_BASELINE || true)"
 LABEL_RISK_LOW="$(conf_get LABEL_RISK_LOW || true)"
 LABEL_RISK_MEDIUM="$(conf_get LABEL_RISK_MEDIUM || true)"
 LABEL_RISK_HIGH="$(conf_get LABEL_RISK_HIGH || true)"
@@ -98,6 +101,9 @@ DEFAULT_BRANCH="$(conf_get DEFAULT_BRANCH || true)"
 CMD_TYPECHECK="${CMD_TYPECHECK:-}"
 CMD_LINT="${CMD_LINT:-}"
 CMD_TEST="${CMD_TEST:-}"
+CMD_E2E="${CMD_E2E:-}"
+CMD_FIDELITY="${CMD_FIDELITY:-}"
+CMD_VISUAL_BASELINE="${CMD_VISUAL_BASELINE:-}"
 LABEL_RISK_LOW="${LABEL_RISK_LOW:-risk-low}"
 LABEL_RISK_MEDIUM="${LABEL_RISK_MEDIUM:-risk-medium}"
 LABEL_RISK_HIGH="${LABEL_RISK_HIGH:-risk-high}"
@@ -287,10 +293,27 @@ if [[ ${#FILES[@]} -gt 0 ]]; then
   if [[ "$SKIP_CHECKS" == "1" ]]; then
     echo "    --skip-checks 已设置,跳过本地验证(不推荐)"
   else
+    # 四件套 = typecheck/lint/test/e2e。CMD_E2E 曾漏调：脚本打印「[4/4] 完成」
+    # 而实际只跑 3 个 gate —— 与 pr-automation「四件套硬门禁」的文档承诺不符，
+    # 且 md-bundle 的 CMD_E2E 早已配上却从未在本地跑过（只在 CI 跑）。
     run_gate typecheck "$CMD_TYPECHECK"
     run_gate lint "$CMD_LINT"
     run_gate test "$CMD_TEST"
+    run_gate e2e "$CMD_E2E"
     echo "    [4/4] 完成,本地验证全绿"
+
+    # CMD_FIDELITY 不在四件套里，但必须在本地跑：它包含 Chrome 视觉基线等
+    # 「只有开发机才有条件跑」的核验（CI 是 ubuntu 无 Chrome；基线是 macOS 采的）。
+    # 此前它只在 CI 的 evidence-check 里引用，而 CI 无 Chrome → 那条路径对视觉层
+    # 永远是空的。本机有 Chrome，这里是它唯一能真正执行的地方。
+    # 失败即中止（不降级）：视觉漂移是一种真实回归，不该被「跳过」掉。
+    run_gate fidelity "$CMD_FIDELITY"
+
+    # 本地专属视觉基线（T2 感知层）。为什么与 CMD_FIDELITY 分开：
+    # CMD_FIDELITY 同时被 CI（ubuntu，无 Chrome）执行，必须 Chrome-free；
+    # 本键只在本机跑（macOS + Chrome = 基线采集环境），塞进 CMD_FIDELITY 会让 CI 红。
+    # 语义同四件套：失败即中止。未配置的仓跳过（md-bundle/mdpkg/clairis 目前都没这键）。
+    run_gate visual-baseline "$CMD_VISUAL_BASELINE"
   fi
 
   echo "==> 3/6 显式 add 白名单提交"
