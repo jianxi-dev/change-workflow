@@ -1061,6 +1061,124 @@ ok "expand–contract 角色豁免退 0" "$rc" "0"
 case "$out23c" in *"全部通过"*) r23=0 ;; *) r23=1 ;; esac
 ok "expand–contract 角色豁免输出全过" "$r23" "0"
 
+# 场景 E：QG-9 能力否定结论无探针痕迹 —— 引用 .artifacts 但盘上无文件 → C4(d) 拒收
+mkdir -p "$B17/e/drafts"
+cat > "$B17/e/tasks.md" <<'EOF'
+## 1. 阶段一
+
+- [ ] 1.1 图片上传预览
+EOF
+cat > "$B17/e/drafts/1.1.md" <<'EOF'
+[change=fixture/1.1] 图片上传预览
+
+**Parent**: #1
+**What to build**: 直接读取上传的图片并显示在页面
+**Acceptance criteria**:
+- `npm run dev` 打开的页面中，选择图片后页面显示图片内容。
+- 取消上传后页面上不留有残留图片元素。
+**Blocked by**: None — can start immediately
+**接线归属**: 无新增导出（纯页面增量）
+**标签**: ready-for-agent
+**粒度**: 用户可见交付物
+
+能力描述: 经探针确认当前模型无视觉输入，图片识别交给 .artifacts/fixture/vision-probe.txt。
+EOF
+rc=0; out23e="$("$TC_SH" --change fixture --tasks "$B17/e/tasks.md" --drafts "$B17/e/drafts" 2>&1)" || rc=$?
+ok "QG-9 无探针痕迹退 1" "$rc" "1"
+case "$out23e" in *"- [C4]"*"无可核验探针痕迹"*) r23=0 ;; *) r23=1 ;; esac
+ok "QG-9 归属 C4(d)" "$r23" "0"
+
+# 场景 F：同一结论但 .artifacts 文件存在且非空 → 放行（机器核验调用痕迹）
+mkdir -p "$B17/f/drafts"
+cat > "$B17/f/tasks.md" <<'EOF'
+## 1. 阶段一
+
+- [ ] 1.1 图片上传预览
+EOF
+cat > "$B17/f/drafts/1.1.md" <<'EOF'
+[change=fixture/1.1] 图片上传预览
+
+**Parent**: #1
+**What to build**: 直接读取上传的图片并显示在页面
+**Acceptance criteria**:
+- `npm run dev` 打开的页面中，选择图片后页面显示图片内容。
+- 取消上传后页面上不留有残留图片元素。
+**Blocked by**: None — can start immediately
+**接线归属**: 无新增导出（纯页面增量）
+**标签**: ready-for-agent
+**粒度**: 用户可见交付物
+
+能力描述: 经探针确认当前模型无视觉输入，探针输出存 .artifacts/fixture/vision-probe.txt。
+EOF
+mkdir -p "$CW_ROOT/.artifacts/fixture"
+printf '%s\n' '$ ./scripts/cw-vision.sh doctor' 'python3 visual backend ready (describe ok)' > "$CW_ROOT/.artifacts/fixture/vision-probe.txt"
+rc=0; out23f="$("$TC_SH" --change fixture --tasks "$B17/f/tasks.md" --drafts "$B17/f/drafts" 2>&1)" || rc=$?
+ok "QG-9 探针痕迹（artifact 落盘）放行" "$rc" "0"
+case "$out23f" in *"全部通过"*) r23=0 ;; *) r23=1 ;; esac
+ok "QG-9 artifact 放行输出全过" "$r23" "0"
+rm -rf "$CW_ROOT/.artifacts/fixture"
+
+# 场景 G:只写标记词（cw-vision/探针）没有痕迹 → 仍拒收（标记词不算证据）
+mkdir -p "$B17/g/drafts"
+cat > "$B17/g/tasks.md" <<'EOF'
+## 1. 阶段一
+
+- [ ] 1.1 图片上传预览
+EOF
+cat > "$B17/g/drafts/1.1.md" <<'EOF'
+[change=fixture/1.1] 图片上传预览
+
+**Parent**: #1
+**What to build**: 直接读取上传的图片并显示在页面
+**Acceptance criteria**:
+- `npm run dev` 打开的页面中，选择图片后页面显示图片内容。
+- 取消上传后页面上不留有残留图片元素。
+**Blocked by**: None — can start immediately
+**接线归属**: 无新增导出（纯页面增量）
+**标签**: ready-for-agent
+**粒度**: 用户可见交付物
+
+能力描述: 经探针确认当前模型无视觉输入（cw-vision 探针已附），图片识别走降级方案。
+EOF
+rc=0; out23g="$("$TC_SH" --change fixture --tasks "$B17/g/tasks.md" --drafts "$B17/g/drafts" 2>&1)" || rc=$?
+ok "QG-9 仅标记词退 1" "$rc" "1"
+case "$out23g" in *"- [C4]"*"无可核验探针痕迹"*) r23=0 ;; *) r23=1 ;; esac
+ok "QG-9 标记词不放行" "$r23" "0"
+
+# 场景 H:内联证据块（围栏命令行 + 输出）→ 放行
+mkdir -p "$B17/h/drafts"
+cat > "$B17/h/tasks.md" <<'EOF'
+## 1. 阶段一
+
+- [ ] 1.1 图片上传预览
+EOF
+cat > "$B17/h/drafts/1.1.md" <<'EOF'
+[change=fixture/1.1] 图片上传预览
+
+**Parent**: #1
+**What to build**: 直接读取上传的图片并显示在页面
+**Acceptance criteria**:
+- `npm run dev` 打开的页面中，选择图片后页面显示图片内容。
+- 取消上传后页面上不留有残留图片元素。
+**Blocked by**: None — can start immediately
+**接线归属**: 无新增导出（纯页面增量）
+**标签**: ready-for-agent
+**粒度**: 用户可见交付物
+
+能力描述: 探针确认当前模型无视觉输入，证据：
+
+```
+$ ./scripts/cw-vision.sh doctor
+python3 visual backend ready (describe ok)
+```
+
+图片识别走本地 py 兜底。
+EOF
+rc=0; out23h="$("$TC_SH" --change fixture --tasks "$B17/h/tasks.md" --drafts "$B17/h/drafts" 2>&1)" || rc=$?
+ok "QG-9 内联证据块放行" "$rc" "0"
+case "$out23h" in *"全部通过"*) r23=0 ;; *) r23=1 ;; esac
+ok "QG-9 内联证据块输出全过" "$r23" "0"
+
 # 场景 D：--live 对账（gh 桩；不联网）—— 匹配退 0 / 不符退 1
 mkdir -p "$B17/stub"
 cat > "$B17/stub/gh" <<'STUB'
@@ -1303,6 +1421,12 @@ ok "QG-5 元素存在非证据" "$(grep -c '元素存在.*不是有效证据\|�
 ok "QG-5 禁伪造手动 QA" "$(grep -c '伪造.*手动 QA\|qa-.*\.spec\.ts' docs/agents/quality-gates.md)" "2"
 # QG-8 发现闭环门条目：含"QG-8"且含"发现闭环门"（2 行：标题 + 豁免表）
 ok "QG-8 发现闭环门条目" "$(grep -c 'QG-8.*发现闭环门\|### QG-8 发现闭环门' docs/agents/quality-gates.md)" "2"
+# QG-9 能力结论探针门（新增：二次事故「当前模型无视觉输入」防复发）
+ok "QG-9 能力结论探针门节" "$(grep -c '### QG-9 能力结论探针门' docs/agents/quality-gates.md)" "1"
+ok "QG-9 先探针后发言" "$(sed -n '/^### QG-9/,/^---$/p' docs/agents/quality-gates.md | grep -c '先探针后发言')" "1"
+ok "QG-9 仅写标记不算证据" "$(sed -n '/^### QG-9/,/^---$/p' docs/agents/quality-gates.md | grep -c '不算证据')" "1"
+ok "QG-9 归因机制失守非粗心" "$(sed -n '/^### QG-9/,/^---$/p' docs/agents/quality-gates.md | grep -c '机制失守')" "1"
+ok "QG-9 票面禁能力否定结论" "$(sed -n '/^### QG-9/,/^---$/p' docs/agents/quality-gates.md | grep -c '能力否定结论')" "2"
 # §四 三分类 AC 模板：含"三行"且含"存在/生命周期/保真"（1 行）
 ok "§四 三分类 AC 模板" "$(grep -c '三行.*存在.*生命周期.*保真\|存在.*生命周期.*保真.*三行' docs/agents/quality-gates.md)" "1"
 # §五 callout 重复反例：含"callout"且含"重复"或"注释 注释"（7 行）
@@ -1313,7 +1437,7 @@ ok "§五 围栏反引号反例" "$(grep -c '围栏.*反引号\|fenced.*code.*�
 ok "§五 取消残留反例" "$(grep -c '取消.*残留' docs/agents/quality-gates.md)" "11"
 # §七 no-ui-impact 浮层不豁免：含"浮层/插入/渲染"且含"不得豁免"且含"生命周期"且含"保真"（1 行）
 ok "§七 no-ui-impact 浮层不豁免" "$(grep -c '浮层.*插入.*渲染.*不得豁免.*生命周期.*保真\|浮层/插入/渲染.*不得.*豁免.*生命周期.*保真' docs/agents/quality-gates.md)" "1"
-# §八 expected capture 行：表格中有 4 行包含 expected capture 内容（QG-1/QG-4/QG-5/QG-8）
+# §八 expected capture 行：表格中有 5 行包含 expected capture 内容（QG-1/QG-4/QG-5/QG-8/QG-9）
 ok "§八 expected capture 行" "$(python3 << 'PYEOF'
 import sys
 lines = open('docs/agents/quality-gates.md').readlines()
@@ -1338,7 +1462,7 @@ for line in lines:
         break
 print(c)
 PYEOF
-)" "4"
+)" "5"
 
 # ── 用例 31：evidence-capture.md 状态覆盖矩阵 + 视觉探针契约锁 ──
 echo ""
@@ -1361,6 +1485,9 @@ ok "§三 视觉探针小节" "$(grep -c '### 3.6 视觉探针\|### 视觉探针
 ok "交互票单层截图不足" "$(grep -c '单层截图.*交互.*不足\|交互票.*单层.*不足' docs/agents/evidence-capture.md)" "1"
 # 多态证据为状态往返副产物：含"状态往返"且含"副产物"（2 行）
 ok "多态证据为状态往返副产物" "$(grep -c '状态往返.*副产物\|副产物.*状态往返' docs/agents/evidence-capture.md)" "2"
+# §3.6 常见误判（视觉事故后补）
+ok "§3.6 单工具报错非能力结论" "$(grep -c '单工具报错' docs/agents/evidence-capture.md)" "1"
+ok "§3.6 常见误判接线 QG-9" "$(grep -c 'QG-9' docs/agents/evidence-capture.md)" "2"
 
 # ── 用例 32：SKILL.md 需求输入门 + 收尾巡检 + QG-8 契约锁 ──
 echo ""
@@ -1387,6 +1514,10 @@ ok "C3 校验取消/残留/空态关键词" "$(sed -n '/^check_c3()/,/^check_c4(
 ok "C3 校验严格等于/不含关键词" "$(sed -n '/^check_c3()/,/^check_c4()/p' scripts/cw-tickets-check.sh | grep -c '严格等于\|不含')" "4"
 # C4 同步禁入信号三分类：C4 函数中含"生命周期"或"保真"（1 行）
 ok "C4 同步禁入信号三分类" "$(sed -n '/^check_c4()/,/^check_c5()/p' scripts/cw-tickets-check.sh | grep -c '生命周期\|保真')" "1"
+# C4(d) 能力结论探针痕迹核验（QG-9）
+ok "C4(d) 探针痕迹核验函数" "$(grep -c '^has_probe_trace()' scripts/cw-tickets-check.sh)" "1"
+ok "C4(d) artifact 落盘核验" "$(sed -n '/^check_c4()/,/^check_c5()/p' scripts/cw-tickets-check.sh | grep -c '\.artifacts')" "3"
+ok "C4(d) 能力否定短语禁入" "$(sed -n '/^check_c4()/,/^check_c5()/p' scripts/cw-tickets-check.sh | grep -c '无视觉能力')" "1"
 
 # ── 用例 34：跨文件门禁引用一致性契约锁 ──
 # 背景：新增 QG-8 后，其它受管模板/速查卡对 QG 范围与证据类数的引用会漂移
@@ -1395,8 +1526,9 @@ ok "C4 同步禁入信号三分类" "$(sed -n '/^check_c4()/,/^check_c5()/p' scr
 echo ""
 echo "[34] 跨文件门禁引用一致性契约锁"
 ok "速查卡含 QG-8 索引" "$(grep -c '^| QG-8 |' skills/change-workflow/agents-quick-reference.md)" "1"
+ok "速查卡含 QG-9 索引" "$(grep -c '^| QG-9 |' skills/change-workflow/agents-quick-reference.md)" "1"
 ok "速查卡 QG-1 三分类" "$(grep -c 'QG-1 | AC 三分类' skills/change-workflow/agents-quick-reference.md)" "1"
-ok "task-tracking 引用 QG-1..QG-8" "$(grep -c 'QG-1\.\.QG-8' docs/agents/task-tracking.md)" "1"
+ok "task-tracking 引用 QG-1..QG-9" "$(grep -c 'QG-1\.\.QG-9' docs/agents/task-tracking.md)" "1"
 # 当前态无 QG-1..QG-7 残留；历史叙述豁免（quality-gates.md DQ-7 案例 / defect-workflow.md 案例）
 ok "无当前态 QG-1..QG-7 残留" "$(grep -rl 'QG-1\.\.QG-7' docs/agents skills 2>/dev/null | grep -vE 'quality-gates\.md|defect-workflow\.md' | wc -l | tr -d ' ')" "0"
 
@@ -1783,6 +1915,55 @@ ok "pr-automation 收尾打印 G3 机检" "$([[ $(grep -c 'cw-g3-check.sh' scrip
 ok "pr-automation 收尾打印下一 change" "$([[ $(grep -c 'cw-next-change.sh' scripts/pr-automation.sh) -ge 1 ]] && echo y)" "y"
 # 反面回归锁：收尾段不得回头要求人工确认（老毛病：以提问结束回合 → 流程实际终止）
 ok "pr-automation 无「是否继续」提示" "$(grep -c '是否继续' scripts/pr-automation.sh || true)" "0"
+
+# G3 源匹配夹具（2026-11-11 clairis 事故）：同一 local_path 可登记多个 gbrain 源
+# （default + worktree pin 的 gstack-<name>-<hash>）。按「列表首个路径匹配」会命中
+# 陈旧的 default，把刚同步完的 pin 源当成不存在 → 误报「索引陈旧」。
+# 真环境里 gbrain 与 .gbrain-source 都不可控，故造假 gbrain + 复制脚本到临时仓，
+# 双向断言：该红（无 pin 命中陈旧源）与该绿（有 pin 命中新鲜源）各测一次，
+# 另测 pin 指向不存在源时必须报「未登记」——否则静默通过就是最坏的漏报。
+T41="$(mktemp -d)"
+mkdir -p "$T41/bin" "$T41/repo/scripts" "$T41/repo/.artifacts"
+cp "$CW_ROOT/scripts/cw-g3-check.sh" "$T41/repo/scripts/"
+cat > "$T41/bin/gbrain" <<GBEOF
+#!/usr/bin/env bash
+cat <<'JSON'
+{"sources":[
+ {"id":"default","local_path":"$T41/repo","last_sync_at":"2020-01-01T00:00:00Z"},
+ {"id":"pin-ok","local_path":"$T41/repo","last_sync_at":"2099-01-01T00:00:00Z"}
+]}
+JSON
+GBEOF
+chmod +x "$T41/bin/gbrain"
+cd "$T41/repo"
+git init -q
+git -c user.name="change-workflow-test" -c user.email="test@example.invalid" \
+    commit -q --allow-empty -m init
+touch .artifacts/decisions.tsv   # mtime 晚于 HEAD → decisions 判据不干扰本组断言
+
+# (a) 无 .gbrain-source → 回退路径匹配，命中陈旧的 default
+# 不用 $(case ...): 模式后紧邻的 ) 会被当作命令替换的闭合括号（实测 syntax error）
+r41d="$(PATH="$T41/bin:$PATH" ./scripts/cw-g3-check.sh --json 2>&1 || true)"
+r41d_hit=n; case "$r41d" in *2020-01-01T00:00:00Z*) r41d_hit=y ;; esac
+ok "41-无pin 回退路径匹配(命中陈旧源)" "$r41d_hit" "y"
+r41d_stale=n; case "$r41d" in *索引陈旧*) r41d_stale=y ;; esac
+ok "41-无pin 判陈旧" "$r41d_stale" "y"
+
+# (b) 有 pin → 严格按源 id 匹配，命中 pin-ok（2099）
+echo "pin-ok" > .gbrain-source
+r41e="$(PATH="$T41/bin:$PATH" ./scripts/cw-g3-check.sh --json 2>&1 || true)"
+r41e_hit=n; case "$r41e" in *2099-01-01T00:00:00Z*) r41e_hit=y ;; esac
+ok "41-有pin 按 id 匹配(命中新鲜源)" "$r41e_hit" "y"
+r41e_stale=n; case "$r41e" in *索引陈旧*) r41e_stale=y ;; esac
+ok "41-有pin 不报索引陈旧" "$r41e_stale" "n"
+
+# (c) pin 指向不存在的源 → 必须报「未登记」（静默通过 = 漏报，比误报更坏）
+echo "no-such-source" > .gbrain-source
+r41f="$(PATH="$T41/bin:$PATH" ./scripts/cw-g3-check.sh --json 2>&1 || true)"
+r41f_missing=n; case "$r41f" in *未登记*) r41f_missing=y ;; esac
+ok "41-pin源不存在 报未登记" "$r41f_missing" "y"
+cd "$CW_ROOT"
+sanitize "$T41"
 
 # ── 用例 42：cw-vision.sh 退出码契约 ─────────────────────────────────────
 # 为什么单独立用例：它是「三种识图 py 分散各仓」的归一入口，而**降级退 3 与成功退 0

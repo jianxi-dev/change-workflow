@@ -14,6 +14,10 @@
 #
 # 三项判据:
 #   1) gbrain 源 last_sync_at >= 本仓最后一次提交时间
+#      同一 local_path 可登记多个源（default + worktree pin 的 gstack-<name>-<hash>）。
+#      仓库根有 .gbrain-source 时严格按源 id 匹配，否则回退路径匹配——
+#      按「列表首个路径匹配」会命中陈旧的 default，把刚同步完的 pin 源当成不存在
+#      （2026-11-11 clairis 误报「索引陈旧」）。
 #   2) .artifacts/decisions.tsv 存在，且其 mtime >= 最后一次提交时间
 #   3) 若给了 --change：<change>/tasks.md 的 mtime <= decisions.tsv mtime（收口时记过账）
 # =============================================================================
@@ -33,7 +37,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 command -v python3 >/dev/null 2>&1 || { echo "⚠️ 缺 python3（降级，不判绿）" >&2; exit 3; }
-command -v gbrain >/dev/null 2>&1 || { echo "⚠️ 缺 gbrain（降级，不判绿）" >&2; exit 3; }
+# 提示常见误判：gbrain 常装在用户级目录（bun/npm 全局），不在 PATH 时这里的
+# command -v 会失败，看起来像「没装」，实际只是 shell 环境没带上
+# （2026-11-11 clairis：装在 ~/.bun/bin，误报缺 gbrain，6 票收尾全被降级跳过）。
+command -v gbrain >/dev/null 2>&1 || {
+  echo "⚠️ 缺 gbrain（降级，不判绿）" >&2
+  echo "   若已安装，检查 PATH 是否含其目录（如 ~/.bun/bin；非交互 zsh 只读 ~/.zshenv）" >&2
+  exit 3
+}
 
 HEAD_TS="$(git log -1 --format=%ct)"
 HEAD_ISO="$(git log -1 --format=%cI)"
@@ -47,6 +58,14 @@ head_ts = int(head_ts)
 problems, notes = [], []
 
 # 1) gbrain 源新鲜度
+# 有 pin 时按源 id 严格匹配（kubectl 语义）：同一路径多源登记时，路径匹配
+# 只能拿到列表第一个，常是陈旧的 default。
+pin = None
+pin_path = os.path.join(root, ".gbrain-source")
+if os.path.exists(pin_path):
+    with open(pin_path) as fh:
+        lines = [ln.strip() for ln in fh if ln.strip() and not ln.strip().startswith("#")]
+        pin = lines[0] if lines else None
 last_sync = None
 try:
     out = subprocess.run(["gbrain", "sources", "list", "--json"],
@@ -54,14 +73,21 @@ try:
     start = out.find("{")
     data = json.loads(out[start:]) if start >= 0 else {}
     for s in data.get("sources", []):
-        if s.get("local_path") and os.path.realpath(s["local_path"]) == os.path.realpath(root):
+        if pin is not None:
+            if s.get("id") == pin:
+                last_sync = s.get("last_sync_at")
+                break
+        elif s.get("local_path") and os.path.realpath(s["local_path"]) == os.path.realpath(root):
             last_sync = s.get("last_sync_at")
             break
 except Exception as e:
     notes.append("gbrain sources 读取失败：%s" % e)
 
 if last_sync is None:
-    problems.append("gbrain 未登记本仓（或读不到 last_sync_at）→ 先跑 `gbrain sources add --path .`")
+    if pin is not None:
+        problems.append("gbrain 未登记本仓源 %s（.gbrain-source 指向的源不存在）→ 检查 `gbrain sources list` 或更新 .gbrain-source" % pin)
+    else:
+        problems.append("gbrain 未登记本仓（或读不到 last_sync_at）→ 先跑 `gbrain sources add --path .`")
 else:
     sync_ts = calendar.timegm(time.strptime(last_sync[:19], "%Y-%m-%dT%H:%M:%S"))  # UTC，勿用 mktime
     # 容忍 5 分钟（提交与同步的时钟/流程延迟）
