@@ -126,7 +126,7 @@ flowchart TB
 | `openspec-apply-change` | G1 | 可选（按需） | 按 openspec 官方 tasks 指令流实施（`/opsx-apply`） |
 | `code-review` | G1 出口·步骤 1 | 必调（每任务后） | 双轴自审（Standards 代码规范 + Spec 需求符合，并行防互相掩盖）；通过才允许 commit |
 | `review` | G1 出口·步骤 2 | 条件调（risk-medium/high） | pre-landing 结构审查（SQL 安全/LLM trust boundary/条件副作用/scope drift）；risk-low 跳过 |
-| `quality-gates`（规范，非 skill） | **G0 切片 + G1 出口 + G2 前置 + G4 收尾前置** | 必读（`docs/agents/quality-gates.md`） | QG-1..QG-8 八条硬门禁定义：QG-7 挂 G0 切片、QG-1/QG-3 挂 G0 拆票、QG-2/QG-4/QG-5 挂 G1 出口、QG-6 挂 G1 循环、QG-8 挂 G4 收尾前置 |
+| `quality-gates`（规范，非 skill） | **G0 切片 + G1 出口 + G2 前置 + G4 收尾前置** | 必读（`docs/agents/quality-gates.md`） | QG-1..QG-9 九条硬门禁定义：QG-7 挂 G0 切片、QG-1/QG-3 挂 G0 拆票、QG-2/QG-4/QG-5 挂 G1 出口、QG-6 挂 G1 循环、QG-8 挂 G4 收尾前置、QG-9 挂 G0-POST 票面（C4(d) 能力结论须带探针痕迹） |
 | `evidence-capture`（规范，非 skill） | **G1 出口·QG-5 + 缺陷线 DQ-3/DQ-5** | 必读（`docs/agents/evidence-capture.md`） | 证据分层协议（before/after 成对）+ 7 类证据规范（运行时态/视频/截图/测量数字/transcript/headless 降级/视觉探针）；UI 票证据至少含一项运行时证据；`cw-evidence.sh` 是其采集脚本，`test_runtime_smoke.py` 是运行时冒烟脚本 |
 | `code-structure`（规范，非 skill） | **G1 实施 + G1 出口·code-review Standards 轴** | 条件读（`docs/agents/code-structure.md`；仅本票 diff 含新增共享逻辑或跨流程重复块时触发） | 服务层架构约束：两层分离（actions 管 why/when，service 管 how）+ 四反模式清单（God/Leaky/Inconsistent/Over-abstraction） |
 | `pr-writing`（规范，非 skill） | **G2 提交前 + G3 收尾 + G4 收口评论** | 必读（`docs/agents/pr-writing.md`；只处理本次写/改的文本） | 去 AI 味：12 条 AI tells 清单 + 两遍扫描法 + add soul 原则；commit message / PR 标题正文 / learn / 收尾回复均过此规范 |

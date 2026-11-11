@@ -47,6 +47,21 @@
 #      0 = 全部通过（含 --help）；1 = 有违规或用法错误。
 #      用法错误（缺 --change / 格式非法 / 未知参数 / --live 与 --drafts 互斥）
 #      打印 ❌ + 用法到 stderr 后退 1。
+#
+#   6. 为什么 C4(d) 禁「能力结论短语」且要求可核验探针痕迹（QG-9）:
+#      「当前模型无视觉输入」是一次事故的写法: look_at 报错一次 → agent 把工具
+#      管线的报错概括成模型能力结论 → 写进票面后自我强化。更糟的是「先跑探针」
+#      当初只靠话术约束——探针工具（cw-vision.sh）明明装在仓里却从未被调用;
+#      真结论必须由真调用产生，故探针证据不许只凭标记词（「已附探针」四个字
+#      与没附无异），必须留下机器可核的调用痕迹，两种形态任选其一:
+#        形态 A: 票面引用 `.artifacts/…` 探针输出文件，且该文件在盘上存在且非空
+#                （命令形如 `./scripts/cw-vision.sh doctor > .artifacts/<change>/
+#                vision-probe.txt 2>&1`，票面引用路径）;
+#        形态 B: 票面内联证据块（``` 围栏内: 探针命令行 + ≥1 行非空输出）。
+#      正文命中能力否定短语（无视觉输入/无视觉能力/无视觉支持/不支持视觉输入）
+#      且无任何可核验痕迹 → 拒收。短语集是保守集（纯能力否定结论形态），避免
+#      误伤正当的降级环境讨论; UI 操作态验证另有 cw-evidence.sh（browser-skill
+#      后端）受管入口，走通道不靠嘴。
 # =============================================================================
 set -euo pipefail
 
@@ -480,10 +495,15 @@ check_c3() {
 #     无一 bullet 可观测、且 ≥1 条命中 类型检查|单测|单元测试|返回|导出。
 # (b) 导出新 API 却无接线归属（QG-3）: 正文任一行命中导出正则且该行未声明豁免，
 #     则接线归属须非空且不是占位值（无/none/n/a/—/-/待定/tbd，大小写不敏感）。
-# (c) 三分类 AC 缺失：未声明 no-ui-impact 时，AC 缺生命周期/保真关键词（取消/残留/空态/严格等于/不含）
+# (c) 三分类 AC 缺失：未声明 no-ui-impact 时，AC 缺生命周期/保真关键词（取消/残留/空态/严格等于/不含）。
+# (d) 能力结论须带可核验探针痕迹（QG-9）: 正文命中能力否定结论短语（如「无视觉输入」）时，
+#     「先跑探针」必须机器可判 —— 标记词不算证据（“已附探针”四字与没附等价，见头注 6），
+#     须为两种可核验形态之一:
+#       形态 A: 票面引用 `.artifacts/…` 下探针输出文件，且该文件盘上存在且非空；
+#       形态 B: 正文内联证据块（``` 围栏内: 探针命令行 + ≥1 行非空输出）。
 check_c4() {
-  echo "==> C4 禁入信号（库层断言 / 导出无接线 / 三分类缺失）"
-  local viol=0 i ac bullets obs lib line hits wiring wiring_lc
+  echo "==> C4 禁入信号（库层断言 / 导出无接线 / 能力结论无探针）"
+  local viol=0 i ac bullets obs lib line hits wiring wiring_lc art trace_ok
   for i in "${!DRAFT_FILES[@]}"; do
     if [[ "${D_BODY[$i]}" != *"no-ui-impact"* ]]; then
       ac="${D_AC[$i]}"
@@ -520,12 +540,68 @@ check_c4() {
         esac
       fi
     done <<< "${D_BODY[$i]}"
+    # (d) 能力结论须带可核验探针痕迹（QG-9）。先扫能力否定结论短语；命中后
+    #     标记词不再放行，须为机器可核的调用痕迹（形态 A/B 见头注 6）——
+    #     探针工具已装在仓里、跑一下就有真输出，本门禁拦的就是「没调用
+    #     只写一句」与「只写标记词冒充已附」。
+    hits="$(printf '%s\n' "${D_BODY[$i]}" | grep -E '无视觉输入|没有视觉输入|无视觉能力|没有视觉能力|无视觉支持|不支持视觉输入' || true)"
+    if [[ -n "$hits" ]]; then
+      trace_ok=0
+      # 形态 A: 引用 .artifacts/ 路径 + 文件存在且非空（REPO_ROOT 即当前目录）
+      while IFS= read -r art; do
+        [[ -z "$art" ]] && continue
+        if [[ -s "$art" ]]; then trace_ok=1; break; fi
+      done < <(printf '%s\n' "${D_BODY[$i]}" | grep -oE '\.artifacts/[A-Za-z0-9._/-]+\.(txt|log|md)' || true)
+      # 形态 B: 内联证据块
+      if [[ $trace_ok -eq 0 ]] && has_probe_trace <<< "${D_BODY[$i]}"; then
+        trace_ok=1
+      fi
+      if [[ $trace_ok -eq 0 ]]; then
+        add_violation "- [C4] ${D_NUM[$i]} 能力结论无可核验探针痕迹（QG-9: 须先跑探针 cw-vision.sh doctor/describe，输出存 .artifacts/<change>/vision-probe.txt 并在票面引用路径，或以证据块粘贴；未调用只写一句不予采信）"
+        viol=$((viol + 1))
+      fi
+    fi
   done
   if [[ $viol -eq 0 ]]; then
     echo "  ✅ 无禁入信号"
   else
     echo "  ❌ ${viol} 项违规" >&2
   fi
+}
+
+# ---- 探针痕迹核验（QG-9 形态 B）-----------------------------------------------
+# 输入正文（stdin）→ 0 = 存在有效内联证据块; 1 = 无。
+# 有效块: ``` 围栏内含 ≥1 行探针命令（cw-vision.sh 或 `read <图片>`），且含 ≥1 行
+#         既非命令、非注释、非空行的输出。
+# 为什么不认标记词: 「已附探针」四字与没附等价 —— 探针是装在仓里的工具，调用必有
+# 命令行与输出，这正是调用机制被「控好」的判据（头注 6）。
+has_probe_trace() {
+  local in_block=0 has_cmd=0 has_other=0 line t
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      \`\`\`*)
+        if [[ $in_block -eq 1 ]]; then
+          if [[ $has_cmd -eq 1 && $has_other -eq 1 ]]; then return 0; fi
+          in_block=0; has_cmd=0; has_other=0
+        else
+          in_block=1
+        fi
+        ;;
+      *)
+        [[ $in_block -eq 0 ]] && continue
+        t="${line#"${line%%[![:space:]]*}"}"
+        [[ -z "$t" ]] && continue
+        [[ "$t" == '#'* ]] && continue
+        if [[ "$t" == *cw-vision* || "$t" == '$'*read* || "$t" == 'read '* ]]; then
+          has_cmd=1
+        else
+          has_other=1
+        fi
+        ;;
+    esac
+  done
+  [[ $has_cmd -eq 1 && $has_other -eq 1 ]] && return 0
+  return 1
 }
 
 # ---- C3/C4 conformance.json 锚点机检（IC-1）-----------------------------------

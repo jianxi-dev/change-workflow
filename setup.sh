@@ -290,7 +290,7 @@ if [[ -f AGENTS.md ]] && ! grep -q "change-workflow" AGENTS.md; then
 
 ### Quality gates（质量门禁）
 
-任何 change / 缺陷修复的**票内容与完成判据**必须满足 `docs/agents/quality-gates.md`：**QG-1..QG-7**（变更开发侧）+ **DQ-1..DQ-8**（缺陷处理侧）。
+任何 change / 缺陷修复的**票内容与完成判据**必须满足 `docs/agents/quality-gates.md`：**QG-1..QG-9**（变更开发侧）+ **DQ-1..DQ-8**（缺陷处理侧）。
 
 **变更侧核心三条**：
 
