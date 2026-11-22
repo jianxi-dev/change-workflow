@@ -25,7 +25,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 
 ## 规范前置（每次进入强制执行）
 
-1. 读取规范索引：`docs/agents/task-tracking.md`、`quality-gates.md`、`issue-tracker.md`、`project-board.md`、`triage-labels.md`、`defect-workflow.md`
+1. 读取规范索引：`docs/agents/task-tracking.md`、`quality-gates.md`、`issue-tracker.md`、`project-board.md`、`triage-labels.md`、`defect-workflow.md`、`feedback-alignment.md`
 2. **核对各文档头部「最后更新/生效日期」**——以最新版为准；发现旧认知与规范相悖 → 以新规范为准并记入 learnings（规范在演进，禁止按旧认知操作）
 3. 术语速查（阶段 ≠ 工具 ≠ skill ≠ 脚本）：
 
@@ -39,7 +39,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 | `cw-evidence.sh` | 脚本（G1 出口·QG-5 证据采集：按证据分层协议采集 before/after 成对产物，落 `.artifacts/<票号>/`；无 ffmpeg/GUI 走 headless 降级） |
 | `cw-evidence.sh record-state` | 子命令（G1 出口·证据 manifest 录制：创建/合并 `.artifacts/<票号>/state-coverage.json`，每态 `{state, screenshot, assertion}`；exit-3 须附机器可核验理由） |
 | `cw-greploop.sh` | 脚本（G2 可选·Greptile 审查闭环：PR 创建后 → 合并前调用；无 Greptile 降级为本地审查闭环并显式标注） |
-| `cw-tickets-check.sh` | 脚本（G0-POST 拆票自检：对账/字段/AC 形态/禁入信号/DAG/豁免/规模/粒度 C1-C8 机检，发布前门禁；`--live` 对账已发子票） |
+| `cw-tickets-check.sh` | 脚本（G0-POST 拆票自检：输入对账/对账/字段/AC 形态/禁入信号/DAG/豁免/规模/粒度 C1-C8 + C11 机检，发布前门禁；`--live` 对账已发子票） |
 | `decisions-log.sh` | 脚本（G3 决策日志：每票追加一行 TSV——时间/阶段/决策/理由/证据指针/结果；默认落 `.artifacts/`，本地不入库） |
 | 双形态规格 | 规格的人读层（proposal/design/AC 自然语言）+ 机读层（`conformance.json` 锚点），双向链接；人读层不可丢 |
 | 验收锚点 | 机读锚点：含具体期望值 + 来源 + 断言类型（`exact`/`state-machine`/`perceptual`）；无具体值/来源不得成锚点 |
@@ -83,7 +83,8 @@ flowchart TB
     A3["wayfinder 决策工单"]
     A4["手工纪要/其他"]
   end
-  A1 & A2 & A3 & A4 -->|"① 统一综合"| T["to-spec 归一化<br/>spec issue（Problem/Solution/Stories/Out of Scope/Testing）"]
+  A1 & A2 & A3 & A4 -->|"① 输入对账（G0-PRE 1a）"| R["对账表 + 用户确认<br/>或 输入对账豁免: 理由"]
+  R -->|"① 统一综合（1b）"| T["to-spec 归一化<br/>spec issue（Problem/Solution/Stories/Out of Scope/Testing）"]
   T -->|"② 四要素映射"| A5["requirements.md<br/>What/Why/Scope/Non-goals"]
   A5 -->|"③ 需求输入门（L-1）"| A6["需求输入包<br/>来源可追溯/空白显式化/一手证据/冲突显式/验收锚点"]
   subgraph 主流程["change 主流程（G0-G4）"]
@@ -117,7 +118,7 @@ flowchart TB
 | Skill | 调用环节 | 调用方式 | 作用 / 产物 |
 |---|---|---|---|
 | `change-workflow` | 全流程 G0-G4 | 本 skill，总编排 | 发起 gate 检查、fix-first 自愈回路、按本表调用各 skill |
-| `to-spec` | G0-PRE 步骤 1 | 必调（非结构化输入统一先综合；结构化工单可直接读） | 输入 → 1 张 spec issue（Problem/Solution/User Stories/Out of Scope/Testing，ready-for-agent），供四要素映射与 propose 输入 |
+| `to-spec` | G0-PRE 步骤 1b | 必调（非结构化输入统一先综合；结构化工单可直接读） | 输入 → 1 张 spec issue（Problem/Solution/User Stories/Out of Scope/Testing，ready-for-agent），供四要素映射与 propose 输入；1a 对账表/豁免行随后固化为其评论 |
 | `openspec-propose` | G0 阶段二 | 包装调用（必调） | 以归一化四要素生成 proposal/design/**tasks.md**（拆票前提；注入垂直切片约束） |
 | `to-tickets` | G0-POST（阶段三） | 必调 | 以 spec issue 为输入拆子票（1 task=1 ticket，AC/Blocked by，**Parent=spec issue #S**，沿用输入源阻塞边；票面经 `cw-tickets-check.sh` 自检全绿后自动发布，无 quiz 人工确认） |
 | `implement` | G1 | 必调（总编排，task-tracking §7.1 ✅） | 按 spec/tickets 实施，内嵌 tdd + 定期 typecheck/test，完成后调 code-review |
@@ -141,9 +142,11 @@ flowchart TB
 
 ### G0 启动 gate（严格三段时序）
 
-**阶段一 G0-PRE（仅 4 步）｜执行：本 skill（步骤 1 包装调用 to-spec）**
+**阶段一 G0-PRE（仅 4 步）｜执行：本 skill（步骤 1a 本 skill 判定对账，1b 包装调用 to-spec）**
 
-1. **输入归一化**：先调 `to-spec` 综合产出 spec issue（需求定义面）→ 四要素映射写入 requirements.md（What/Why/Scope/Non-goals，引用 spec issue URL）——产出四要素后方可继续
+1. **输入对账 + 归一化**
+   - **1a 输入对账（先做，对话内完成）**：按 `docs/agents/feedback-alignment.md` §二 判定触发——batch（≥2 条），或单条但命中任一信号（形态/交互模型未定；新增用户可见面；无一手原型且无规范锚点；含判断词；跨面组合改动）。触发 → 产五列对账表 + 用户一句话确认（`确认：全按默认，#N 选 B`）；不触发 → 准备一行 `输入对账豁免: <理由>`。**处置列仍有 `待确认` = 未完成对账**：可出 proposal/design/tasks 草稿，禁止拆票与实施。
+   - **1b 归一化**：调 `to-spec` 综合产出 spec issue（需求定义面）→ **把 1a 产物（`## 输入对账` 表或豁免行）作为 spec issue 评论固化** → 四要素映射写入 requirements.md（What/Why/Scope/Non-goals，引用 spec issue URL）——产出四要素后方可继续
 2. **需求输入门（L-1 契约门）**：任何以「对标 / 学习某产品 / 补齐某能力」为由的 change，在进入拆票前，其**需求输入包**（`docs/requirements/<change>/input-package.md` 或 `requirements.md` 增补段）须满足五条契约——**来源可追溯 / 空白显式化（`open-question` 阻断引用它的规格条目）/ 一手证据 / 冲突显式 / 验收锚点**；纯重构/纯文档/纯基建票显式标注 `no-ui-impact` 者豁免。违规 → fix-first：补齐后重验，不得进入拆票。
 3. 读规范核对日期（见规范前置）
 4. 分支：本阶段**不建任何分支**；票级分支在 G1 起步创建；接手进行中单票（分支已存在）→ 直接走 `--resume-branch`（零询问）
@@ -166,7 +169,7 @@ flowchart TB
 **阶段三 G0-POST（issue 发布面）｜执行：必调 to-tickets skill**
 
 - 拆票逻辑与原则（垂直切片/Blocked by/frontier/expand-contract）**以 to-tickets SKILL.md 为准，本 skill 不复制**；此处仅保留仓库特化规则：**Parent 引用 = spec issue（to-tickets 原文「源 issue」语义，不另建 change parent）**、标题前缀 `[change=<名>/<task号>]`、标签 `ready-for-agent`、Blocked by 沿用输入源既有阻塞边
-- 调用 to-tickets 传参 spec issue 编号（fetch 读全文评论）：输入 = #S 全文 + tasks.md → **不重复切片**；票面草稿写入 `.tickets-draft/<change>/`（每票一文件：标题 `[change=<名>/<task号>]` + Parent/What to build/Acceptance criteria/Blocked by/接线归属/标签/粒度 七字段，建票后删除）→ **发布前自检**：`./scripts/cw-tickets-check.sh --change <名>`（C1-C8 机检，退 0 才放行）→ **三项书面自答**落款 spec issue 评论（Blocked by 语义真伪 / `What` 与 spec 相符性 / 总票数匹配度，须引用 spec 原文或脚本原始输出）→ 全绿**自动发布**（按依赖序 `gh issue create`，1 task = 1 ticket，每票 Parent=#S、标签 ready-for-agent）→ 建票后 `--live` 对账复核
+- 调用 to-tickets 传参 spec issue 编号（fetch 读全文评论）：输入 = #S 全文 + tasks.md → **不重复切片**；票面草稿写入 `.tickets-draft/<change>/`（每票一文件：标题 `[change=<名>/<task号>]` + Parent/What to build/Acceptance criteria/Blocked by/接线归属/标签/粒度 七字段，建票后删除）→ **发布前自检**：`./scripts/cw-tickets-check.sh --change <名>`（C1-C8 + C11 机检，退 0 才放行）→ **三项书面自答**落款 spec issue 评论（Blocked by 语义真伪 / `What` 与 spec 相符性 / 总票数匹配度，须引用 spec 原文或脚本原始输出）→ 全绿**自动发布**（按依赖序 `gh issue create`，1 task = 1 ticket，每票 Parent=#S、标签 ready-for-agent）→ 建票后 `--live` 对账复核
 - 自检不通过 → fix-first 自愈：就地重切（`/opsx-update` 修订 tasks.md + 草稿）→ 重跑，循环到过；拆票环节零人工询问，升级仅限「gate 失败处理」既有三类
 - artifacts docs PR 先行：`pr-automation.sh --role feat --issue <parent> --slug <change>-artifacts --risk low --files openspec/changes/...`
 - **看板入列（Ready 列）——label 不会自动入列，需显式 gh project 操作**：
@@ -179,6 +182,7 @@ flowchart TB
   ```
   **看板常量从项目根 `.change-workflow.conf` 读取**（由 setup.sh 生成）：`PROJECT_ID` / `STATUS_FIELD_ID` / `OPT_READY` / `OPT_DONE` / `OPT_BACKLOG` / `OPT_IN_PROGRESS`
 - **对账自证**：`./scripts/cw-tickets-check.sh --change <change 名> --live`（C1 双射脚本化：子票数 == tasks.md task 数、编号逐条对应；spec issue 标题不含该前缀天然排除）；**禁止占位符原样传入命令**
+- **输入对账机检（C11）**：`cw-tickets-check.sh`（草稿与 `--live` 均跑）校验 spec issue 的 `## 输入对账` 段——五列表存在、处置列非空且无 `待确认`、表尾有 `确认：`，或存在非空 `输入对账豁免: <理由>`；只对 `createdAt ≥ INPUT_ALIGNMENT_SINCE`（`.change-workflow.conf`）的 spec issue 生效，历史 change 不追溯。结构不合格 → fix-first 补表后重跑
 - **一致性制品校验（G0-POST）**：`./scripts/cw-conformance.sh verify <change>`（重投影 anchors.md 语义比对 + lock 哈希核验，退 0 才放行）
 
 ### G1 实施 gate｜执行：implement skill（总编排，task-tracking §7.1 ✅ 必用）

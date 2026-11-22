@@ -98,6 +98,7 @@ ok "脚本模式 755" "$(fmode scripts/cw-evidence.sh)" "755"
 ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
 ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "30"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
+ok "update 播种 INPUT_ALIGNMENT_SINCE" "$(grep -c '^INPUT_ALIGNMENT_SINCE=' .change-workflow.conf)" "1"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
 # 回归锁（2026-09-27 反转）：pr-automation.sh auto-merge 重新分档——high 不自动合并，
 # 只有 low/medium 尝试（用户决策：中风险自动合并，高风险人工）。旧锁「无风险分档」作废。
@@ -189,6 +190,7 @@ ok "1c-1 setup --yes 退出码（无 gh 认证时允许 fail-open）" "$([[ $rc1
 ok "1c-2 conf 含 UI_PATH_GLOB" "$(grep -c '^UI_PATH_GLOB=' .change-workflow.conf)" "1"
 ok "1c-3 conf 含 LABEL_UI_SURFACE" "$(grep -c '^LABEL_UI_SURFACE=' .change-workflow.conf)" "1"
 ok "1c-4 UI_PATH_GLOB 是单个花括号组" "$(grep '^UI_PATH_GLOB=' .change-workflow.conf | grep -c '{.*}')" "1"
+ok "1c-5 conf 含 INPUT_ALIGNMENT_SINCE" "$(grep -c '^INPUT_ALIGNMENT_SINCE=' .change-workflow.conf)" "1"
 sanitize "$B1c"
 cd "$B1/repo"
 
@@ -196,8 +198,10 @@ cd "$B1/repo"
 echo ""
 echo "[2] 幂等（版本回退后重跑）"
 set_version "1.0.0"
+ias2_before="$(grep '^INPUT_ALIGNMENT_SINCE=' .change-workflow.conf)"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
+ok "幂等不改写 INPUT_ALIGNMENT_SINCE" "$(grep '^INPUT_ALIGNMENT_SINCE=' .change-workflow.conf)" "$ias2_before"
 case "$out2" in *"已最新 30"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
@@ -2012,6 +2016,112 @@ ok "cw-vision CW_VISION_CMD 覆盖仓内后端" "$r42h" "0"
 ok "受管清单含 cw-vision" "$(bash -c 'source lib/render.sh; cw_list_files' | grep -c 'cw-vision')" "1"
 ok "scripts/cw-vision.sh 以换行结尾" "$(tail -c 1 scripts/cw-vision.sh | xxd -p | tr -d '\n')" "0a"
 rm -rf "$V42"
+
+
+# ── 用例 43：cw-tickets-check C11 输入对账门（G0-PRE 1a 产物机检）─────────────
+# 契约：spec issue 须有 `## 输入对账` 五列表（处置列非空、无「待确认」、表尾有「确认：」），
+#       或一行非空 `输入对账豁免: <理由>`；只校验 createdAt >= INPUT_ALIGNMENT_SINCE。
+#       gh 桩 + 复制脚本到临时仓：不联网、不依赖真 issue。
+echo ""
+echo "[43] cw-tickets-check C11 输入对账门"
+B43="$(mktemp -d)"
+new_repo "$B43/repo" || exit 1
+mkdir -p "$B43/repo/scripts" "$B43/repo/drafts" "$B43/repo/bin"
+cp "$CW_ROOT/scripts/cw-tickets-check.sh" "$B43/repo/scripts/cw-tickets-check.sh"
+chmod +x "$B43/repo/scripts/cw-tickets-check.sh"
+printf 'INPUT_ALIGNMENT_SINCE="2026-11-22"\n' > "$B43/repo/.change-workflow.conf"
+cat > "$B43/repo/bin/gh" <<'GH'
+#!/usr/bin/env bash
+cat "${FAKE_GH_PAYLOAD:?}"
+GH
+chmod +x "$B43/repo/bin/gh"
+printf '## 1. 阶段一\n\n- [ ] 1.1 输入对账夹具\n' > "$B43/repo/tasks.md"
+cat > "$B43/repo/drafts/1.1.md" <<'EOF'
+[change=fixture43/1.1] 输入对账夹具
+
+**Parent**: #999
+**What to build**: 打开页面后出现一个可验证的对账夹具标签
+**Acceptance criteria**:
+- `npm run dev` 打开的页面中，标签文本严格等于「输入对账」。
+- 取消后页面上不留有残留标签。
+**Blocked by**: 无
+**接线归属**: 无新增导出（纯页面增量）
+**标签**: ready-for-agent
+**粒度**: 用户可见交付物
+EOF
+mk43() {
+  python3 -c 'import json,sys; json.dump({"body":sys.argv[1],"comments":[],"createdAt":sys.argv[2]}, open(sys.argv[3],"w"))' "$2" "$3" "$1"
+}
+body43_ok="$(cat <<'EOF'
+## 输入对账
+| # | 用户原话 | agent 理解（行为化复述） | 歧义点/候选（★=默认） | 处置 |
+|---|---|---|---|---|
+| 1 | 加宽页签 | 16→32px | ★+16px | 做票 |
+确认：全按默认
+EOF
+)"
+body43_pending="$(cat <<'EOF'
+## 输入对账
+| # | 用户原话 | agent 理解（行为化复述） | 歧义点/候选（★=默认） | 处置 |
+|---|---|---|---|---|
+| 1 | 加宽页签 | 16→32px | ★+16px | 待确认 |
+确认：全按默认
+EOF
+)"
+body43_thin="$(cat <<'EOF'
+## 输入对账
+| # | 原话 | 处置 |
+|---|---|---|
+| 1 | x | 做票 |
+确认：全按默认
+EOF
+)"
+mk43 "$B43/p-miss.json" "没有对账段" "2026-12-01T00:00:00Z"
+mk43 "$B43/p-ok.json" "$body43_ok" "2026-12-01T00:00:00Z"
+mk43 "$B43/p-exempt.json" "输入对账豁免: 纯文档基建，无用户可见面" "2026-12-01T00:00:00Z"
+mk43 "$B43/p-old.json" "没有对账段" "2026-11-15T00:00:00Z"
+mk43 "$B43/p-pending.json" "$body43_pending" "2026-12-01T00:00:00Z"
+mk43 "$B43/p-thin.json" "$body43_thin" "2026-12-01T00:00:00Z"
+
+run43() {
+  local payload="$1" rc=0 out
+  out="$(PATH="$B43/repo/bin:$PATH" FAKE_GH_PAYLOAD="$payload" \
+    "$B43/repo/scripts/cw-tickets-check.sh" --change fixture43 \
+    --tasks "$B43/repo/tasks.md" --drafts "$B43/repo/drafts" 2>&1)" || rc=$?
+  printf '%s\n' "$out"
+  return "$rc"
+}
+ok "C11 函数存在" "$(grep -c '^check_c11()' "$CW_ROOT/scripts/cw-tickets-check.sh")" "1"
+ok "C11 读 INPUT_ALIGNMENT_SINCE" "$(grep -c 'conf_get INPUT_ALIGNMENT_SINCE' "$CW_ROOT/scripts/cw-tickets-check.sh")" "1"
+
+rc=0; out43a="$(run43 "$B43/p-miss.json")" || rc=$?
+ok "C11 缺表退 1" "$rc" "1"
+case "$out43a" in *"- [C11]"*) r43=0 ;; *) r43=1 ;; esac
+ok "C11 缺表归属" "$r43" "0"
+
+rc=0; out43b="$(run43 "$B43/p-ok.json")" || rc=$?
+ok "C11 表已确认退 0" "$rc" "0"
+case "$out43b" in *"全部通过"*) r43=0 ;; *) r43=1 ;; esac
+ok "C11 表已确认输出全过" "$r43" "0"
+
+rc=0; out43c="$(run43 "$B43/p-exempt.json")" || rc=$?
+ok "C11 显式豁免退 0" "$rc" "0"
+
+rc=0; out43d="$(run43 "$B43/p-old.json")" || rc=$?
+ok "C11 历史 change 跳过退 0" "$rc" "0"
+case "$out43d" in *"历史 change 不追溯"*) r43=0 ;; *) r43=1 ;; esac
+ok "C11 历史 change 有跳过提示" "$r43" "0"
+
+rc=0; out43e="$(run43 "$B43/p-pending.json")" || rc=$?
+ok "C11 待确认退 1" "$rc" "1"
+case "$out43e" in *"待确认"*) r43=0 ;; *) r43=1 ;; esac
+ok "C11 待确认被点名" "$r43" "0"
+
+rc=0; out43f="$(run43 "$B43/p-thin.json")" || rc=$?
+ok "C11 列数不足退 1" "$rc" "1"
+case "$out43f" in *"结构不合格"*) r43=0 ;; *) r43=1 ;; esac
+ok "C11 结构不合格被点名" "$r43" "0"
+sanitize "$B43"
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 echo ""

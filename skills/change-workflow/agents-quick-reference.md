@@ -11,20 +11,21 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 
 ## G0 规一
 
-**执行**：to-spec → openspec-propose（切片）→ to-tickets 拆票（Parent=spec issue）
+**执行**：输入对账（1a）→ to-spec（1b）→ openspec-propose（切片）→ to-tickets 拆票（Parent=spec issue）
 
 **关键动作**：
-1. to-spec 综合产出 spec issue → 四要素映射写入 requirements.md
-2. 需求输入门（L-1）：来源可追溯 / 空白显式化 / 一手证据 / 冲突显式 / 验收锚点
-3. openspec-propose 生成 proposal/design/tasks.md（垂直切片约束）
-4. to-tickets 拆子票（1 task=1 ticket，Parent=#S，标签 ready-for-agent）
-5. cw-tickets-check.sh 自检全绿 → 自动发布
-6. **锚点门**：规格双形态（人读叙述 + 机读 `conformance.json` 锚点）机检四项——完备 / 无孤儿 / 可断言 / 来源非空
-7. **一致性制品**：G0 从原型程序化生成 `conformance.json` + `baseline/*.png` + e2e 骨架，**实现前锁哈希**
-8. **生成器调用**：`cw-conformance.sh generate <change>` → `lock <change>`（有/无原型分支均执行）
-9. **制品校验（G0-POST）**：`cw-conformance.sh verify <change>`（重投影语义比对 + lock 哈希核验）
+1. **输入对账（1a）**：触发信号 → `## 输入对账` 五列表 + 用户一句话确认；不触发 → `输入对账豁免: <理由>`；处置列有 `待确认` 不得拆票
+2. to-spec 综合产出 spec issue → 把 1a 产物固化为 spec issue 评论 → 四要素映射写入 requirements.md
+3. 需求输入门（L-1）：来源可追溯 / 空白显式化 / 一手证据 / 冲突显式 / 验收锚点
+4. openspec-propose 生成 proposal/design/tasks.md（垂直切片约束）
+5. to-tickets 拆子票（1 task=1 ticket，Parent=#S，标签 ready-for-agent）
+6. cw-tickets-check.sh 自检全绿 → 自动发布（C11 校验输入对账段）
+7. **锚点门**：规格双形态（人读叙述 + 机读 `conformance.json` 锚点）机检四项——完备 / 无孤儿 / 可断言 / 来源非空
+8. **一致性制品**：G0 从原型程序化生成 `conformance.json` + `baseline/*.png` + e2e 骨架，**实现前锁哈希**
+9. **生成器调用**：`cw-conformance.sh generate <change>` → `lock <change>`（有/无原型分支均执行）
+10. **制品校验（G0-POST）**：`cw-conformance.sh verify <change>`（重投影语义比对 + lock 哈希核验）
 
-**出口条件**：tasks.md 就绪 + 子票全发布 + 看板入列 Ready（详见 SKILL.md §G0）
+**出口条件**：输入对账已确认或显式豁免 + tasks.md 就绪 + 子票全发布 + 看板入列 Ready（详见 SKILL.md §G0）
 
 ## G1 实施
 

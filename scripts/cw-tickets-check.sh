@@ -9,7 +9,7 @@
 # 模式:
 #   草稿模式（默认）: 校验 .tickets-draft/<change>/ 下的票面草稿（每票一文件，
 #                     首行标题 [change=<名>/<task号>]，正文七字段）
-#   --live:           用 gh issue list 对账（仅 C1）；与 --drafts 互斥
+#   --live:           用 gh issue list 对账（C1/C11）；与 --drafts 互斥
 #
 # 退出码: 0 = 全部通过（含 --help）；1 = 违规或用法错误
 #
@@ -21,7 +21,7 @@
 #      门禁才可靠: 退 0 才允许发布子票，违规即拒收。本脚本是这些判据的唯一机器
 #      实现；规则文本（docs/agents/quality-gates.md）仍是单一事实来源。
 #
-#   2. C1-C8 与规范源的映射（为什么是这八条）:
+#   2. C1-C8 + C11 与规范源的映射（C9 预留给视觉锚点、C10 是数据面脚本，故本门用 C11）:
 #      C1 对账双射 ← task-tracking 规范: tasks.md 与票一一对应，防「票丢了/幽灵票」
 #      C2 六字段   ← task-tracking 规范: 票内容七字段齐全，防「AC 栏空着就拆票」
 #      C3 QG-1 形态 ← QG-1 用户层 AC 强制: AC 必须含浏览器可观测陈述
@@ -30,6 +30,8 @@
 #      C6 豁免显式  ← quality-gates 豁免规则: no-ui-impact 必须由票作者在标签字段显式声明
 #      C7 规模钩子  ← QG-6 集成 checkpoint: 票数 ≥6 必须有集成 checkpoint 声明
 #      C8 粒度重叠  ← QG-7 纵向切片: 粒度角色声明 + 票间 What 不得重复切同一片
+#      C11 输入对账 ← feedback-alignment 规范: spec issue 须有 `## 输入对账` 表
+#                    （或显式豁免），且处置列无「待确认」——防「拆票对象是误读的规格」
 #
 #   3. 为什么重叠阈值是 80（OVERLAP_THRESHOLD_PCT=80）:
 #      字符二元组 Jaccard ≥80% 意味着两张票的「What to build」几乎逐字相同。
@@ -62,6 +64,13 @@
 #      且无任何可核验痕迹 → 拒收。短语集是保守集（纯能力否定结论形态），避免
 #      误伤正当的降级环境讨论; UI 操作态验证另有 cw-evidence.sh（browser-skill
 #      后端）受管入口，走通道不靠嘴。
+#
+#   7. 为什么 C11 判结构不判语义、且有生效日期门:
+#      对账表治的是「用户原话被静默误读」，语义覆盖只能人读判——机器判语义会
+#      制造假红/假绿。故 C11 只保证三件事: 段存在、表是五列、处置列非空且没有
+#      遗留「待确认」（外加「确认：」行或显式豁免）。另设 createdAt >=
+#      INPUT_ALIGNMENT_SINCE 生效日期门: 本检查落地前的 change 没有这张表是历史
+#      事实，追溯判红只会让门禁被绕过，故只对新 change 生效。
 # =============================================================================
 set -euo pipefail
 
@@ -71,6 +80,22 @@ OVERLAP_THRESHOLD_PCT=80
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+
+# ---- 仓库配置（只读键值，不 source：conf 是数据不是脚本）---------------------
+CONF_FILE="$REPO_ROOT/.change-workflow.conf"
+conf_get() {
+  [[ -f "$CONF_FILE" ]] || return 0
+  awk -v k="$1" '
+    $0 ~ "^[[:space:]]*" k "=" {
+      line = $0
+      sub("^[[:space:]]*" k "=", "", line)
+      gsub(/^"|"[[:space:]]*$/, "", line)
+      val = line
+    }
+    END { if (val != "") print val }
+  ' "$CONF_FILE"
+}
+INPUT_ALIGNMENT_SINCE="$(conf_get INPUT_ALIGNMENT_SINCE)"
 
 # ---- 违规收集 ---------------------------------------------------------------
 # 违规逐行写入临时文件（内容含中文与特殊字符，变量拼接易碎）；计数用 wc。
@@ -885,9 +910,144 @@ PY
   fi
 }
 
+# ---- C11 输入对账（spec issue 的 `## 输入对账` 段）------------------------------
+# 生效日期门与结构判据的取舍见头注 7。
+resolve_spec_issue() {
+  local i n=""
+  if [[ "$LIVE" == "1" ]]; then
+    n="$(gh issue list --state all --limit 200 --json number,title,body 2>/dev/null \
+      | python3 -c '
+import json, re, sys
+prefix = "[change=%s/" % sys.argv[1]
+found = set()
+for it in json.load(sys.stdin):
+    title = it.get("title") or ""
+    if not title.startswith(prefix):
+        continue
+    m = re.search(r"(?m)^\s*\*\*Parent\*\*:\s*#([0-9]+)", it.get("body") or "")
+    if m:
+        found.add(m.group(1))
+print(" ".join(sorted(found)))
+' "$CHANGE" 2>/dev/null || true)"
+  else
+    local seen=" "
+    for i in "${!D_PARENT[@]}"; do
+      if [[ "${D_PARENT[$i]}" =~ \#([0-9]+) ]]; then
+        local m="${BASH_REMATCH[1]}"
+        if [[ "$seen" != *" $m "* ]]; then
+          seen="${seen}${m} "
+          n="${n:+$n }${m}"
+        fi
+      fi
+    done
+  fi
+  printf '%s' "$n"
+}
+
+check_c11() {
+  echo "==> C11 输入对账（spec issue）"
+  if [[ -z "$INPUT_ALIGNMENT_SINCE" ]]; then
+    echo "  ⏭ 未配置 INPUT_ALIGNMENT_SINCE，跳过"
+    return
+  fi
+  local spec_list spec json created verdict viol=0
+  spec_list="$(resolve_spec_issue)"
+  if [[ -z "$spec_list" ]]; then
+    add_violation "- [C11] 无法从票面 Parent 解析 spec issue 号"
+    echo "  ❌ 1 项违规" >&2
+    return
+  fi
+  if [[ "$spec_list" == *" "* ]]; then
+    add_violation "- [C11] 子票 Parent 不一致（#${spec_list// / #}），无法确定唯一 spec issue"
+    echo "  ❌ 1 项违规" >&2
+    return
+  fi
+  spec="$spec_list"
+  if ! json="$(gh issue view "$spec" --json body,comments,createdAt 2>/dev/null)"; then
+    add_violation "- [C11] gh issue view #${spec} 失败（无法校验输入对账）"
+    echo "  ❌ 1 项违规" >&2
+    return
+  fi
+  created="$(printf '%s' "$json" | python3 -c '
+import json, sys
+print((json.load(sys.stdin).get("createdAt") or "")[:10])
+' 2>/dev/null || true)"
+  if [[ -n "$created" && "$created" < "$INPUT_ALIGNMENT_SINCE" ]]; then
+    echo "  ⏭ #${spec} 创建于 ${created}（< ${INPUT_ALIGNMENT_SINCE}），历史 change 不追溯"
+    return
+  fi
+  local py_file=""
+  py_file="$(mktemp)"
+  cat > "$py_file" <<'PY'
+import json, re, sys
+
+d = json.load(sys.stdin)
+text = (d.get("body") or "") + "\n" + "\n".join(
+    (c.get("body") or "") for c in (d.get("comments") or []))
+
+if re.search(r"(?m)^\s*输入对账豁免\s*[:：]\s*\S+", text):
+    print("OK_EXEMPT"); sys.exit(0)
+if re.search(r"(?m)^\s*输入对账豁免\s*[:：]\s*$", text):
+    print("BAD_EXEMPT"); sys.exit(0)
+
+m = re.search(r"(?m)^\s*##\s*输入对账\s*$", text)
+if not m:
+    print("MISSING"); sys.exit(0)
+
+sec = []
+for line in text[m.end():].splitlines():
+    if re.match(r"^\s*#{2,}\s+", line):
+        break
+    sec.append(line)
+
+rows = [l.strip() for l in sec if l.strip().startswith("|")]
+data = [l for l in rows if not re.match(r"^\|[\s:\-|]+\|$", l)]
+if len(data) < 2:
+    print("BAD_TABLE:缺表头或数据行"); sys.exit(0)
+
+def cells(line):
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+if len(cells(data[0])) < 5:
+    print("BAD_TABLE:表头不足五列"); sys.exit(0)
+
+unconfirmed = []
+for line in data[1:]:
+    c = cells(line)
+    if len(c) < 5:
+        print("BAD_TABLE:数据行列数不足"); sys.exit(0)
+    disp = c[4].strip("*_` ")
+    if not disp:
+        print("BAD_TABLE:处置列为空"); sys.exit(0)
+    if disp.startswith("待确认"):
+        unconfirmed.append(c[0])
+    if disp.startswith("暂缓") and len(disp) < 6:
+        print("BAD_TABLE:暂缓缺理由（%s）" % c[0]); sys.exit(0)
+
+if unconfirmed or not re.search(r"(?m)^\s*确认\s*[:：]\s*\S+", "\n".join(sec)):
+    print("UNCONFIRMED"); sys.exit(0)
+print("OK_TABLE")
+PY
+  verdict="$(printf '%s' "$json" | python3 "$py_file" 2>/dev/null)" || verdict="BAD_PARSE"
+  rm -f "$py_file"
+  case "$verdict" in
+    OK_TABLE)    echo "  ✅ #${spec} 输入对账表已确认" ;;
+    OK_EXEMPT)   echo "  ✅ #${spec} 已显式豁免输入对账" ;;
+    MISSING)     add_violation "- [C11] #${spec} 缺 \`## 输入对账\` 段，也无 \`输入对账豁免: <理由>\`"; viol=1 ;;
+    BAD_EXEMPT)  add_violation "- [C11] #${spec} 的 \`输入对账豁免\` 缺理由"; viol=1 ;;
+    UNCONFIRMED) add_violation "- [C11] #${spec} 对账表含 \`待确认\` 处置或缺 \`确认：\` 行（未确认不得拆票）"; viol=1 ;;
+    BAD_TABLE:*) add_violation "- [C11] #${spec} 对账表结构不合格（${verdict#BAD_TABLE:}）"; viol=1 ;;
+    *)           add_violation "- [C11] #${spec} 输入对账解析失败（${verdict}）"; viol=1 ;;
+  esac
+  if [[ $viol -ne 0 ]]; then
+    echo "  ❌ ${viol} 项违规" >&2
+  fi
+}
+
 # ---- 入口 -------------------------------------------------------------------
 if [[ "$LIVE" == "1" ]]; then
   check_c1_live
+  check_c11
 else
   check_c1_drafts
   check_c2
@@ -898,14 +1058,15 @@ else
   check_c6
   check_c7
   check_c8
+  check_c11
 fi
 
 VIOL_COUNT="$(wc -l < "$VIOL_FILE" | tr -d ' ')"
 if [[ "$VIOL_COUNT" -eq 0 ]]; then
   if [[ "$LIVE" == "1" ]]; then
-    echo "✅ 对账全部通过（C1）"
+    echo "✅ 对账全部通过（C1/C11）"
   else
-    echo "✅ 拆票自检全部通过（C1-C8）"
+    echo "✅ 拆票自检全部通过（C1-C8 + C11）"
   fi
   exit 0
 fi

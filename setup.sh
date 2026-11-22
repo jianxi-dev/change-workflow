@@ -167,6 +167,8 @@ else
 # 升级工具包：在目标仓库运行 <工具包路径>/update.sh（本文件由 setup/update 共同维护）
 TOOLKIT_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
 EFFECTIVE_DATE="$(date +%F)"
+# 输入对账门（C11）生效日期门：首装即采纳，只校验此后创建的 spec issue。
+INPUT_ALIGNMENT_SINCE="$(date +%F)"
 REPO="$REPO"
 OWNER="$OWNER"
 REPO_ROOT="$(git rev-parse --show-toplevel)"

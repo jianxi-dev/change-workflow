@@ -384,6 +384,12 @@ if needs_bootstrap; then
         "$NEW_VERSION" "$EFFECTIVE_DATE" "$REPO_ROOT" >> "$CONF"
     fi
     upsert_conf TOOLKIT_SOURCE "$(toolkit_source)"
+  # 输入对账门（C11）的生效日期门：只在键缺失时补一次，值 = 采纳日。
+  # 用「采纳日」而非 EFFECTIVE_DATE：老安装的 EFFECTIVE_DATE 早于该门存在，
+  # 拿它当界会把历史 change 全部追溯判红；重复 update 也不得改写用户已设的值。
+  if ! grep -q '^INPUT_ALIGNMENT_SINCE=' "$CONF"; then
+    upsert_conf INPUT_ALIGNMENT_SINCE "$(date +%F)"
+  fi
   fi
 
   echo
@@ -630,6 +636,12 @@ if [[ "$DRY_RUN" != "1" ]]; then
       "$NEW_VERSION" "$EFFECTIVE_DATE" "$REPO_ROOT" >> "$CONF"
   fi
   upsert_conf TOOLKIT_SOURCE "$(toolkit_source)"
+  # 输入对账门（C11）的生效日期门：只在键缺失时补一次，值 = 采纳日。
+  # 用「采纳日」而非 EFFECTIVE_DATE：老安装的 EFFECTIVE_DATE 早于该门存在，
+  # 拿它当界会把历史 change 全部追溯判红；重复 update 也不得改写用户已设的值。
+  if ! grep -q '^INPUT_ALIGNMENT_SINCE=' "$CONF"; then
+    upsert_conf INPUT_ALIGNMENT_SINCE "$(date +%F)"
+  fi
 
   # 1.4.1：安全覆盖的 .bak 是冗余备份（内容即基线，可由 git 追溯），留着只是消费仓每次
   # 升级累积的 untracked 噪音。与其它文件是否冲突无关 —— 每条 .bak 都对应一个已成功
