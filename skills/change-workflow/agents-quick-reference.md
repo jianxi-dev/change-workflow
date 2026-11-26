@@ -62,7 +62,7 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 **关键动作**：
 1. G3：learn 沉淀 → sync-gbrain 刷新索引 → decisions-log.sh 决策日志 → **在回合回复里报本票功能点清单** + 回填 `## 交付对账` 行
 2. frontier 自动推进下一张可开工票（零询问：会话内连跑 + 跨会话自动接力；被未合并前票阻塞 → 轮询等待）
-3. G4：全部合并 → 收尾生命周期黑盒巡检 + 发现闭环门（QG-8）→ **交付对账定稿**（每行功能点与状态非空，缺表不得收口）→ opsx-sync → validate --strict → archive → 看板 Done → 关 spec issue
+3. G4：全部合并 → 收尾生命周期黑盒巡检 + 发现闭环门（QG-8）→ **交付对账定稿**（每行功能点与状态非空，缺表不得收口）→ **C12 机检** `./scripts/cw-tickets-check.sh --change <名> --live`（表头四列 / 状态三值 / 功能点列无引用）→ opsx-sync → validate --strict → archive → 看板 Done → 关 spec issue
 4. G4 收口后：`./scripts/cw-next-change.sh` 自动选下一 change 首张可开工票并直接进 G1（不询问）；仅「并列 / 队列只剩研讨类 / 队列空」三种情形停
 5. G4 一致性制品校验：baseline 哈希与 G0 锁一致（不一致不得收尾）
 

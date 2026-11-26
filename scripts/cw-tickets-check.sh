@@ -9,7 +9,7 @@
 # 模式:
 #   草稿模式（默认）: 校验 .tickets-draft/<change>/ 下的票面草稿（每票一文件，
 #                     首行标题 [change=<名>/<task号>]，正文七字段）
-#   --live:           用 gh issue list 对账（C1/C11）；与 --drafts 互斥
+#   --live:           用 gh issue list 对账（C1/C11/C12）；与 --drafts 互斥
 #
 # 退出码: 0 = 全部通过（含 --help）；1 = 违规或用法错误
 #
@@ -21,7 +21,7 @@
 #      门禁才可靠: 退 0 才允许发布子票，违规即拒收。本脚本是这些判据的唯一机器
 #      实现；规则文本（docs/agents/quality-gates.md）仍是单一事实来源。
 #
-#   2. C1-C8 + C11 与规范源的映射（C9 预留给视觉锚点、C10 是数据面脚本，故本门用 C11）:
+#   2. C1-C8 + C11 + C12 与规范源的映射（C9 预留给视觉锚点、C10 是数据面脚本）:
 #      C1 对账双射 ← task-tracking 规范: tasks.md 与票一一对应，防「票丢了/幽灵票」
 #      C2 六字段   ← task-tracking 规范: 票内容七字段齐全，防「AC 栏空着就拆票」
 #      C3 QG-1 形态 ← QG-1 用户层 AC 强制: AC 必须含浏览器可观测陈述
@@ -32,6 +32,9 @@
 #      C8 粒度重叠  ← QG-7 纵向切片: 粒度角色声明 + 票间 What 不得重复切同一片
 #      C11 输入对账 ← feedback-alignment 规范: spec issue 须有 `## 输入对账` 表
 #                    （或显式豁免），且处置列无「待确认」——防「拆票对象是误读的规格」
+#      C12 交付对账 ← feedback-alignment 规范 §九: spec issue 的 `## 交付对账` 段
+#                    表头精确四列 / 状态只认三值 / 功能点列不写引用——防「阶段进度汇报
+#                    冒充交付对账」与「拿 PR 号当验收语言」（G4 出口跑, `--live`）
 #
 #   3. 为什么重叠阈值是 80（OVERLAP_THRESHOLD_PCT=80）:
 #      字符二元组 Jaccard ≥80% 意味着两张票的「What to build」几乎逐字相同。
@@ -71,6 +74,12 @@
 #      遗留「待确认」（外加「确认：」行或显式豁免）。另设 createdAt >=
 #      INPUT_ALIGNMENT_SINCE 生效日期门: 本检查落地前的 change 没有这张表是历史
 #      事实，追溯判红只会让门禁被绕过，故只对新 change 生效。
+#
+#   8. 为什么 C12 取「最后一个 `## 交付对账` 段」而非全扫:
+#      该段按 G3 逐票追加、G4 定稿，同一条评论会被多次编辑；取最后一节即终版。
+#      全扫早期快照会让已修好的草稿永远判红。段内只判结构与形态，不判语义覆盖
+#      （同头注 7）；「功能点列不得含引用」是黑名单而非语法，宁可误伤也不放过
+#      「PR #1567 合并」这类没法实测的行。
 # =============================================================================
 set -euo pipefail
 
@@ -96,6 +105,7 @@ conf_get() {
   ' "$CONF_FILE"
 }
 INPUT_ALIGNMENT_SINCE="$(conf_get INPUT_ALIGNMENT_SINCE)"
+DELIVERY_ALIGNMENT_SINCE="$(conf_get DELIVERY_ALIGNMENT_SINCE)"
 
 # ---- 违规收集 ---------------------------------------------------------------
 # 违规逐行写入临时文件（内容含中文与特殊字符，变量拼接易碎）；计数用 wc。
@@ -1044,10 +1054,125 @@ PY
   fi
 }
 
+# ---- C12 交付对账（spec issue 的 `## 交付对账` 段）------------------------------
+# 判据与取舍见头注 2 的 C12 行与头注 8。
+check_c12() {
+  echo "==> C12 交付对账（spec issue）"
+  if [[ -z "$DELIVERY_ALIGNMENT_SINCE" ]]; then
+    echo "  ⏭ 未配置 DELIVERY_ALIGNMENT_SINCE，跳过（在 .change-workflow.conf 补该键才生效；留空 = 永久关闭）"
+    return
+  fi
+  local spec_list spec json created verdict viol=0
+  spec_list="$(resolve_spec_issue)"
+  if [[ -z "$spec_list" ]]; then
+    add_violation "- [C12] 无法从票面 Parent 解析 spec issue 号"
+    echo "  ❌ 1 项违规" >&2
+    return
+  fi
+  if [[ "$spec_list" == *" "* ]]; then
+    add_violation "- [C12] 子票 Parent 不一致（#${spec_list// / #}），无法确定唯一 spec issue"
+    echo "  ❌ 1 项违规" >&2
+    return
+  fi
+  spec="$spec_list"
+  if ! json="$(gh issue view "$spec" --json body,comments,createdAt 2>/dev/null)"; then
+    add_violation "- [C12] gh issue view #${spec} 失败（无法校验交付对账）"
+    echo "  ❌ 1 项违规" >&2
+    return
+  fi
+  created="$(printf '%s' "$json" | python3 -c '
+import json, sys
+print((json.load(sys.stdin).get("createdAt") or "")[:10])
+' 2>/dev/null || true)"
+  if [[ -n "$created" && "$created" < "$DELIVERY_ALIGNMENT_SINCE" ]]; then
+    echo "  ⏭ #${spec} 创建于 ${created}（< ${DELIVERY_ALIGNMENT_SINCE}），历史 change 不追溯"
+    return
+  fi
+  local py_file=""
+  py_file="$(mktemp)"
+  cat > "$py_file" <<'PY'
+import json, re, sys
+
+d = json.load(sys.stdin)
+text = (d.get("body") or "") + "\n" + "\n".join(
+    (c.get("body") or "") for c in (d.get("comments") or []))
+
+if re.search(r"(?m)^\s*交付对账豁免\s*[:：]\s*\S+", text):
+    print("OK_EXEMPT"); sys.exit(0)
+if re.search(r"(?m)^\s*交付对账豁免\s*[:：]\s*$", text):
+    print("BAD_EXEMPT"); sys.exit(0)
+
+heads = list(re.finditer(r"(?m)^\s*##\s*交付对账\s*$", text))
+if not heads:
+    print("MISSING"); sys.exit(0)
+
+# 最后一节 = 终版（G3 逐票追加、G4 定稿，同一条评论会被多次编辑）
+sec = []
+for line in text[heads[-1].end():].splitlines():
+    if re.match(r"^\s*#{2,}\s+", line):
+        break
+    sec.append(line)
+
+rows = [l.strip() for l in sec if l.strip().startswith("|")]
+data = [l for l in rows if not re.match(r"^\|[\s:\-|]+\|$", l)]
+if len(data) < 2:
+    print("BAD_TABLE:缺表头或数据行（无功能点不得出这张表）"); sys.exit(0)
+
+def cells(line):
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+def norm(s):
+    return s.strip("*_` ").strip()
+
+h = cells(data[0])
+if len(h) != 4:
+    print("BAD_HEADER:不是四列（%d），疑似阶段进度汇报冒充" % len(h)); sys.exit(0)
+if norm(h[0]) != "#":
+    print("BAD_HEADER:首列不是 #，疑似阶段进度汇报冒充"); sys.exit(0)
+if not norm(h[2]).startswith("交付功能点"):
+    print("BAD_HEADER:第三列不是交付功能点"); sys.exit(0)
+if norm(h[3]) != "状态":
+    print("BAD_HEADER:末列不是状态"); sys.exit(0)
+
+BANNED = re.compile(r"PR ?#\d+|#\d{3,}|\.tsx?|\.rs|--strict|机检|看板")
+STATUS_OK = re.compile(r"^(已交付|未交付[（(].+[）)]|超出对账[（(]请裁决.*[）)])$")
+
+for line in data[1:]:
+    c = cells(line)
+    if len(c) != 4:
+        print("BAD_ROW:列数不是 4（%s）" % c[0]); sys.exit(0)
+    st = norm(c[3])
+    if not STATUS_OK.match(st):
+        print("BAD_STATUS:%s → %s（只认 已交付 / 未交付（理由） / 超出对账（请裁决））" % (c[0], st)); sys.exit(0)
+    m = BANNED.search(c[2])
+    if m:
+        print("BAD_CONTENT:%s 功能点含 %s（引用/文件名不是验收语言）" % (c[0], m.group(0))); sys.exit(0)
+print("OK_TABLE")
+PY
+  verdict="$(printf '%s' "$json" | python3 "$py_file" 2>/dev/null)" || verdict="BAD_PARSE"
+  rm -f "$py_file"
+  case "$verdict" in
+    OK_TABLE)     echo "  ✅ #${spec} 交付对账表结构合规" ;;
+    OK_EXEMPT)    echo "  ✅ #${spec} 已显式豁免交付对账" ;;
+    MISSING)      add_violation "- [C12] #${spec} 缺 \`## 交付对账\` 段，也无 \`交付对账豁免: <理由>\`"; viol=1 ;;
+    BAD_EXEMPT)   add_violation "- [C12] #${spec} 的 \`交付对账豁免\` 缺理由"; viol=1 ;;
+    BAD_HEADER:*) add_violation "- [C12] #${spec} 表头不合格（${verdict#BAD_HEADER:}）"; viol=1 ;;
+    BAD_ROW:*)    add_violation "- [C12] #${spec} 表格行不合格（${verdict#BAD_ROW:}）"; viol=1 ;;
+    BAD_STATUS:*) add_violation "- [C12] #${spec} 状态列不合格（${verdict#BAD_STATUS:}）"; viol=1 ;;
+    BAD_CONTENT:*) add_violation "- [C12] #${spec} 功能点列写了引用/文件名（${verdict#BAD_CONTENT:}）"; viol=1 ;;
+    BAD_TABLE:*)  add_violation "- [C12] #${spec} 交付对账表结构不合格（${verdict#BAD_TABLE:}）"; viol=1 ;;
+    *)            add_violation "- [C12] #${spec} 交付对账解析失败（${verdict}）"; viol=1 ;;
+  esac
+  if [[ $viol -ne 0 ]]; then
+    echo "  ❌ ${viol} 项违规" >&2
+  fi
+}
+
 # ---- 入口 -------------------------------------------------------------------
 if [[ "$LIVE" == "1" ]]; then
   check_c1_live
   check_c11
+  check_c12
 else
   check_c1_drafts
   check_c2
@@ -1064,7 +1189,7 @@ fi
 VIOL_COUNT="$(wc -l < "$VIOL_FILE" | tr -d ' ')"
 if [[ "$VIOL_COUNT" -eq 0 ]]; then
   if [[ "$LIVE" == "1" ]]; then
-    echo "✅ 对账全部通过（C1/C11）"
+    echo "✅ 对账全部通过（C1/C11/C12）"
   else
     echo "✅ 拆票自检全部通过（C1-C8 + C11）"
   fi

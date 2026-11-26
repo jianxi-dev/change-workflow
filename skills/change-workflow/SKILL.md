@@ -43,7 +43,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 | `decisions-log.sh` | 脚本（G3 决策日志：每票追加一行 TSV——时间/阶段/决策/理由/证据指针/结果；默认落 `.artifacts/`，本地不入库） |
 | 双形态规格 | 规格的人读层（proposal/design/AC 自然语言）+ 机读层（`conformance.json` 锚点），双向链接；人读层不可丢 |
 | 验收锚点 | 机读锚点：含具体期望值 + 来源 + 断言类型（`exact`/`state-machine`/`perceptual`）；无具体值/来源不得成锚点 |
-| 交付对账表 | 开发后反向对账：沿用 `## 输入对账` 编号逐条写「交付功能点（新增/调整/优化）+ 状态」。三层缺一不算交付——① 每次交付就在回合回复里列出清单（不等用户问）② G3 回填 spec issue 的 `## 交付对账` 评论 ③ G4 关闭 spec issue 前定稿（`docs/agents/feedback-alignment.md` §八） |
+| 交付对账表 | 开发后反向对账：沿用 `## 输入对账` 编号逐条写「交付功能点（新增/调整/优化）+ 状态」。三层缺一不算交付——① 每次交付就在回合回复里列出清单（不等用户问）② G3 回填 spec issue 的 `## 交付对账` 评论 ③ G4 关闭 spec issue 前定稿（`docs/agents/feedback-alignment.md` §九）。阶段进度汇报（拆票/制品落库，无代码合并）走 §八 三列格式，不得借用本表 |
 | 一致性制品 | 原型 `baseline/*.png` + `conformance.json` + e2e 断言骨架；G0 程序化生成，哈希锁锁定 |
 | baseline | 原型基准截图，实现前锁定、禁篡改；哈希变即核验失败 |
 | T1 / T2 / T3 | CI 三层自动核验：T1 确定量 / T2 感知 / T3 状态机 |
@@ -128,7 +128,7 @@ flowchart TB
 | `openspec-apply-change` | G1 | 可选（按需） | 按 openspec 官方 tasks 指令流实施（`/opsx-apply`） |
 | `code-review` | G1 出口·步骤 1 | 必调（每任务后） | 双轴自审（Standards 代码规范 + Spec 需求符合，并行防互相掩盖）；通过才允许 commit |
 | `review` | G1 出口·步骤 2 | 条件调（risk-medium/high） | pre-landing 结构审查（SQL 安全/LLM trust boundary/条件副作用/scope drift）；risk-low 跳过 |
-| `quality-gates`（规范，非 skill） | **G0 切片 + G1 出口 + G2 前置 + G4 收尾前置** | 必读（`docs/agents/quality-gates.md`） | QG-1..QG-9 九条硬门禁定义：QG-7 挂 G0 切片、QG-1/QG-3 挂 G0 拆票、QG-2/QG-4/QG-5 挂 G1 出口、QG-6 挂 G1 循环、QG-8 挂 G4 收尾前置、QG-9 挂 G0-POST 票面（C4(d) 能力结论须带探针痕迹） |
+| `quality-gates`（规范，非 skill） | **G0 切片 + G1 出口 + G2 前置 + G4 收尾前置** | 必读（`docs/agents/quality-gates.md`） | QG-1..QG-10 十条硬门禁定义：QG-7 挂 G0 切片、QG-1/QG-3 挂 G0 拆票、QG-2/QG-4/QG-5/QG-10 挂 G1 出口、QG-6 挂 G1 循环、QG-8 挂 G4 收尾前置、QG-9 挂 G0-POST 票面（C4(d) 能力结论须带探针痕迹） |
 | `evidence-capture`（规范，非 skill） | **G1 出口·QG-5 + 缺陷线 DQ-3/DQ-5** | 必读（`docs/agents/evidence-capture.md`） | 证据分层协议（before/after 成对）+ 7 类证据规范（运行时态/视频/截图/测量数字/transcript/headless 降级/视觉探针）；UI 票证据至少含一项运行时证据；`cw-evidence.sh` 是其采集脚本，`test_runtime_smoke.py` 是运行时冒烟脚本 |
 | `code-structure`（规范，非 skill） | **G1 实施 + G1 出口·code-review Standards 轴** | 条件读（`docs/agents/code-structure.md`；仅本票 diff 含新增共享逻辑或跨流程重复块时触发） | 服务层架构约束：两层分离（actions 管 why/when，service 管 how）+ 四反模式清单（God/Leaky/Inconsistent/Over-abstraction） |
 | `pr-writing`（规范，非 skill） | **G2 提交前 + G3 收尾 + G4 收口评论** | 必读（`docs/agents/pr-writing.md`；只处理本次写/改的文本） | 去 AI 味：12 条 AI tells 清单 + 两遍扫描法 + add soul 原则；commit message / PR 标题正文 / learn / 收尾回复均过此规范 |
@@ -239,7 +239,7 @@ flowchart TB
 ### G3 任务级收尾（每轮必做，非阻塞）｜执行：learn + sync-gbrain
 
 - **时机**：push + PR 创建后立即执行，不等合并
-- **交付对账回填**：本票合并后做两件事，缺一不算交付——① **在回合回复里直接列出本票功能点清单**（编号 + 功能模块 + 交付功能点 + 状态；同批多票可在回合末合成一张表），不等用户问、不拿 PR 链接交差；② 把同样内容回填 spec issue 的 `## 交付对账` 评论。规则见 `docs/agents/feedback-alignment.md` §八——功能点用用户可测的语言写，不写文件名/函数名；没做的写 `未交付（理由）`，顺手做了对账以外的事单列 `超出对账`
+- **交付对账回填**：本票合并后做两件事，缺一不算交付——① **在回合回复里直接列出本票功能点清单**（编号 + 功能模块 + 交付功能点 + 状态；同批多票可在回合末合成一张表），不等用户问、不拿 PR 链接交差；② 把同样内容回填 spec issue 的 `## 交付对账` 评论。规则见 `docs/agents/feedback-alignment.md` §九——功能点用用户可测的语言写，不写文件名/函数名；没做的写 `未交付（理由）`，顺手做了对账以外的事单列 `超出对账`。**无代码合并的阶段（拆票/制品落库）不得出这张表**——用 §八 阶段进度汇报三列格式
 - **不阻塞下一 change**：下一 change 自 commit/push 完成后即可启动；learn/sync 是收尾动作而非前置 gate，可并行
 - **frontier 自动推进（任务级零询问）**：G3 后自动运行 `gh issue list --label ready-for-agent --state open --json number,title,body` 按 `[change=<名>/` 精确筛选 → 逐票解析 Blocked by 确认全部 closed → 取第一张可开工票**立即进入其 G1**；同一 change 内连续执行到无票可做——推进全程零询问，**禁止以「是否继续下一票」之类提问结束回合**（跨会话接力见「会话启动」节）。无票可做 → change 收口检查（completedTasks==totalTasks 且无残留且无未合并 PR）→ 自动进入 G4。标签名以 conf `LABEL_READY` 为准（默认 `ready-for-agent`），conf 值优先
 - **阻塞等待（有界轮询）**：frontier 为空的唯一原因是「前序票 PR 已创建未合并」（`gh pr list --state open` 命中本 change）→ 轮询该 PR 状态（`gh pr view <N> --json state`，间隔 20s、上限 10 分钟；low/medium 已由 G2 尝试 auto-merge）→ 合并后**自动继续**下一票；超上限 → 报告「等待 PR #N 合并」并给出恢复命令（合并完成后自动恢复，不询问「是否继续」）
@@ -260,7 +260,7 @@ flowchart TB
 
 ### G4 change 级收尾（§8.2 自动触发，合并后）｜执行：openspec 套件 + gbrain
 
-- 全部 tasks [x] + 关联 PR 全合并 → **交付对账定稿**（spec issue 的 `## 交付对账` 评论：每行有功能点且状态非空，`未交付` 带理由、`超出对账` 单列；缺表或状态空缺 → 不得收口，补后才进下一步）→ 主 spec `/opsx-sync`（合并后唯一时机，零差异确认）→ `validate --strict` → archive → 看板 Done → **关闭 spec issue #S**（`gh issue close --comment "change 已收口"`）→ gbrain 增量
+- 全部 tasks [x] + 关联 PR 全合并 → **交付对账定稿**（spec issue 的 `## 交付对账` 评论：每行有功能点且状态非空，`未交付` 带理由、`超出对账` 单列；缺表或状态空缺 → 不得收口，补后才进下一步）→ **C12 机检** `./scripts/cw-tickets-check.sh --change <名> --live`（表头精确四列 / 状态只认三值 / 功能点列不得含引用；有违规先修再走）→ 主 spec `/opsx-sync`（合并后唯一时机，零差异确认）→ `validate --strict` → archive → 看板 Done → **关闭 spec issue #S**（`gh issue close --comment "change 已收口"`）→ gbrain 增量
 - **`validate --strict` 与 spec delta**：spec-driven schema 要求 change 至少一个 `specs/<capability>/spec.md` delta（`## ADDED/MODIFIED Requirements` + `#### Scenario:`）。**纯文档/基建 change（tasks-only）会 validate 失败** → 处置：补最小 delta（新建/复用 capability，把变更固化为 Requirement），或确认无 spec 语义后走非 strict
 - **仅 `/opsx-sync`（主 spec 同步）限合并后执行**；任务级 `sync-gbrain` 不受此限（push+PR 后立即）
 - **收尾生命周期黑盒巡检（G4 前置）**：按六态清单真机走查 `打开→插入→编辑→切换→取消→关闭→空态→错误`，发现问题即**不允许收尾**（转缺陷处理机制，修复后重巡）
@@ -298,7 +298,7 @@ flowchart TB
 
 ## 缺陷处理机制（§10.11 要点，异常发现时先二分）
 
-> **DQ-1..DQ-8 挂载点**：本节的每个环节均受 `docs/agents/quality-gates.md` §三（缺陷处理质量门禁）约束。下列每条均标注对应 DQ。
+> **DQ-1..DQ-9 挂载点**：本节的每个环节均受 `docs/agents/quality-gates.md` §三（缺陷处理质量门禁）约束。下列每条均标注对应 DQ。
 
 - **判定**：流程偏差 → 自愈回路；产品缺陷（真实回归/行为不符 spec/崩溃）→ 本机制
 - **填报三通道**：① 聊天直报 → agent 自动补全（推断模块/级别/复现，回编号）② 手动走 bug.yml（自动带 needs-triage）③ 批量录入 → 自动拆分 N 票

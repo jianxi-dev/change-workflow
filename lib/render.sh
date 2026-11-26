@@ -187,6 +187,9 @@ cw_list_files() {
   # 它不重新实现视觉，只定位仓内既有后端（vision.py / analyze.py）并归一退出码；
   # 漏进清单 = 文档写着 ./scripts/cw-vision.sh 而消费仓跑不了（同 cw-g3-check 坑）。
   echo "scripts/cw-vision.sh|scripts/cw-vision.sh"
+  # 数据面（可配置面）落点机检（C10）：G0 阶段二 / G0-POST / G1 出口三段调用，缺陷线走 pr 子命令。
+  # 漏进清单 = data-surface.md 写着 ./scripts/cw-data-surface.sh 而消费仓跑不了（同 cw-g3-check 坑）。
+  echo "scripts/cw-data-surface.sh|scripts/cw-data-surface.sh"
   echo "Makefile|Makefile"
   local f base
   for f in "$CW_ROOT"/docs/agents/*.md; do

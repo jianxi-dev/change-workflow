@@ -79,7 +79,7 @@ echo "[1] 首装"
 B1="$(mktemp -d)"; new_repo "$B1/repo" || { echo "无法建立测试仓库"; exit 1; }
 write_conf "1.0.0"; touch .change-workflow.manifest
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1; ok "退出码" "$?" "0"
-ok "docs/agents 文件数" "$(ls docs/agents/*.md 2>/dev/null | wc -l | tr -d ' ')" "13"
+ok "docs/agents 文件数" "$(ls docs/agents/*.md 2>/dev/null | wc -l | tr -d ' ')" "17"
 ok "SKILL 已安装" "$([[ -f .opencode/skills/change-workflow/SKILL.md ]] && echo y)" "y"
 ok "pr-automation 可执行" "$([[ -x scripts/pr-automation.sh ]] && echo y)" "y"
 ok "cw-update 可执行" "$([[ -x scripts/cw-update.sh ]] && echo y)" "y"
@@ -96,7 +96,7 @@ ok "cw-next-change 可执行" "$([[ -x scripts/cw-next-change.sh ]] && echo y)" 
 ok "docs 模式 644" "$(fmode docs/agents/domain.md)" "644"
 ok "脚本模式 755" "$(fmode scripts/cw-evidence.sh)" "755"
 ok "manifest 模式 644" "$(fmode .change-workflow.manifest)" "644"
-ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "31"
+ok "manifest 行数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "36"
 ok "conf 版本已更新" "$(grep -o "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")" .change-workflow.conf | head -1)" "$(tr -d '[:space:]' < "$CW_ROOT/VERSION")"
 ok "update 播种 INPUT_ALIGNMENT_SINCE" "$(grep -c '^INPUT_ALIGNMENT_SINCE=' .change-workflow.conf)" "1"
 ok "无残留占位符" "$(grep -rho '{{[A-Z_]*}}' docs/agents/ .opencode/skills/ 2>/dev/null | sort -u | wc -l | tr -d ' ')" "0"
@@ -113,6 +113,9 @@ ok "pr-automation 读 CMD_FIDELITY" "$(grep -c 'conf_get CMD_FIDELITY' scripts/p
 ok "pr-automation 执行 fidelity 门禁" "$(grep -c 'run_gate fidelity "\$CMD_FIDELITY"' scripts/pr-automation.sh)" "1"
 ok "pr-automation 读 CMD_VISUAL_BASELINE" "$(grep -c 'conf_get CMD_VISUAL_BASELINE' scripts/pr-automation.sh)" "1"
 ok "pr-automation 执行 visual-baseline 门禁" "$(grep -c 'run_gate visual-baseline "\$CMD_VISUAL_BASELINE"' scripts/pr-automation.sh)" "1"
+# 回归锁：T2 感知层未配置不得静默（VISUAL_GATES_REQUIRED=on 时直接失败）。
+ok "pr-automation 读 VISUAL_GATES_REQUIRED" "$(grep -c 'conf_get VISUAL_GATES_REQUIRED' scripts/pr-automation.sh)" "1"
+ok "pr-automation 显式化未配置" "$(grep -c 'VISUAL_GATES_REQUIRED.*==.*on' scripts/pr-automation.sh)" "1"
 
 # ── 用例 1b：APP_DIR 渲染（conf 驱动路径本地化）──────────────────────────────────
 echo ""
@@ -202,7 +205,7 @@ ias2_before="$(grep '^INPUT_ALIGNMENT_SINCE=' .change-workflow.conf)"
 # 不可用 `cmd | grep -q`：grep -q 命中即关管道 → 上游收 SIGPIPE(141) → pipefail 判失败 → set -e 终止。
 out2="$("$CW_ROOT/update.sh" --target "$PWD" 2>&1 || true)"
 ok "幂等不改写 INPUT_ALIGNMENT_SINCE" "$(grep '^INPUT_ALIGNMENT_SINCE=' .change-workflow.conf)" "$ias2_before"
-case "$out2" in *"已最新 31"*) r2=0 ;; *) r2=1 ;; esac
+case "$out2" in *"已最新 36"*) r2=0 ;; *) r2=1 ;; esac
 ok "无变更" "$r2" "0"
 
 # ── 用例 3：本地修改 → 冲突 ──────────────────────────────────────────────────
@@ -288,8 +291,10 @@ ok "cw-evidence 可执行" "$([[ -x scripts/cw-evidence.sh ]] && echo y)" "y"
 ok "cw-greploop 可执行" "$([[ -x scripts/cw-greploop.sh ]] && echo y)" "y"
 ok "cw-tickets-check 可执行" "$([[ -x scripts/cw-tickets-check.sh ]] && echo y)" "y"
 ok "decisions-log 可执行" "$([[ -x scripts/decisions-log.sh ]] && echo y)" "y"
-# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 31 - 3 = 28
-ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "28"
+ok "cw-data-surface 可执行" "$([[ -x scripts/cw-data-surface.sh ]] && echo y)" "y"
+ok "cw-data-surface 自带 selftest" "$(bash scripts/cw-data-surface.sh selftest >/dev/null 2>&1; echo $?)" "0"
+# 3 个文件与模板不同（未剥头的原始模板 ≠ 渲染结果）→ 不写基线 → manifest = 36 - 3 = 33
+ok "manifest 条目数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "33"
 ok "不同文件不写基线" "$(grep -c 'defect-workflow.md\|triage-labels.md\|change-workflow/SKILL.md' .change-workflow.manifest)" "0"
 ok "版本已写入" "$(grep -c '^TOOLKIT_VERSION=' .change-workflow.conf)" "1"
 ok "本地内容保留" "$(grep -c '## 本地定制' docs/agents/triage-labels.md)" "1"
@@ -315,7 +320,7 @@ hdr=0
 for f in "$CW_ROOT"/docs/agents/*.md "$CW_ROOT"/skills/change-workflow/SKILL.md; do
   if head -1 "$f" | grep -q "工具包模板"; then hdr=$((hdr + 1)); fi
 done
-ok "模板头覆盖" "$hdr" "14"
+ok "模板头覆盖" "$hdr" "18"
 # 排除 AGENTS.md：目录级知识库本就需要指名这些禁串（它是规则文本，不会被安装到消费仓）
 ok "仓库特有值残留" "$(grep -rl 'jianxi-dev/md-bundle\|jianxi-dev/mdpkg\|jianxi-dev/clairis\|/Users/mason\|PVT_kwDO\|PVTSSF_\|apps/web\|packages/editor\|packages/renderer\|pnpm\|@md-bundle' \
   "$CW_ROOT/docs/agents" "$CW_ROOT/skills" "$CW_ROOT/scripts" "$CW_ROOT/workflows" "$CW_ROOT/setup.sh" "$CW_ROOT/config.example.conf" 2>/dev/null \
@@ -462,7 +467,7 @@ ok "缺失+LOCAL 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] && echo 
 ok "缺失+LOCAL 真实更新计本地保留" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "1"
 ok "缺失+LOCAL kept==^LOCAL" "$(printf '%s' "$out11l" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11l="$(printf '%s' "$out11l" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL 五桶和==31" "$(( ${m11l:-0} ))" "31"
+ok "缺失+LOCAL 五桶和==36" "$(( ${m11l:-0} ))" "36"
 # 对抗轮7 回归锁：缺失 + LOCAL 哨兵 + --force —— force 优先于 LOCAL 哨兵（与等值/差异路径
 # 同原则），缺失分支必须归一：计 ADDED + 记 FORCED_LIST → manifest 重写走哈希归一分支。
 # 旧缺陷：缺失分支无 force 分流 → --force 仍走 LOCAL 保留分支 → 文件被「本地保留」永久
@@ -476,7 +481,7 @@ ok "缺失+LOCAL force 文件已重装" "$([[ -f docs/agents/pr-writing.md ]] &&
 ok "缺失+LOCAL force 哨兵归一" "$(awk '{ rest=$0; sub(/^[^[:space:]]+[[:space:]]+/, "", rest); if (rest=="docs/agents/pr-writing.md" && $1=="LOCAL") c++ } END {print c+0}' .change-workflow.manifest)" "0"
 ok "缺失+LOCAL force kept==^LOCAL" "$(printf '%s' "$out11n" | sed -n 's/.*本地保留 \([0-9][0-9]*\).*/\1/p' | head -1)" "$(grep -c '^LOCAL' .change-workflow.manifest)"
 m11n="$(printf '%s' "$out11n" | sed -n 's/.*更新 \([0-9][0-9]*\) · 新增 \([0-9][0-9]*\) · 已最新 \([0-9][0-9]*\) · 冲突 \([0-9][0-9]*\) · 本地保留 \([0-9][0-9]*\).*/\1+\2+\3+\4+\5/p' | head -1)"
-ok "缺失+LOCAL force 五桶和==31" "$(( ${m11n:-0} ))" "31"
+ok "缺失+LOCAL force 五桶和==36" "$(( ${m11n:-0} ))" "36"
 sanitize "$B5"
 
 # P3 回归锁（1.13.1）：.new 里用户未合并的草稿不得被静默覆盖 —— 覆盖前必须备份 .new.bak。
@@ -609,7 +614,7 @@ hdr13=0
 for f in "$TK"/docs/agents/*.md "$TK"/skills/change-workflow/SKILL.md; do
   head -1 "$f" | grep -q "工具包模板" && hdr13=$((hdr13 + 1))
 done
-ok "副本模板头未被清掉" "$hdr13" "14"
+ok "副本模板头未被清掉" "$hdr13" "18"
 ok "副本脚本非空" "$([[ -s "$TK/scripts/pr-automation.sh" ]] && echo y)" "y"
 sanitize "$B7"
 
@@ -620,7 +625,7 @@ B8="$(mktemp -d)"
 CLEAN="$B8/clean"; new_repo "$CLEAN" || exit 1
 write_conf "1.0.0"
 "$CW_ROOT/update.sh" --target "$PWD" >/dev/null 2>&1 || true
-ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "31"
+ok "干净仓受管文件数" "$(wc -l < .change-workflow.manifest | tr -d ' ')" "36"
 
 rc14a=0; out14a="$("$CW_ROOT/test/rollout-check.sh" "$CLEAN" 2>&1)" || rc14a=$?
 ok "干净仓退出码" "$rc14a" "0"
@@ -836,7 +841,7 @@ case "$out19" in *"无基线记录"*) r19=1 ;; *) r19=0 ;; esac
 ok "无「无基线记录」误报" "$r19" "0"
 set_version "1.0.0"
 out19b="$("$B13/tk2/update.sh" --target "$PWD" 2>&1 || true)"
-case "$out19b" in *"已最新 31"*) r19b=0 ;; *) r19b=1 ;; esac
+case "$out19b" in *"已最新 36"*) r19b=0 ;; *) r19b=1 ;; esac
 ok "二次运行已最新" "$r19b" "0"
 # --accept-local 对空格路径生效：本地修改 → 冲突 → 接受 → 归一且哨兵粘住
 echo "## 本地定制" >> "My Docs/triage-labels.md"
@@ -1441,7 +1446,7 @@ ok "§五 围栏反引号反例" "$(grep -c '围栏.*反引号\|fenced.*code.*�
 ok "§五 取消残留反例" "$(grep -c '取消.*残留' docs/agents/quality-gates.md)" "11"
 # §七 no-ui-impact 浮层不豁免：含"浮层/插入/渲染"且含"不得豁免"且含"生命周期"且含"保真"（1 行）
 ok "§七 no-ui-impact 浮层不豁免" "$(grep -c '浮层.*插入.*渲染.*不得豁免.*生命周期.*保真\|浮层/插入/渲染.*不得.*豁免.*生命周期.*保真' docs/agents/quality-gates.md)" "1"
-# §八 expected capture 行：表格中有 5 行包含 expected capture 内容（QG-1/QG-4/QG-5/QG-8/QG-9）
+# §八 expected capture 行：表格中有 6 行包含 expected capture 内容（QG-1/QG-4/QG-5/QG-8/QG-9/DQ-9）
 ok "§八 expected capture 行" "$(python3 << 'PYEOF'
 import sys
 lines = open('docs/agents/quality-gates.md').readlines()
@@ -1466,7 +1471,7 @@ for line in lines:
         break
 print(c)
 PYEOF
-)" "5"
+)" "6"
 
 # ── 用例 31：evidence-capture.md 状态覆盖矩阵 + 视觉探针契约锁 ──
 echo ""
@@ -1532,7 +1537,7 @@ echo "[34] 跨文件门禁引用一致性契约锁"
 ok "速查卡含 QG-8 索引" "$(grep -c '^| QG-8 |' skills/change-workflow/agents-quick-reference.md)" "1"
 ok "速查卡含 QG-9 索引" "$(grep -c '^| QG-9 |' skills/change-workflow/agents-quick-reference.md)" "1"
 ok "速查卡 QG-1 三分类" "$(grep -c 'QG-1 | AC 三分类' skills/change-workflow/agents-quick-reference.md)" "1"
-ok "task-tracking 引用 QG-1..QG-9" "$(grep -c 'QG-1\.\.QG-9' docs/agents/task-tracking.md)" "1"
+ok "task-tracking 引用 QG-1..QG-10" "$(grep -c 'QG-1\.\.QG-10' docs/agents/task-tracking.md)" "1"
 # 当前态无 QG-1..QG-7 残留；历史叙述豁免（quality-gates.md DQ-7 案例 / defect-workflow.md 案例）
 ok "无当前态 QG-1..QG-7 残留" "$(grep -rl 'QG-1\.\.QG-7' docs/agents skills 2>/dev/null | grep -vE 'quality-gates\.md|defect-workflow\.md' | wc -l | tr -d ' ')" "0"
 

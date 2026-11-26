@@ -92,6 +92,7 @@ CMD_TEST="$(conf_get CMD_TEST || true)"
 CMD_E2E="$(conf_get CMD_E2E || true)"
 CMD_FIDELITY="$(conf_get CMD_FIDELITY || true)"
 CMD_VISUAL_BASELINE="$(conf_get CMD_VISUAL_BASELINE || true)"
+VISUAL_GATES_REQUIRED="$(conf_get VISUAL_GATES_REQUIRED || true)"
 LABEL_RISK_LOW="$(conf_get LABEL_RISK_LOW || true)"
 LABEL_RISK_MEDIUM="$(conf_get LABEL_RISK_MEDIUM || true)"
 LABEL_RISK_HIGH="$(conf_get LABEL_RISK_HIGH || true)"
@@ -314,6 +315,16 @@ if [[ ${#FILES[@]} -gt 0 ]]; then
     # 本键只在本机跑（macOS + Chrome = 基线采集环境），塞进 CMD_FIDELITY 会让 CI 红。
     # 语义同四件套：失败即中止。未配置的仓跳过（md-bundle/mdpkg/clairis 目前都没这键）。
     run_gate visual-baseline "$CMD_VISUAL_BASELINE"
+
+    # T2 感知层显式化：未配置不再静默。
+    # off（或缺键）= 显著警告后继续；on = 直接失败。开关见 .change-workflow.conf。
+    if [[ -z "$CMD_FIDELITY" || -z "$CMD_VISUAL_BASELINE" ]]; then
+      if [[ "$VISUAL_GATES_REQUIRED" == "on" ]]; then
+        echo "❌ VISUAL_GATES_REQUIRED=on 但 CMD_FIDELITY / CMD_VISUAL_BASELINE 未配置：T2 感知层未执行，禁止收口" >&2
+        exit 1
+      fi
+      echo "    [visual-gates] ⚠️ T2 感知层未配置（VISUAL_GATES_REQUIRED=off）：本票 UI 变更无像素/感知级防护，属已知缺口"
+    fi
   fi
 
   echo "==> 3/6 显式 add 白名单提交"

@@ -169,6 +169,8 @@ TOOLKIT_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
 EFFECTIVE_DATE="$(date +%F)"
 # 输入对账门（C11）生效日期门：首装即采纳，只校验此后创建的 spec issue。
 INPUT_ALIGNMENT_SINCE="$(date +%F)"
+# 交付对账门（C12，G4 出口）：同上。
+DELIVERY_ALIGNMENT_SINCE="$(date +%F)"
 REPO="$REPO"
 OWNER="$OWNER"
 REPO_ROOT="$(git rev-parse --show-toplevel)"

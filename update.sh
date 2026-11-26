@@ -390,6 +390,10 @@ if needs_bootstrap; then
   if ! grep -q '^INPUT_ALIGNMENT_SINCE=' "$CONF"; then
     upsert_conf INPUT_ALIGNMENT_SINCE "$(date +%F)"
   fi
+  # 交付对账门（C12）同理：只在键缺失时补一次，值 = 采纳日。
+  if ! grep -q '^DELIVERY_ALIGNMENT_SINCE=' "$CONF"; then
+    upsert_conf DELIVERY_ALIGNMENT_SINCE "$(date +%F)"
+  fi
   fi
 
   echo
@@ -641,6 +645,10 @@ if [[ "$DRY_RUN" != "1" ]]; then
   # 拿它当界会把历史 change 全部追溯判红；重复 update 也不得改写用户已设的值。
   if ! grep -q '^INPUT_ALIGNMENT_SINCE=' "$CONF"; then
     upsert_conf INPUT_ALIGNMENT_SINCE "$(date +%F)"
+  fi
+  # 交付对账门（C12）同理：只在键缺失时补一次，值 = 采纳日。
+  if ! grep -q '^DELIVERY_ALIGNMENT_SINCE=' "$CONF"; then
+    upsert_conf DELIVERY_ALIGNMENT_SINCE "$(date +%F)"
   fi
 
   # 1.4.1：安全覆盖的 .bak 是冗余备份（内容即基线，可由 git 追溯），留着只是消费仓每次
