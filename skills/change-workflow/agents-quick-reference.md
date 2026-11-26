@@ -14,7 +14,7 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 **执行**：输入对账（1a）→ to-spec（1b）→ openspec-propose（切片）→ to-tickets 拆票（Parent=spec issue）
 
 **关键动作**：
-1. **输入对账（1a）**：触发信号 → `## 输入对账` 五列表 + 用户一句话确认；不触发 → `输入对账豁免: <理由>`；处置列有 `待确认` 不得拆票
+1. **输入对账（1a）**：触发信号 → `## 输入对账` 七列表（功能模块 / 冲突·疑点列，同模块行相邻）+ 用户一句话确认；无冲突填 `—`；不触发 → `输入对账豁免: <理由>`；处置列有 `待确认`/`需你裁决` 不得拆票
 2. to-spec 综合产出 spec issue → 把 1a 产物固化为 spec issue 评论 → 四要素映射写入 requirements.md
 3. 需求输入门（L-1）：来源可追溯 / 空白显式化 / 一手证据 / 冲突显式 / 验收锚点
 4. openspec-propose 生成 proposal/design/tasks.md（垂直切片约束）
@@ -60,9 +60,9 @@ description: 四拍速查卡——G0 规一 → G1 实施 → G2 提交 → G3/G
 **执行**：learn + sync-gbrain → frontier 推进 → openspec 归档
 
 **关键动作**：
-1. G3：learn 沉淀 → sync-gbrain 刷新索引 → decisions-log.sh 决策日志
+1. G3：learn 沉淀 → sync-gbrain 刷新索引 → decisions-log.sh 决策日志 → **在回合回复里报本票功能点清单** + 回填 `## 交付对账` 行
 2. frontier 自动推进下一张可开工票（零询问：会话内连跑 + 跨会话自动接力；被未合并前票阻塞 → 轮询等待）
-3. G4：全部合并 → 收尾生命周期黑盒巡检 + 发现闭环门（QG-8）→ opsx-sync → validate --strict → archive → 看板 Done → 关 spec issue
+3. G4：全部合并 → 收尾生命周期黑盒巡检 + 发现闭环门（QG-8）→ **交付对账定稿**（每行功能点与状态非空，缺表不得收口）→ opsx-sync → validate --strict → archive → 看板 Done → 关 spec issue
 4. G4 收口后：`./scripts/cw-next-change.sh` 自动选下一 change 首张可开工票并直接进 G1（不询问）；仅「并列 / 队列只剩研讨类 / 队列空」三种情形停
 5. G4 一致性制品校验：baseline 哈希与 G0 锁一致（不一致不得收尾）
 

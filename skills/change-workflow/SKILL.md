@@ -43,6 +43,7 @@ allowed-tools: Bash(gh:*|git:*|openspec:*)
 | `decisions-log.sh` | 脚本（G3 决策日志：每票追加一行 TSV——时间/阶段/决策/理由/证据指针/结果；默认落 `.artifacts/`，本地不入库） |
 | 双形态规格 | 规格的人读层（proposal/design/AC 自然语言）+ 机读层（`conformance.json` 锚点），双向链接；人读层不可丢 |
 | 验收锚点 | 机读锚点：含具体期望值 + 来源 + 断言类型（`exact`/`state-machine`/`perceptual`）；无具体值/来源不得成锚点 |
+| 交付对账表 | 开发后反向对账：沿用 `## 输入对账` 编号逐条写「交付功能点（新增/调整/优化）+ 状态」。三层缺一不算交付——① 每次交付就在回合回复里列出清单（不等用户问）② G3 回填 spec issue 的 `## 交付对账` 评论 ③ G4 关闭 spec issue 前定稿（`docs/agents/feedback-alignment.md` §八） |
 | 一致性制品 | 原型 `baseline/*.png` + `conformance.json` + e2e 断言骨架；G0 程序化生成，哈希锁锁定 |
 | baseline | 原型基准截图，实现前锁定、禁篡改；哈希变即核验失败 |
 | T1 / T2 / T3 | CI 三层自动核验：T1 确定量 / T2 感知 / T3 状态机 |
@@ -145,7 +146,7 @@ flowchart TB
 **阶段一 G0-PRE（仅 4 步）｜执行：本 skill（步骤 1a 本 skill 判定对账，1b 包装调用 to-spec）**
 
 1. **输入对账 + 归一化**
-   - **1a 输入对账（先做，对话内完成）**：按 `docs/agents/feedback-alignment.md` §二 判定触发——batch（≥2 条），或单条但命中任一信号（形态/交互模型未定；新增用户可见面；无一手原型且无规范锚点；含判断词；跨面组合改动）。触发 → 产五列对账表 + 用户一句话确认（`确认：全按默认，#N 选 B`）；不触发 → 准备一行 `输入对账豁免: <理由>`。**处置列仍有 `待确认` = 未完成对账**：可出 proposal/design/tasks 草稿，禁止拆票与实施。
+   - **1a 输入对账（先做，对话内完成）**：按 `docs/agents/feedback-alignment.md` §二 判定触发——batch（≥2 条），或单条但命中任一信号（形态/交互模型未定；新增用户可见面；无一手原型且无规范锚点；含判断词；跨面组合改动）。触发 → 产七列对账表（`# | 功能模块 | 用户原话 | agent 理解 | 歧义点/候选 | 冲突/疑点 | 处置`，同模块行相邻）+ 用户一句话确认（`确认：全按默认，#N 选 B`）；产表前必须跑 §二「综合分析」四面对照（specs / 批准设计 / 现有实现 / 同批其他条目），条目间矛盾、与规格或现状不符一律写进冲突列并反馈，不得静默挑一支实现；不触发 → 准备一行 `输入对账豁免: <理由>`。**处置列仍有 `待确认` 或 `需你裁决` = 未完成对账**：可出 proposal/design/tasks 草稿，禁止拆票与实施。
    - **1b 归一化**：调 `to-spec` 综合产出 spec issue（需求定义面）→ **把 1a 产物（`## 输入对账` 表或豁免行）作为 spec issue 评论固化** → 四要素映射写入 requirements.md（What/Why/Scope/Non-goals，引用 spec issue URL）——产出四要素后方可继续
 2. **需求输入门（L-1 契约门）**：任何以「对标 / 学习某产品 / 补齐某能力」为由的 change，在进入拆票前，其**需求输入包**（`docs/requirements/<change>/input-package.md` 或 `requirements.md` 增补段）须满足五条契约——**来源可追溯 / 空白显式化（`open-question` 阻断引用它的规格条目）/ 一手证据 / 冲突显式 / 验收锚点**；纯重构/纯文档/纯基建票显式标注 `no-ui-impact` 者豁免。违规 → fix-first：补齐后重验，不得进入拆票。
 3. 读规范核对日期（见规范前置）
@@ -182,7 +183,7 @@ flowchart TB
   ```
   **看板常量从项目根 `.change-workflow.conf` 读取**（由 setup.sh 生成）：`PROJECT_ID` / `STATUS_FIELD_ID` / `OPT_READY` / `OPT_DONE` / `OPT_BACKLOG` / `OPT_IN_PROGRESS`
 - **对账自证**：`./scripts/cw-tickets-check.sh --change <change 名> --live`（C1 双射脚本化：子票数 == tasks.md task 数、编号逐条对应；spec issue 标题不含该前缀天然排除）；**禁止占位符原样传入命令**
-- **输入对账机检（C11）**：`cw-tickets-check.sh`（草稿与 `--live` 均跑）校验 spec issue 的 `## 输入对账` 段——五列表存在、处置列非空且无 `待确认`、表尾有 `确认：`，或存在非空 `输入对账豁免: <理由>`；只对 `createdAt ≥ INPUT_ALIGNMENT_SINCE`（`.change-workflow.conf`）的 spec issue 生效，历史 change 不追溯。结构不合格 → fix-first 补表后重跑
+- **输入对账机检（C11）**：`cw-tickets-check.sh`（草稿与 `--live` 均跑）校验 spec issue 的 `## 输入对账` 段——表头含「处置」且≥五列、功能模块与处置列非空且同模块行相邻、冲突/疑点列非空（无则填 `—`）、处置列无 `待确认`/`需你裁决`、暂缓必带理由、表尾有 `确认：`，或存在非空 `输入对账豁免: <理由>`；列为按表头名定位（五列旧表兼容，新 change 一律七列）；只对 `createdAt ≥ INPUT_ALIGNMENT_SINCE`（`.change-workflow.conf`）的 spec issue 生效，历史 change 不追溯。结构不合格 → fix-first 补表后重跑
 - **一致性制品校验（G0-POST）**：`./scripts/cw-conformance.sh verify <change>`（重投影 anchors.md 语义比对 + lock 哈希核验，退 0 才放行）
 
 ### G1 实施 gate｜执行：implement skill（总编排，task-tracking §7.1 ✅ 必用）
@@ -238,6 +239,7 @@ flowchart TB
 ### G3 任务级收尾（每轮必做，非阻塞）｜执行：learn + sync-gbrain
 
 - **时机**：push + PR 创建后立即执行，不等合并
+- **交付对账回填**：本票合并后做两件事，缺一不算交付——① **在回合回复里直接列出本票功能点清单**（编号 + 功能模块 + 交付功能点 + 状态；同批多票可在回合末合成一张表），不等用户问、不拿 PR 链接交差；② 把同样内容回填 spec issue 的 `## 交付对账` 评论。规则见 `docs/agents/feedback-alignment.md` §八——功能点用用户可测的语言写，不写文件名/函数名；没做的写 `未交付（理由）`，顺手做了对账以外的事单列 `超出对账`
 - **不阻塞下一 change**：下一 change 自 commit/push 完成后即可启动；learn/sync 是收尾动作而非前置 gate，可并行
 - **frontier 自动推进（任务级零询问）**：G3 后自动运行 `gh issue list --label ready-for-agent --state open --json number,title,body` 按 `[change=<名>/` 精确筛选 → 逐票解析 Blocked by 确认全部 closed → 取第一张可开工票**立即进入其 G1**；同一 change 内连续执行到无票可做——推进全程零询问，**禁止以「是否继续下一票」之类提问结束回合**（跨会话接力见「会话启动」节）。无票可做 → change 收口检查（completedTasks==totalTasks 且无残留且无未合并 PR）→ 自动进入 G4。标签名以 conf `LABEL_READY` 为准（默认 `ready-for-agent`），conf 值优先
 - **阻塞等待（有界轮询）**：frontier 为空的唯一原因是「前序票 PR 已创建未合并」（`gh pr list --state open` 命中本 change）→ 轮询该 PR 状态（`gh pr view <N> --json state`，间隔 20s、上限 10 分钟；low/medium 已由 G2 尝试 auto-merge）→ 合并后**自动继续**下一票；超上限 → 报告「等待 PR #N 合并」并给出恢复命令（合并完成后自动恢复，不询问「是否继续」）
@@ -258,7 +260,7 @@ flowchart TB
 
 ### G4 change 级收尾（§8.2 自动触发，合并后）｜执行：openspec 套件 + gbrain
 
-- 全部 tasks [x] + 关联 PR 全合并 → 主 spec `/opsx-sync`（合并后唯一时机，零差异确认）→ `validate --strict` → archive → 看板 Done → **关闭 spec issue #S**（`gh issue close --comment "change 已收口"`）→ gbrain 增量
+- 全部 tasks [x] + 关联 PR 全合并 → **交付对账定稿**（spec issue 的 `## 交付对账` 评论：每行有功能点且状态非空，`未交付` 带理由、`超出对账` 单列；缺表或状态空缺 → 不得收口，补后才进下一步）→ 主 spec `/opsx-sync`（合并后唯一时机，零差异确认）→ `validate --strict` → archive → 看板 Done → **关闭 spec issue #S**（`gh issue close --comment "change 已收口"`）→ gbrain 增量
 - **`validate --strict` 与 spec delta**：spec-driven schema 要求 change 至少一个 `specs/<capability>/spec.md` delta（`## ADDED/MODIFIED Requirements` + `#### Scenario:`）。**纯文档/基建 change（tasks-only）会 validate 失败** → 处置：补最小 delta（新建/复用 capability，把变更固化为 Requirement），或确认无 spec 语义后走非 strict
 - **仅 `/opsx-sync`（主 spec 同步）限合并后执行**；任务级 `sync-gbrain` 不受此限（push+PR 后立即）
 - **收尾生命周期黑盒巡检（G4 前置）**：按六态清单真机走查 `打开→插入→编辑→切换→取消→关闭→空态→错误`，发现问题即**不允许收尾**（转缺陷处理机制，修复后重巡）
